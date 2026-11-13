@@ -35,7 +35,7 @@ class HttpOcrSubmissionGatewayTest {
         )
 
         val error = assertThrows(IllegalArgumentException::class.java) {
-            kotlinx.coroutines.runBlocking { gateway.createConsent(request) }
+            validatedHttpsApiRoot("http://api.example.test")
         }
         assertEquals("The Kavoryn API must use HTTPS.", error.message)
     }
