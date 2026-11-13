@@ -16,7 +16,7 @@ final class ProviderChatStreamerFactory
     public static function fromEnvironment(array $environment, string $provider): ProviderChatStreamer
     {
         if (!in_array($provider, ['openai', 'gemini'], true)) {
-            throw new \\InvalidArgumentException('The requested AI provider is not supported.');
+            throw new \InvalidArgumentException('The requested AI provider is not supported.');
         }
 
         $transport = new CurlSseStreamTransport([
