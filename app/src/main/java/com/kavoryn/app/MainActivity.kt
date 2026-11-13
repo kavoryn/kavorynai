@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { HOME, REVIEW, LOCAL_READY, AUTH }
+private enum class Screen { HOME, REVIEW, LOCAL_READY, AUTH, UPLOAD }
 
 @Composable
 private fun DocumentFlow() {
@@ -248,7 +248,7 @@ private fun DocumentFlow() {
                             authApi.signInWithPassword(email, password).also(authStore::save)
                         }
                         authSession = session
-                        screen = Screen.HOME
+                        screen = if (selectedDocuments.isNotEmpty()) Screen.REVIEW else Screen.HOME
                     } catch (error: Exception) {
                         authError = error.message ?: "Sign-in failed. Please try again."
                     } finally {
@@ -269,7 +269,7 @@ private fun DocumentFlow() {
                         }
                         if (result.session != null) {
                             authSession = result.session
-                            screen = Screen.HOME
+                            screen = if (selectedDocuments.isNotEmpty()) Screen.REVIEW else Screen.HOME
                         } else {
                             authNotice = "Account created. Check your email to confirm it, then sign in."
                         }
@@ -308,8 +308,35 @@ private fun DocumentFlow() {
                 confirmed = false
                 screen = Screen.HOME
             },
-            onConfirm = { confirmed = true; screen = Screen.LOCAL_READY }
+            onConfirm = {
+                if (selectedDocuments.size != 1) {
+                    pickerError = "Please process one document at a time in this build."
+                } else if (authSession == null) {
+                    authError = "Please sign in before uploading a document."
+                    screen = Screen.AUTH
+                } else {
+                    confirmed = true
+                    screen = Screen.UPLOAD
+                }
+            }
         )
+        Screen.UPLOAD -> {
+            val document = selectedDocuments.firstOrNull()
+            val session = authSession
+            if (document != null && session != null) {
+                DocumentUploadFlow(
+                    document = document,
+                    language = selectedLanguage,
+                    accessToken = session.accessToken,
+                    apiBaseUrl = BuildConfig.KAVORYN_API_BASE_URL,
+                    onBack = { screen = Screen.REVIEW }
+                )
+            } else {
+                LocalReadyScreen(false) {
+                    screen = Screen.HOME
+                }
+            }
+        }
         Screen.LOCAL_READY -> LocalReadyScreen(confirmed) {
             cleanupTemporaryScans(context, selectedDocuments)
             selectedDocuments = emptyList()
