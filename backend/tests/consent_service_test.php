@@ -12,7 +12,6 @@ use Kavoryn\Consent\ConsentException;
 use Kavoryn\Consent\ConsentRecord;
 use Kavoryn\Consent\ConsentService;
 use Kavoryn\Consent\ConsentStore;
-use DateTimeImmutable;
 
 function consentExpect(bool $condition, string $message): void
 {
