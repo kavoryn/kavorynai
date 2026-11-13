@@ -126,26 +126,36 @@ final class PaystackClient
                 foreach ($headers as $name => $value) {
                     $headerLines[] = $name . ': ' . $value;
                 }
-                curl_setopt_array($curl, [
-                    CURLOPT_RETURNTRANSFER => true,
+                $responseBody = '';
+                $options = [
+                    CURLOPT_RETURNTRANSFER => false,
                     CURLOPT_CUSTOMREQUEST => $method,
-                    CURLOPT_POSTFIELDS => $body,
                     CURLOPT_HTTPHEADER => $headerLines,
                     CURLOPT_CONNECTTIMEOUT => 5,
                     CURLOPT_TIMEOUT => 15,
                     CURLOPT_FOLLOWLOCATION => false,
                     CURLOPT_SSL_VERIFYPEER => true,
                     CURLOPT_SSL_VERIFYHOST => 2,
-                    CURLOPT_MAXFILESIZE => 1048576,
-                ]);
-                $responseBody = curl_exec($curl);
+                    CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$responseBody): int {
+                        if (strlen($responseBody) + strlen($chunk) > 1048576) {
+                            return 0;
+                        }
+                        $responseBody .= $chunk;
+                        return strlen($chunk);
+                    },
+                ];
+                if ($body !== null) {
+                    $options[CURLOPT_POSTFIELDS] = $body;
+                }
+                curl_setopt_array($curl, $options);
+                $completed = curl_exec($curl);
                 $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
                 $error = curl_errno($curl);
                 curl_close($curl);
-                if ($responseBody === false || $error !== 0 || strlen((string) $responseBody) > 1048576) {
+                if ($completed === false || $error !== 0) {
                     throw new PaystackUnavailableException('Paystack transport failed.');
                 }
-                $response = ['status' => $status, 'body' => (string) $responseBody];
+                $response = ['status' => $status, 'body' => $responseBody];
             }
         } catch (PaystackUnavailableException $exception) {
             throw $exception;
