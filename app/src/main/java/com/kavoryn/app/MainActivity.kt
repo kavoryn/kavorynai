@@ -17,6 +17,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.kavoryn.app.ocr.OcrLanguage
+import com.kavoryn.app.auth.SupabaseAuthApi
+import com.kavoryn.app.auth.SupabaseAuthException
+import com.kavoryn.app.auth.shouldClearStoredSessionAfterRefreshFailure
+import com.kavoryn.app.auth.SupabaseAuthSession
+import com.kavoryn.app.auth.SupabaseSessionStore
+import com.kavoryn.app.auth.SupabaseSignInScreen
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val KavorynBlue = Color(0xFFE8F1FB)
 private val KavorynGold = Color(0xFFC9A24B)
@@ -37,7 +46,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { HOME, REVIEW, LOCAL_READY }
+private enum class Screen { HOME, REVIEW, LOCAL_READY, AUTH }
 
 @Composable
 private fun DocumentFlow() {
@@ -48,9 +57,43 @@ private fun DocumentFlow() {
     var pickerError by remember { mutableStateOf<String?>(null) }
     var selectedLanguage by remember { mutableStateOf(OcrLanguage.ENGLISH) }
     var pendingCamera by remember { mutableStateOf<CameraOutput?>(null) }
+    var authSession by remember { mutableStateOf<SupabaseAuthSession?>(null) }
+    var authLoading by remember { mutableStateOf(false) }
+    var authError by remember { mutableStateOf<String?>(null) }
+    val authConfigured = BuildConfig.SUPABASE_URL.isNotBlank() &&
+        BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()
+    val authStore = remember(context) { SupabaseSessionStore(context) }
+    val authApi = remember {
+        SupabaseAuthApi(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+    }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         cleanupStaleTemporaryScans(context)
+        val saved = withContext(Dispatchers.IO) { authStore.read() }
+        if (saved != null) {
+            if (saved.expiresAtEpochSeconds > System.currentTimeMillis() / 1000 + 60) {
+                authSession = saved
+            } else {
+                try {
+                    authSession = withContext(Dispatchers.IO) {
+                        authApi.refreshSession(saved.refreshToken).also(authStore::save)
+                    }
+                    authError = null
+                } catch (error: SupabaseAuthException) {
+                    // Only a rejected refresh credential proves the saved session is unusable.
+                    // Network errors, rate limits and server failures must not erase it.
+                    if (shouldClearStoredSessionAfterRefreshFailure(error)) {
+                        withContext(Dispatchers.IO) { authStore.clear() }
+                        authError = "Your saved sign-in has expired. Please sign in again."
+                    } else {
+                        authError = "Kavoryn couldn't reconnect. Your encrypted session is kept; try again when you're online."
+                    }
+                } catch (_: Exception) {
+                    authError = "Kavoryn couldn't reconnect. Your encrypted session is kept; try again when you're online."
+                }
+            }
+        }
     }
 
     fun acceptUri(uri: android.net.Uri) {
@@ -117,6 +160,25 @@ private fun DocumentFlow() {
     when (screen) {
         Screen.HOME -> HomeScreen(
             error = pickerError,
+            signedInEmail = authSession?.email,
+            authConfigured = authConfigured,
+            accountError = authError,
+            authLoading = authLoading,
+            onOpenSignIn = { authError = null; screen = Screen.AUTH },
+            onSignOut = {
+                val session = authSession
+                authLoading = true
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        try { if (session != null) authApi.signOut(session.accessToken) }
+                        catch (_: Exception) { }
+                        authStore.clear()
+                    }
+                    authSession = null
+                    authLoading = false
+                    authError = null
+                }
+            },
             selectedLanguage = selectedLanguage,
             onLanguageChange = { selectedLanguage = it },
             onChoose = {
@@ -130,6 +192,29 @@ private fun DocumentFlow() {
                     camera.launch(output.uri)
                 } catch (_: Exception) {
                     pickerError = "Camera could not be started. Please try choosing an image instead."
+                }
+            }
+        )
+        Screen.AUTH -> SupabaseSignInScreen(
+            configured = authConfigured,
+            loading = authLoading,
+            errorMessage = authError,
+            onCancel = { authError = null; screen = Screen.HOME },
+            onSignIn = { email, password ->
+                authLoading = true
+                authError = null
+                scope.launch {
+                    try {
+                        val session = withContext(Dispatchers.IO) {
+                            authApi.signInWithPassword(email, password).also(authStore::save)
+                        }
+                        authSession = session
+                        screen = Screen.HOME
+                    } catch (error: Exception) {
+                        authError = error.message ?: "Sign-in failed. Please try again."
+                    } finally {
+                        authLoading = false
+                    }
                 }
             }
         )
@@ -174,6 +259,12 @@ private fun DocumentFlow() {
 @Composable
 private fun HomeScreen(
     error: String?,
+    signedInEmail: String?,
+    authConfigured: Boolean,
+    accountError: String?,
+    authLoading: Boolean,
+    onOpenSignIn: () -> Unit,
+    onSignOut: () -> Unit,
     selectedLanguage: OcrLanguage,
     onLanguageChange: (OcrLanguage) -> Unit,
     onChoose: () -> Unit,
@@ -217,6 +308,29 @@ private fun HomeScreen(
                     Text("Choose PDF or image")
                 }
                 if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Account", style = MaterialTheme.typography.titleMedium)
+                if (accountError != null) {
+                    Text(accountError, color = MaterialTheme.colorScheme.error)
+                }
+                if (signedInEmail != null) {
+                    Text("Signed in as $signedInEmail")
+                    OutlinedButton(
+                        onClick = onSignOut,
+                        enabled = !authLoading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (authLoading) "Signing out…" else "Sign out")
+                    }
+                } else {
+                    Text(if (authConfigured) "Sign in to access your private workspace."
+                        else "Sign-in is unavailable until Supabase build configuration is provided.")
+                    OutlinedButton(onClick = onOpenSignIn, enabled = authConfigured && !authLoading,
+                        modifier = Modifier.fillMaxWidth()) { Text("Sign in") }
+                }
             }
         }
         ModeCard("Describe what I see", "Coming in Stage C")

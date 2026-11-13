@@ -20,6 +20,11 @@ Last updated: 2026-11-13
 - Consent-before-upload coordinator and authenticated HTTPS gateway for `POST /v1/consents` and multipart `POST /v1/documents`. Upload streams data and uses idempotency keys.
 - Authenticated HTTPS client for completed OCR results, Unicode code-point to UTF-16 uncertainty range conversion, and an accessible OCR text review screen.
 - AI processing consent dialog with OpenAI/Gemini and language selection, plus authenticated explanation API client.
+- Supabase Auth REST client supports password sign-in, refresh-token exchange and sign-out over HTTPS using an injected client publishable key.
+- Supabase access/refresh tokens can be stored using AES-256-GCM encryption backed by an Android Keystore key; corrupt or undecryptable session data is cleared.
+- Supabase sign-in is wired into the main Compose activity. Successful sign-in persists the session in Android Keystore-backed encrypted storage; startup restores the session and refreshes it when near expiry; sign-out revokes remotely when possible and always clears the local session. Network and keystore operations run on `Dispatchers.IO`.
+- Local document selection/review remains available without an account. Registration and proactive background refresh scheduling are not implemented.
+- Unit tests cover Supabase project URL validation and auth-session parsing.
 - Android CI runs unit tests before assembling the debug APK.
 
 ### Backend
@@ -34,14 +39,15 @@ Last updated: 2026-11-13
 
 ## Verified build evidence
 
-- Android workflow run [43475701090](https://github.com/kavoryn/kavorynai/actions/runs/43475701090) completed successfully on commit `8b9bdaf96e58d8fdfefd8acff8835ba07b8035d1`; unit tests and debug APK assembly passed.
-- Latest workflow [43475751689](https://github.com/kavoryn/kavorynai/actions/runs/43475751689), commit `7279de5f9b5fd4967166beea079838c37ab5c5c2`: unit tests and debug APK assembly steps both reported success; workflow finalization was still in progress at the last status check.
+- Android workflow [43479920282](https://github.com/kavoryn/kavorynai/actions/runs/43479920282) completed successfully on the Supabase Auth foundation; unit tests and debug APK assembly passed.
+- Earlier Android workflows [43475751689](https://github.com/kavoryn/kavorynai/actions/runs/43475751689) and [43476229668](https://github.com/kavoryn/kavorynai/actions/runs/43476229668) also passed their respective commits.
 
 A successful CI build is not a staging or device acceptance test.
 
 ## Not yet complete / release blockers
 
-- Android sign-in/session lifecycle is not wired into the app. Supabase client configuration (publishable key) must be supplied through safe build configuration; never place a service-role key in Android.
+- Supabase URL and publishable key are injected from Gradle properties or environment variables (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`); never place a service-role key in Android or source control.
+- Registration, proactive background token refresh scheduling, session-expiry UX and encrypted-store device tests remain outstanding.
 - Staging API base URL and staging credentials have not been supplied, so authenticated end-to-end staging tests have not run.
 - The local review screen is not yet connected to authenticated upload, OCR completion polling, OCR result display, AI explanation consent/API, and result actions.
 - Text-to-speech, document-grounded Q&A, Share and Delete controls are not yet connected end-to-end in the Android result flow.
@@ -51,8 +57,8 @@ A successful CI build is not a staging or device acceptance test.
 
 ## Next engineering milestones
 
-1. Finish CI verification on the latest commit.
-2. Add secure Supabase sign-in/session handling using only client-safe configuration.
+1. Run CI for the integrated Supabase sign-in/session flow and resolve any failures.
+2. Add registration and proactive refresh/session-expiry handling with device-level secure-storage tests.
 3. Connect Android review → consent → upload → OCR result → AI explanation, with cancel/delete and explicit consent behavior.
 4. Configure and test a staging environment, then verify ownership isolation, expiry/deletion, retries, provider consent, OpenAI and Gemini.
 5. Complete accessibility and multilingual corpus testing before enabling upload/worker flags or any public release.
