@@ -143,6 +143,7 @@ final class SupabaseOcrJobStore implements OcrJobStore
             throw new OcrJobStoreUnavailableException();
         }
 
+        if (is_bool($decoded)) return [$decoded];
         if (!is_array($decoded)) throw new OcrJobStoreUnavailableException();
         return array_is_list($decoded) ? $decoded : [$decoded];
     }
