@@ -36,6 +36,22 @@ $recorder = new \Kavoryn\Ai\SupabaseAiProcessingConsentRecorder(
 );
 $recorder->record($userId, $documentId, 'gemini', 'ha');
 
+$askRecorder = new SupabaseAiProcessingConsentRecorder(
+    'https://example.supabase.co',
+    'secret-test',
+    'service-role-test',
+    function (string $url, array $headers, string $body): array {
+        $payload = json_decode($body, true, 16, JSON_THROW_ON_ERROR);
+        aiConsentExpect(($payload['p_purpose'] ?? null) === 'Answer a question using the selected external AI provider', 'Q&A consent must have a distinct audit purpose.');
+        return ['status' => 200, 'body' => json_encode([[
+            'consent_id' => $payload['p_id'],
+            'document_sha256' => hash('sha256', 'document'),
+            'consented_at' => '2026-11-13T17:00:00Z',
+        ]], JSON_THROW_ON_ERROR)];
+    },
+);
+$askRecorder->record($userId, $documentId, 'gemini', 'ha', 'ask');
+
 $failed = new SupabaseAiProcessingConsentRecorder(
     'https://example.supabase.co',
     'secret-test',
