@@ -106,6 +106,16 @@ jobs:
             }
           '
 
+          result_status=$(curl --silent --output /tmp/kavoryn-result.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/documents/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12/result)
+          test "$result_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-result.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "OCR result endpoint must authenticate before reading results.\\n");
+                exit(1);
+            }
+          '
+
           upload_status=$(curl --silent --output /tmp/kavoryn-upload.json --write-out '%{http_code}' -X POST http://127.0.0.1:8080/v1/documents)
           test "$upload_status" = "503"
           php -r '
