@@ -20,25 +20,52 @@ final class SupabaseConsentStore implements ConsentStore
         }
     }
 
-    public function create(ConsentRecord $record): void
+    public function create(ConsentRecord $record): ConsentRecord
     {
-        $payload = [
-            'id' => $record->id,
-            'user_id' => $record->userId,
-            'feature' => 'document',
-            'provider_name' => null,
-            'purpose' => 'User-authorized document OCR and explanation',
-            'consented_at' => $record->createdAt->format(DATE_ATOM),
-            'confirmation_token_hash' => $record->tokenHash,
-            'expires_at' => $record->expiresAt->format(DATE_ATOM),
-            'revoked_at' => null,
-            'action' => $record->action,
-            'payload_sha256' => $record->payloadSha256,
-            'output_language' => $record->language,
-            'translate' => $record->translate,
-            'consumed_at' => null,
-        ];
-        $this->post('/rest/v1/processing_consents', $payload, ['Prefer: return=minimal']);
+        $ttlSeconds = $record->expiresAt->getTimestamp() - $record->createdAt->getTimestamp();
+        $body = $this->post('/rest/v1/rpc/create_processing_consent', [
+            'p_id' => $record->id,
+            'p_user_id' => $record->userId,
+            'p_action' => $record->action,
+            'p_payload_sha256' => $record->payloadSha256,
+            'p_output_language' => $record->language,
+            'p_translate' => $record->translate,
+            'p_token_hash' => $record->tokenHash,
+            'p_ttl_seconds' => $ttlSeconds,
+        ]);
+
+        try {
+            $rows = json_decode($body, true, 16, JSON_THROW_ON_ERROR);
+        } catch (\\JsonException) {
+            throw new ConsentStorageUnavailableException('Invalid consent creation response.');
+        }
+
+        $row = is_array($rows) ? ($rows[0] ?? null) : null;
+        if (!is_array($row) ||
+            !is_string($row['consent_id'] ?? null) ||
+            !is_string($row['consented_at'] ?? null) ||
+            !is_string($row['expires_at'] ?? null)) {
+            throw new ConsentStorageUnavailableException('Invalid consent creation response.');
+        }
+
+        try {
+            $createdAt = new DateTimeImmutable($row['consented_at']);
+            $expiresAt = new DateTimeImmutable($row['expires_at']);
+        } catch (\\Throwable) {
+            throw new ConsentStorageUnavailableException('Invalid consent timestamps returned by database.');
+        }
+
+        return new ConsentRecord(
+            $row['consent_id'],
+            $record->userId,
+            $record->action,
+            $record->payloadSha256,
+            $record->language,
+            $record->translate,
+            $record->tokenHash,
+            $createdAt,
+            $expiresAt,
+        );
     }
 
     public function consumeOnce(string $tokenHash, string $userId, string $action, string $payloadSha256, string $language, bool $translate, DateTimeImmutable $now): bool
