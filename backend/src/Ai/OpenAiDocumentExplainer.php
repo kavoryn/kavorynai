@@ -22,6 +22,25 @@ final class OpenAiDocumentExplainer implements DocumentExplainer
     /**
      * @return array{summary:string,detailed_explanation:string,actions:list<string>,key_facts:list<array{label:string,value:string,source_quote:string}>}
      */
+    /**
+     * @return list<array{start:int,end:int,confidence:float,reason:string,text:string}>
+     */
+    private function uncertainSpanContext(OcrResult $ocr): array
+    {
+        preg_match_all('/./us', $ocr->text, $characters);
+        $context = [];
+        foreach ($ocr->uncertainSpans as $span) {
+            $context[] = [
+                'start' => $span['start'],
+                'end' => $span['end'],
+                'confidence' => (float) $span['confidence'],
+                'reason' => $span['reason'],
+                'text' => implode('', array_slice($characters[0], $span['start'], $span['end'] - $span['start'])),
+            ];
+        }
+        return $context;
+    }
+
     public function explain(OcrResult $ocr, string $language): array
     {
         if (!in_array($language, ['en', 'ha', 'ar', 'fr'], true)) {
@@ -67,7 +86,9 @@ final class OpenAiDocumentExplainer implements DocumentExplainer
                 'content' => [[
                     'type' => 'input_text',
                     'text' => "Explain this OCR text. OCR detected language: " . ($ocr->detectedLanguage ?? 'unknown') .
-                        ". Uncertain spans must be treated as potentially incorrect.\n\nDOCUMENT OCR TEXT:\n" . $ocr->text,
+                        ". UNCERTAIN OCR SPANS (character offsets and extracted text; verify these carefully): " .
+                        json_encode($this->uncertainSpanContext($ocr), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) .
+                        "\n\nDOCUMENT OCR TEXT:\n" . $ocr->text,
                 ]],
             ]],
             'text' => [
