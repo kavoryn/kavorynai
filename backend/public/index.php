@@ -46,6 +46,7 @@ if ($method === 'GET' && $path === '/v1/me') {
 
     require_once dirname(__DIR__) . '/src/Auth/AuthenticatedUser.php';
     require_once dirname(__DIR__) . '/src/Auth/AuthenticationException.php';
+    require_once dirname(__DIR__) . '/src/Auth/AuthenticationServiceUnavailableException.php';
     require_once dirname(__DIR__) . '/src/Auth/SupabaseUserVerifier.php';
 
     try {
@@ -54,6 +55,14 @@ if ($method === 'GET' && $path === '/v1/me') {
             $publishableKey,
         );
         $user = $verifier->verifyBearerToken($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+    } catch (\Kavoryn\Auth\AuthenticationServiceUnavailableException) {
+        respond(503, [
+            'error' => [
+                'code' => 'authentication_service_unavailable',
+                'message' => 'User verification is temporarily unavailable.',
+                'request_id' => $requestId,
+            ],
+        ]);
     } catch (\Kavoryn\Auth\AuthenticationException) {
         respond(401, [
             'error' => [
