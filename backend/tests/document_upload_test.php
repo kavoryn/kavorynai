@@ -70,11 +70,31 @@ $pdfPath = $base . '/sample.pdf';
 $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n";
 file_put_contents($pdfPath, $pdf);
 
-$inspector = new DocumentFileInspector();
+$inspector = new DocumentFileInspector(
+    static fn (string $path): array => ['exit_code' => 0, 'stdout' => "Pages:          2\\nEncrypted:       no\\n", 'stderr' => ''],
+);
 $document = $inspector->inspect($pdfPath, 'sample.pdf');
 uploadExpect($document->mimeType === 'application/pdf', 'PDF must be identified by content, not filename alone.');
 uploadExpect($document->sha256 === hash('sha256', $pdf), 'Inspector must calculate SHA-256 over original bytes.');
 uploadExpect($document->sizeBytes === strlen($pdf), 'Inspector must report exact byte size.');
+uploadExpect($document->pageCount === 2, 'PDF inspection must return a verified page count.');
+
+foreach ([
+    ['exit_code' => 0, 'stdout' => "Pages: 51\\nEncrypted: no\\n", 'stderr' => ''],
+    ['exit_code' => 0, 'stdout' => "Pages: 0\\nEncrypted: no\\n", 'stderr' => ''],
+    ['exit_code' => 0, 'stdout' => "Pages: 1\\nEncrypted: yes\\n", 'stderr' => ''],
+    ['exit_code' => 1, 'stdout' => '', 'stderr' => 'Syntax Error'],
+    ['exit_code' => 0, 'stdout' => "File size: 100 bytes\\n", 'stderr' => ''],
+] as $pdfInfoResult) {
+    $badInspector = new DocumentFileInspector(static fn (string $path): array => $pdfInfoResult);
+    $pdfRejected = false;
+    try {
+        $badInspector->inspect($pdfPath, 'sample.pdf');
+    } catch (DocumentFileException) {
+        $pdfRejected = true;
+    }
+    uploadExpect($pdfRejected, 'Malformed, encrypted, empty, and over-limit PDFs must be rejected.');
+}
 
 $storage = new PrivateDocumentStorage($private, $public);
 $key = $storage->store($pdfPath, $document);
