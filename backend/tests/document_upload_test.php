@@ -242,4 +242,4 @@ rmdir($private);
 rmdir($public);
 rmdir($base);
 
-echo "Document upload tests passed (file inspection, private storage, digest verification, and service contract)." . PHP_EOL;
+echo "Document upload tests passed (real PDF page counting, PDF rejection cases, upload rate limiting, private storage, digest verification, and service contract)." . PHP_EOL;
