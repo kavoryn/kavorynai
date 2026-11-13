@@ -66,8 +66,18 @@ private fun DocumentFlow() {
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
         val output = pendingCamera
         if (saved && output != null && output.file.exists() && output.file.length() > 0L) {
-            acceptUri(output.uri)
-            if (selectedDocuments.none { it.uri == output.uri }) output.file.delete()
+            when (val result = readDocumentMetadata(context, output.uri)) {
+                is DocumentMetadataResult.Valid -> {
+                    selectedDocuments = selectedDocuments + result.document
+                    confirmed = false
+                    pickerError = null
+                    screen = Screen.REVIEW
+                }
+                is DocumentMetadataResult.Invalid -> {
+                    output.file.delete()
+                    pickerError = result.reason
+                }
+            }
         } else {
             output?.file?.delete()
             pickerError = if (saved) {
@@ -234,7 +244,11 @@ private fun ReviewScreen(
         }
         Text("No OCR, AI processing or upload happens here. The checks above only inspect file structure and image dimensions.")
         OutlinedButton(onClick = onCancel, Modifier.fillMaxWidth().height(52.dp)) { Text("Cancel") }
-        Button(onClick = onConfirm, Modifier.fillMaxWidth().height(56.dp)) { Text("Confirm local review") }
+        Button(
+            onClick = onConfirm,
+            enabled = inspections.isNotEmpty() && inspections.none { it.second is DocumentInspection.Problem },
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) { Text("Confirm local review") }
     }
 }
 
