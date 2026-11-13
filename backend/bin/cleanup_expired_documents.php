@@ -54,7 +54,8 @@ $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
 $storagePath = getenv('PRIVATE_DOCUMENT_STORAGE_PATH') ?: '';
 
 if ($supabaseUrl === '' || parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
-    $secretKey === '' || $serviceRoleJwt === '' || $storagePath === '') {
+    $secretKey === '' || $serviceRoleJwt === '' || $storagePath === '' ||
+    !str_starts_with($storagePath, DIRECTORY_SEPARATOR)) {
     fwrite(STDERR, "Cleanup configuration is incomplete.\n");
     exit(1);
 }
