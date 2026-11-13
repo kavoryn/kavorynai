@@ -8,6 +8,9 @@ create table if not exists private.document_upload_rate_limits (
     primary key (user_id, window_seconds, bucket_start)
 );
 
+create index if not exists document_upload_rate_limits_expiry_idx
+on private.document_upload_rate_limits(bucket_start);
+
 alter table private.document_upload_rate_limits enable row level security;
 revoke all on schema private from public, anon, authenticated;
 revoke all on private.document_upload_rate_limits from public, anon, authenticated, service_role;
