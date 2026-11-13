@@ -69,7 +69,12 @@ fun DocumentQuestionScreen(
         )
         OutlinedTextField(
             value = question,
-            onValueChange = { question = it.take(1_000); error = null },
+            onValueChange = {
+                question = it.take(1_000)
+                confirmed = false
+                result = null
+                error = null
+            },
             label = { Text("Your question") },
             supportingText = { Text("${question.length}/1,000 characters") },
             enabled = !loading,
