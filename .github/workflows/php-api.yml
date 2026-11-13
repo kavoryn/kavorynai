@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - "backend/**"
-      - "backend/**"
       - "supabase/migrations/**"
       - ".github/workflows/php-api.yml"
   pull_request:
@@ -47,6 +46,12 @@ jobs:
       - name: Supabase consent adapter tests
         run: php backend/tests/supabase_consent_store_test.php
 
+      - name: Document upload tests
+        run: php backend/tests/document_upload_test.php
+
+      - name: Supabase document registry tests
+        run: php backend/tests/supabase_document_registry_test.php
+
       - name: API smoke tests
         shell: bash
         run: |
@@ -79,6 +84,16 @@ jobs:
             $data = json_decode(file_get_contents("/tmp/kavoryn-me.json"), true, 512, JSON_THROW_ON_ERROR);
             if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
                 fwrite(STDERR, "Auth endpoint must fail closed when configuration is absent.\\n");
+                exit(1);
+            }
+          '
+
+          upload_status=$(curl --silent --output /tmp/kavoryn-upload.json --write-out '%{http_code}' -X POST http://127.0.0.1:8080/v1/documents)
+          test "$upload_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-upload.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "Document upload must fail closed without authentication.\\n");
                 exit(1);
             }
           '
