@@ -28,7 +28,7 @@ $geminiOnly = [
 
 foreach ([['openai', $openAiOnly], ['gemini', $geminiOnly]] as [$provider, $config]) {
     $streamer = ProviderChatStreamerFactory::fromEnvironment($config, $provider);
-    if (!$streamer instanceof \\Kavoryn\Ai\ProviderChatStreamer) {
+    if (!$streamer instanceof \Kavoryn\Ai\ProviderChatStreamer) {
         throw new RuntimeException('The selected provider configuration must create a streamer.');
     }
 }
