@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Consent;
+namespace Kavoryn\Consent;
 
 use RuntimeException;
 
 final class ConsentStorageUnavailableException extends RuntimeException
 {
-    public function __construct()
+    public function __construct(string $message = 'Consent verification is temporarily unavailable.')
     {
-        parent::__construct('Consent verification is temporarily unavailable.');
+        parent::__construct($message);
     }
 }
