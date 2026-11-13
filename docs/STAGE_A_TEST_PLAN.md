@@ -129,7 +129,7 @@ Stage A is not approved until all critical security/privacy/accessibility cases 
 | OCR-007 | Join multi-page text | Pages are returned in page-number order |
 | OCR-008 | Run fixed language text fixtures | English, Hausa, Arabic and French Unicode is preserved |
 
-These are authored unit tests and have not yet been executed. Real OCR accuracy tests require a permissioned scan corpus and selected provider adapters.
+Automated OCR contract and coordinator unit tests are executed by the Android CI workflow. The latest workflow run (43475751689) reported the unit-test step as successful. This does not measure real OCR accuracy: that still requires a fixed permissioned/synthetic scan corpus and selected provider adapters.
 
 
 ## OCR submission coordinator tests
@@ -144,7 +144,7 @@ These are authored unit tests and have not yet been executed. Real OCR accuracy 
 | OCR-SUB-006 | Retry with same idempotency key | API must return the same job outcome without duplicate processing |
 | OCR-SUB-007 | Coroutine is cancelled | Cancellation propagates and is not converted into a retryable network error |
 
-Coordinator tests are authored but have not been executed. A concrete authenticated HTTPS gateway and server-side digest verification are still required before any upload can occur.
+Coordinator and authenticated HTTPS gateway unit tests are executed by Android CI. The concrete gateway exists, but Android sign-in/session wiring and staging API configuration are not yet connected to the app UI. End-to-end server-side digest, upload, queue, OCR, expiry and deletion behavior must still be verified in staging before enabling upload.
 
 
 ## Output language selection UI tests
