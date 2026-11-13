@@ -62,15 +62,28 @@ fun OcrResultScreen(
         Text("Original OCR text • Language: ${result.detectedLanguage}")
         if (result.uncertainSpans.isNotEmpty()) {
             Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "${result.uncertainSpans.size} uncertain text area(s)",
                         style = MaterialTheme.typography.titleSmall
                     )
                     Text(
-                        "Highlighted words may have been read incorrectly. Check them against the original document.",
+                        "⚠ Check it: highlighted words may have been read incorrectly. Compare each item with the original document.",
                         style = MaterialTheme.typography.bodyMedium
                     )
+                    result.uncertainSpans.forEach { span ->
+                        if (span.start >= 0 && span.endExclusive <= result.text.length &&
+                            span.start < span.endExclusive
+                        ) {
+                            val excerpt = result.text.substring(span.start, span.endExclusive)
+                                .replace(Regex("\\s+"), " ")
+                                .take(120)
+                            Text(
+                                "⚠ Check it — “$excerpt” (${(span.confidence * 100).toInt()}% confidence)",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
                 }
             }
         }
