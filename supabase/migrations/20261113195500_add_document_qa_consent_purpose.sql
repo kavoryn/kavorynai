@@ -15,7 +15,7 @@ create or replace function public.record_ai_processing_consent(
   p_document_id uuid,
   p_provider_name text,
   p_output_language text,
-  p_purpose text default 'Explain OCR text using the selected external AI provider'
+  p_purpose text
 )
 returns table (
   consent_id uuid,
