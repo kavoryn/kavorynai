@@ -92,8 +92,8 @@ jobs:
           test "$upload_status" = "503"
           php -r '
             $data = json_decode(file_get_contents("/tmp/kavoryn-upload.json"), true, 512, JSON_THROW_ON_ERROR);
-            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
-                fwrite(STDERR, "Document upload must fail closed without authentication.\\n");
+            if (($data["error"]["code"] ?? null) !== "document_upload_disabled") {
+                fwrite(STDERR, "Document upload must remain disabled until release gates pass.\\n");
                 exit(1);
             }
           '
