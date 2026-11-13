@@ -53,9 +53,9 @@ final class ConsentService
             $now->modify('+' . $this->ttlSeconds . ' seconds'),
         );
 
-        $this->store->create($record);
+        $storedRecord = $this->store->create($record);
 
-        return new ConsentGrant($record->id, $token, $record->expiresAt);
+        return new ConsentGrant($storedRecord->id, $token, $storedRecord->expiresAt);
     }
 
     public function consume(
