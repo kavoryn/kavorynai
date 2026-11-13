@@ -15,26 +15,31 @@ require_once dirname(__DIR__) . '/src/Ai/GeminiInteractionsRequestFactory.php';
 require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamer.php';
 require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamerFactory.php';
 
-use Kavoryn\Ai\ProviderChatStreamerFactory;
+use Kavoryn\\Ai\\ProviderChatStreamerFactory;
 
-$config = [
+$openAiOnly = [
     'OPENAI_API_KEY' => 'openai-test-key',
     'OPENAI_CHAT_MODEL' => 'gpt-test-model',
+];
+$geminiOnly = [
     'GEMINI_API_KEY' => 'gemini-test-key',
     'GEMINI_CHAT_MODEL' => 'gemini-test-model',
 ];
 
-$streamer = ProviderChatStreamerFactory::fromEnvironment($config);
-if (!$streamer instanceof \Kavoryn\Ai\ProviderChatStreamer) {
-    throw new RuntimeException('The server configuration factory must return a provider chat streamer.');
+foreach ([['openai', $openAiOnly], ['gemini', $geminiOnly]] as [$provider, $config]) {
+    $streamer = ProviderChatStreamerFactory::fromEnvironment($config, $provider);
+    if (!$streamer instanceof \\Kavoryn\\Ai\\ProviderChatStreamer) {
+        throw new RuntimeException('The selected provider configuration must create a streamer.');
+    }
 }
 
-foreach (['OPENAI_API_KEY', 'OPENAI_CHAT_MODEL', 'GEMINI_API_KEY', 'GEMINI_CHAT_MODEL'] as $missing) {
-    $incomplete = $config;
-    unset($incomplete[$missing]);
+foreach ([
+    ['openai', ['OPENAI_API_KEY' => 'openai-test-key']],
+    ['gemini', ['GEMINI_CHAT_MODEL' => 'gemini-test-model']],
+] as [$provider, $incomplete]) {
     try {
-        ProviderChatStreamerFactory::fromEnvironment($incomplete);
-        throw new RuntimeException('Missing server configuration must fail closed.');
+        ProviderChatStreamerFactory::fromEnvironment($incomplete, $provider);
+        throw new RuntimeException('Missing selected-provider configuration must fail closed.');
     } catch (InvalidArgumentException $error) {
         if ($error->getMessage() !== 'AI chat server configuration is incomplete.') {
             throw $error;
@@ -42,10 +47,19 @@ foreach (['OPENAI_API_KEY', 'OPENAI_CHAT_MODEL', 'GEMINI_API_KEY', 'GEMINI_CHAT_
     }
 }
 
-$unsafe = $config;
-$unsafe['OPENAI_API_KEY'] = "bad-key\r\nX-Injected: true";
 try {
-    ProviderChatStreamerFactory::fromEnvironment($unsafe);
+    ProviderChatStreamerFactory::fromEnvironment([], 'unknown');
+    throw new RuntimeException('An unsupported provider must be rejected.');
+} catch (InvalidArgumentException $error) {
+    if ($error->getMessage() !== 'The requested AI provider is not supported.') {
+        throw $error;
+    }
+}
+
+$unsafe = $openAiOnly;
+$unsafe['OPENAI_API_KEY'] = "bad-key\\r\\nX-Injected: true";
+try {
+    ProviderChatStreamerFactory::fromEnvironment($unsafe, 'openai');
     throw new RuntimeException('Unsafe provider credentials must be rejected.');
 } catch (InvalidArgumentException) {
 }
