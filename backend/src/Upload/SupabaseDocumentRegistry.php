@@ -96,6 +96,13 @@ final class SupabaseDocumentRegistry implements DocumentRegistry
             !is_string($response['body'] ?? null) ||
             $response['status'] < 200 ||
             $response['status'] >= 300) {
+            $errorBody = is_string($response['body'] ?? null) ? $response['body'] : '';
+            if (str_contains($errorBody, 'Consent is invalid, expired, mismatched, or already used')) {
+                throw new DocumentConsentRejectedException();
+            }
+            if (str_contains($errorBody, 'Idempotency key conflict')) {
+                throw new DocumentIdempotencyConflictException();
+            }
             throw new DocumentRegistryUnavailableException();
         }
 
