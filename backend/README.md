@@ -7,7 +7,8 @@ This directory contains the PHP API entry point for the Android document workflo
 - `GET /v1/health`: liveness response with request ID.
 - `GET /v1/me`: verifies a Supabase Auth user access token and returns the verified user ID.
 - `POST /v1/consents`: requires an authenticated user and explicit confirmation, then creates a short-lived, one-time consent token bound to the document SHA-256 digest, action, output language, and translation setting. Only the token hash is persisted.
-- `POST /v1/documents`: accepts an authenticated multipart upload, inspects actual file type/signature, validates size and image dimensions, uses Poppler `pdfinfo` to reject damaged/encrypted PDFs and enforce a 50-page maximum, computes SHA-256 on the server, applies atomic per-user upload limits (5 per minute and 30 per hour), stores the file outside the public web root, and atomically consumes matching consent while registering the document in Supabase. Returns `201` with status `uploaded`; OCR/job processing is not yet connected.
+- `POST /v1/documents`: accepts an authenticated multipart upload, validates type/signature, size, image dimensions and PDF integrity/page count, computes SHA-256, applies atomic per-user upload limits, stores the file privately, consumes matching consent, and registers the document. A database trigger adds the document to the private OCR queue. Returns `201` with the current document status. Actual OCR runs only when the separately configured CLI worker is enabled.
+- `GET /v1/documents/{document_id}/result`: verifies the signed-in owner, retrieves the temporary encrypted OCR result through a service-only RPC, decrypts and integrity-checks it server-side, and returns original OCR text plus uncertain spans. Results expire with the one-hour source document.
 
 The identity endpoint calls Supabase Auth's `/auth/v1/user` endpoint. It does not trust a user ID from request data or decode unverified JWT claims. It requires:
 
@@ -73,7 +74,7 @@ The endpoint returns `201` and status `uploaded`; it does not yet enqueue OCR. A
 
 Supabase-backed user identity verification is wired into `GET /v1/me`. The `POST /v1/consents` endpoint now issues consent grants through the server-only Supabase adapter. The database stores only a token hash and the one-time consume RPC atomically matches and marks a grant as consumed. Production readiness still depends on configuring server secrets, testing with a real session and real database, HTTPS, rate limiting, and a documented session revocation policy. PHP hosting suitability, queue/background-job support, request-size limits, temporary storage, and deletion behavior also require proof on the selected host.
 
-Secure upload foundations and `POST /v1/documents` are implemented in code. The Supabase `documents` table is private to the service role, and `register_uploaded_document` atomically consumes consent and registers the file with per-user idempotency. The endpoint is deliberately disabled by default. Do not set `DOCUMENT_UPLOAD_ENABLED=true` until the PHP host has an absolute private storage path, HTTPS, PHP `fileinfo`/cURL support, `upload_max_filesize` of at least 20M and `post_max_size` of at least 22M, plus rate limits, quota enforcement, the `pdfinfo` PDF page-count validation, the five-minute cleanup cron, and a real authenticated integration test. The endpoint currently returns `uploaded`; it does not enqueue OCR yet. See `docs/CONSENT_VERIFICATION_DESIGN.md` and `docs/STAGE_A_API_CONTRACT.md`.
+Secure upload foundations and `POST /v1/documents` are implemented in code. The Supabase `documents` table is private to the service role, and `register_uploaded_document` atomically consumes consent and registers the file with per-user idempotency. The endpoint is deliberately disabled by default. Do not set `DOCUMENT_UPLOAD_ENABLED=true` until the PHP host has an absolute private storage path, HTTPS, PHP `fileinfo`/cURL support, `upload_max_filesize` of at least 20M and `post_max_size` of at least 22M, plus rate limits, quota enforcement, the `pdfinfo` PDF page-count validation, the five-minute cleanup cron, and a real authenticated integration test. The upload registry creates an OCR queue job through a database trigger. The endpoint can still return `uploaded` while waiting for a worker to claim the job. See `docs/CONSENT_VERIFICATION_DESIGN.md` and `docs/STAGE_A_API_CONTRACT.md`.
 
 
 ## Expired upload cleanup
@@ -98,9 +99,7 @@ These are abuse-protection limits, not subscription entitlements or advertised c
 
 ## OCR job queue foundation
 
-New document registrations with status `uploaded` are automatically added to the private `private.ocr_jobs` queue by a database trigger. Queue rows are not exposed to app clients. The worker-only claim RPC uses row locking with `SKIP LOCKED`, a bounded lease, and a maximum of three attempts; expired leases can be reclaimed. The worker can record a bounded error code and retry delay, or complete a job only while its worker lease is still valid.
-
-The queue currently provides job orchestration only. No OCR vendor is selected or called, no OCR text is stored, and the upload endpoint does not yet start a provider request. The PHP worker, authenticated job-status endpoint, provider adapter, and end-to-end OCR integration remain to be implemented. Keep the document upload feature flag disabled until the full flow is deployed and tested.
+New document registrations with status `uploaded` are automatically added to the private `private.ocr_jobs` queue by a database trigger. Queue rows are not exposed to app clients. The worker-only claim RPC uses row locking with `SKIP LOCKED`, a bounded lease, and a maximum of three attempts; expired leases can be reclaimed. The worker can record a bounded error code and retry delay, or complete a job only while its worker lease is still valid. Service-only public RPC wrappers are used because the `private` schema is not exposed through the Supabase Data API.
 
 
 ## PHP OCR worker orchestration
@@ -112,7 +111,7 @@ The backend now contains a provider-independent worker core under `backend/src/O
 - `OcrWorker` resolves only generated storage keys inside the configured private storage root, invokes the injected OCR provider, persists results through an injected result sink, and completes the lease only after persistence succeeds. Failures are reduced to bounded error codes with exponential retry delay.
 - `OcrWorkerTest.php` covers successful processing, persistence-before-completion, missing private files, and empty queues. It is included in the PHP API workflow.
 
-This is orchestration code, not a runnable production worker yet. A concrete OCR provider adapter and an approved result sink/retention policy must be selected and configured through a server-only bootstrap before the worker can claim jobs. Do not mark jobs successful or enable uploads without durable result storage. No document text is logged by this worker core.
+The worker CLI is implemented in `backend/bin/ocr_worker.php`. It is disabled by default and requires server-only Google service-account credentials, a 32-byte result-encryption key, Supabase service credentials, private storage, and Poppler. Do not enable uploads or the worker until staging tests pass. No document text is logged by the worker core.
 
 
 ## Google Cloud Vision OCR and encrypted result delivery
