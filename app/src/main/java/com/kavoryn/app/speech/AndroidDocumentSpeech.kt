@@ -86,13 +86,6 @@ class AndroidDocumentSpeech(
         onState(SpeechState.Speaking)
     }
 
-    fun pause() {
-        // Android TextToSpeech has no portable pause API. Stop is explicit and safe;
-        // UI must label this action "Stop", never "Pause".
-        engine?.stop()
-        onState(SpeechState.Stopped)
-    }
-
     fun stop() {
         pending = null
         finalUtteranceId = null
