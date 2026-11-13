@@ -67,7 +67,11 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
         respond(413, ['error'=>['code'=>'webhook_too_large','message'=>'The webhook payload is too large.','request_id'=>$requestId]]);
     }
 
-    $rawBody = file_get_contents('php://input');
+    $inputStream = fopen('php://input', 'rb');
+    $rawBody = $inputStream === false ? false : stream_get_contents($inputStream, 1048577);
+    if (is_resource($inputStream)) {
+        fclose($inputStream);
+    }
     if (!is_string($rawBody) || $rawBody === '' || strlen($rawBody) > 1048576) {
         respond(400, ['error'=>['code'=>'invalid_webhook','message'=>'The webhook payload is invalid.','request_id'=>$requestId]]);
     }
