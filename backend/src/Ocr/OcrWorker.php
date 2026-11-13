@@ -19,7 +19,7 @@ final class OcrWorker
 
     public function processOne(string $workerId): bool
     {
-        $job = $this->jobs->claim($workerId);
+        $job = $this->jobs->claim($workerId, 600);
         if ($job === null) {
             return false;
         }
