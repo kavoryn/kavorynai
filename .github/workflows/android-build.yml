@@ -26,7 +26,23 @@ jobs:
       - name: Run Android Keystore instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 34
           arch: x86_64
+          profile: pixel_2
+          emulator-options: "-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save"
           disable-animations: true
-          script: gradle :app:connectedDebugAndroidTest
+          script: |
+            if ! gradle :app:connectedDebugAndroidTest; then
+              adb logcat -d -v threadtime > app/build/outputs/androidTest-logcat.txt || true
+              exit 1
+            fi
+      - name: Upload Android instrumentation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-instrumentation-diagnostics
+          path: |
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+            app/build/outputs/androidTest-logcat.txt
+          if-no-files-found: ignore
