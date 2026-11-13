@@ -23,6 +23,7 @@ $mock = function (string $url, array $headers, string $body) use ($ocrText): arr
     expectOpenAi(($request['text']['format']['type'] ?? null) === 'json_schema', 'Strict JSON schema output is required.');
     expectOpenAi(str_contains($request['instructions'] ?? '', 'Hausa'), 'Requested language must be explicit.');
     expectOpenAi(str_contains($request['input'][0]['content'][0]['text'] ?? '', $ocrText), 'OCR text was not included.');
+    expectOpenAi(str_contains($request['input'][0]['content'][0]['text'] ?? '', 'low_confidence'), 'OCR uncertainty metadata was not included.');
     $result = [
         'summary' => 'Wannan takarda invoice ce.',
         'detailed_explanation' => 'Jimillar kuɗi ita ce NGN 15,000.',
@@ -43,7 +44,12 @@ $mock = function (string $url, array $headers, string $body) use ($ocrText): arr
 };
 
 $explainer = new OpenAiDocumentExplainer('test-server-key', 'test-model', $mock);
-$result = $explainer->explain(new OcrResult($ocrText, [], 'en'), 'ha');
+$result = $explainer->explain(new OcrResult($ocrText, [[
+        'start' => strpos($ocrText, '15,000'),
+        'end' => strpos($ocrText, '15,000') + strlen('15,000'),
+        'confidence' => 0.45,
+        'reason' => 'low_confidence',
+    ]], 'en'), 'ha');
 expectOpenAi($result['key_facts'][0]['source_quote'] === 'Total: NGN 15,000', 'Supported source quote was not preserved.');
 
 $badQuote = function (string $url, array $headers, string $body): array {
