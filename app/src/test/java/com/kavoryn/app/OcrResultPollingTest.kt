@@ -16,7 +16,7 @@ class OcrResultPollingTest {
     )
 
     @Test
-    fun retriesNotReadyAndReturnsCompletedResult() = runBlocking {
+    fun retriesNotReadyAndReturnsCompletedResult(): Unit = runBlocking {
         var attempts = 0
         val waits = mutableListOf<Long>()
 
@@ -39,7 +39,7 @@ class OcrResultPollingTest {
     }
 
     @Test
-    fun stopsAfterConfiguredNumberOfNotReadyResponses() = runBlocking {
+    fun stopsAfterConfiguredNumberOfNotReadyResponses(): Unit = runBlocking {
         var attempts = 0
         val notReady = DocumentOcrResultApiException(404, "not_ready", "Still processing")
 
@@ -62,7 +62,7 @@ class OcrResultPollingTest {
     }
 
     @Test
-    fun doesNotRetryNon404Failures() = runBlocking {
+    fun doesNotRetryNon404Failures(): Unit = runBlocking {
         var attempts = 0
         val unauthorized = DocumentOcrResultApiException(401, "unauthorized", "Sign in again")
 
@@ -84,7 +84,7 @@ class OcrResultPollingTest {
     }
 
     @Test
-    fun rejectsInvalidPollingBounds() = runBlocking {
+    fun rejectsInvalidPollingBounds(): Unit = runBlocking {
         assertThrows(IllegalArgumentException::class.java) {
             runBlocking {
                 awaitOcrResult(maxAttempts = 0, fetch = { completed })
