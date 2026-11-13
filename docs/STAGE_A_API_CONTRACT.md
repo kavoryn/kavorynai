@@ -70,13 +70,13 @@ Multipart upload. Required parts:
 
 Implemented upload checks actual MIME using fileinfo, PDF magic bytes, image parsing/dimensions, extension consistency, per-type size caps, and server-computed SHA-256. The private storage layer uses random names, 0700 directory permissions and 0600 files, and re-hashes bytes while copying. The database RPC atomically consumes matching one-time consent and registers the file with user-scoped idempotency. Still outstanding before production: PDF parsing/page-count limits, full decompression/PDF safety checks, rate limits/quotas, retention cleanup, and host-specific integration testing. Never trust filename or client MIME headers.
 
-202:
+201:
 {
   "document_id": "<opaque-id>",
   "status": "uploaded"
 }
 
-Errors include stable codes: unsupported_file, file_too_large, page_limit_exceeded, consent_required, consent_expired, quota_exceeded, rate_limited, processing_unavailable.
+Errors include stable codes: unsupported_file, file_too_large, page_limit_exceeded, consent_invalid, idempotency_conflict, quota_exceeded, rate_limited, processing_unavailable. The current endpoint creates an `uploaded` document only; it does not yet create a processing job.
 
 ### GET /v1/jobs/{job_id}
 Returns state for the authenticated owner only.
