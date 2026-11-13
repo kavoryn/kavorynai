@@ -64,6 +64,9 @@ jobs:
       - name: Encrypted OCR result sink tests
         run: php backend/tests/EncryptedOcrResultSinkTest.php
 
+      - name: Encrypted OCR result reader tests
+        run: php backend/tests/EncryptedOcrResultReaderTest.php
+
       - name: Google Cloud Vision OCR provider tests
         run: php backend/tests/GoogleCloudVisionOcrProviderTest.php
 
