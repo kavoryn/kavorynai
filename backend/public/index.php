@@ -101,7 +101,10 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
             $supabaseSecret,
             $serviceRoleJwt,
         );
-        $receiptHex = bin2hex(random_bytes(16));
+        $receiptBytes = random_bytes(16);
+        $receiptBytes[6] = chr((ord($receiptBytes[6]) & 0x0f) | 0x40);
+        $receiptBytes[8] = chr((ord($receiptBytes[8]) & 0x3f) | 0x80);
+        $receiptHex = bin2hex($receiptBytes);
         $receiptId = sprintf(
             '%s-%s-%s-%s-%s',
             substr($receiptHex, 0, 8),
