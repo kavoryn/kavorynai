@@ -65,7 +65,13 @@ try {
         $keyVersion,
     );
     $tokens = new GoogleServiceAccountTokenProvider($googleCredentials);
-    $provider = new GoogleCloudVisionOcrProvider($tokens);
+    $provider = new GoogleCloudVisionOcrProvider(
+        $tokens,
+        getenv('PDFINFO_BINARY') ?: 'pdfinfo',
+        getenv('PDFTOPPM_BINARY') ?: 'pdftoppm',
+        null,
+        getenv('GOOGLE_VISION_ENDPOINT') ?: 'https://eu-vision.googleapis.com/v1/images:annotate',
+    );
     $worker = new OcrWorker($jobs, $provider, $sink, $storagePath);
 
     $maxJobs = (int) (getenv('OCR_WORKER_MAX_JOBS') ?: 3);
