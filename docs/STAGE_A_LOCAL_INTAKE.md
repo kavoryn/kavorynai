@@ -1,22 +1,19 @@
-# Stage A — local document intake milestone
+# Stage A — local document intake and scan
 
-## Implemented in the Android foundation
-- Native Android document picker accepts PDF, JPEG, PNG and WebP MIME types.
-- Multiple documents can be selected in one picker session.
-- The app requests persistable read permission for selected content URIs where supported.
-- Metadata inspection reads display name, MIME type and file size through ContentResolver.
-- Empty files and unsupported or unverifiable MIME types are rejected with a user-readable message.
-- The review screen displays each accepted file's name, type and size before the local confirmation action.
-- Cancel returns to Home without upload.
-- This milestone performs no network request, OCR, AI call, or file upload.
+## Implemented in source
+- Native picker accepts PDF, JPEG, PNG and WebP.
+- Camera capture uses Android's system camera contract and a private app-cache file exposed through a non-exported FileProvider.
+- Metadata validation checks supported MIME type and rejects empty files.
+- Local PDF inspection uses PdfRenderer to count readable pages.
+- Local image inspection reads pixel dimensions and warns when the shortest side is below 640 pixels.
+- Review screen displays detected page count or image dimensions before confirmation.
+- No file upload, OCR provider, AI service, or backend processing is invoked.
 
-## Explicitly not implemented yet
-- Camera capture / guided scan / crop / rotate.
-- PDF page-count and image-quality checks.
-- On-device image compression and OCR.
-- Backend upload, signed processing consent token, job lifecycle and deletion.
-- Translation, explanation levels, cross-checking extracted names/dates/numbers, TTS and Q&A.
-- Configurable product limits for file size and page count. The product plan leaves these limits to be decided; do not invent production limits.
+## Not implemented
+- Perspective correction, crop UI, rotation controls, glare/blur detection, multi-page camera capture.
+- OCR, language identification, Hausa/Arabic accuracy checks, explanation, translation, TTS and document Q&A.
+- Backend upload, processing-consent token, job lifecycle and deletion.
+- Product file/page limits: do not invent limits before product decisions.
 
-## Verification status
-Source files have been committed. A successful Android Gradle build and device-level picker tests have not yet been confirmed. Do not mark this milestone complete until CI build and manual tests pass on supported Android versions, including TalkBack.
+## Verification
+These changes are source committed only. Android Gradle build and real-device camera/picker testing have not yet been confirmed. Check camera cancellation, cache cleanup, PDF descriptors, TalkBack and low-end devices before calling this release-ready.
