@@ -219,6 +219,146 @@ if ($method === 'POST' && $path === '/v1/consents') {
     ]);
 }
 
+
+if ($method === 'POST' && $path === '/v1/documents') {
+    $maxRequestBytes = 21 * 1024 * 1024;
+    $contentLength = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($contentLength > $maxRequestBytes) {
+        respond(413, [
+            'error' => [
+                'code' => 'file_too_large',
+                'message' => 'The uploaded document exceeds the allowed size.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $upload = $_FILES['file'] ?? null;
+    if (!is_array($upload) || !is_string($upload['tmp_name'] ?? null) ||
+        !is_string($upload['name'] ?? null) || !is_int($upload['error'] ?? null)) {
+        respond(400, [
+            'error' => [
+                'code' => 'file_required',
+                'message' => 'Choose a PDF, JPEG, PNG, or WebP document.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    if ($upload['error'] !== UPLOAD_ERR_OK) {
+        $tooLarge = in_array($upload['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
+        respond($tooLarge ? 413 : 400, [
+            'error' => [
+                'code' => $tooLarge ? 'file_too_large' : 'upload_failed',
+                'message' => $tooLarge
+                    ? 'The uploaded document exceeds the server size limit.'
+                    : 'The document could not be received. Please try again.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    if (!is_uploaded_file($upload['tmp_name'])) {
+        respond(400, [
+            'error' => [
+                'code' => 'invalid_upload_source',
+                'message' => 'The uploaded file could not be verified.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    $consentToken = $_POST['consent_token'] ?? null;
+    $language = $_POST['output_language'] ?? null;
+    $translateRaw = $_POST['translate'] ?? null;
+    $idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+    if (!is_string($consentToken) || !is_string($language) ||
+        !is_string($translateRaw) || !in_array($translateRaw, ['true', 'false'], true) ||
+        !is_string($idempotencyKey)) {
+        respond(422, [
+            'error' => [
+                'code' => 'invalid_upload_request',
+                'message' => 'The upload request is incomplete or invalid.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    $storagePath = getenv('PRIVATE_DOCUMENT_STORAGE_PATH') ?: '';
+    $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    if ($storagePath === '' || $secretKey === '' || $serviceRoleJwt === '' || $supabaseUrl === '') {
+        respond(503, [
+            'error' => [
+                'code' => 'upload_storage_not_configured',
+                'message' => 'Secure document upload is temporarily unavailable.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Upload/DocumentFileException.php';
+    require_once dirname(__DIR__) . '/src/Upload/InspectedDocument.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentFileInspector.php';
+    require_once dirname(__DIR__) . '/src/Upload/PrivateDocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentRegistration.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentRegistry.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentRegistryUnavailableException.php';
+    require_once dirname(__DIR__) . '/src/Upload/SupabaseDocumentRegistry.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentUploadService.php';
+
+    try {
+        $service = new Kavoryn\Upload\DocumentUploadService(
+            new Kavoryn\Upload\DocumentFileInspector(),
+            new Kavoryn\Upload\PrivateDocumentStorage($storagePath, __DIR__),
+            new Kavoryn\Upload\SupabaseDocumentRegistry($supabaseUrl, $secretKey, $serviceRoleJwt),
+        );
+        $registration = $service->upload(
+            $user->id,
+            $upload['tmp_name'],
+            $upload['name'],
+            $consentToken,
+            $language,
+            $translateRaw === 'true',
+            $idempotencyKey,
+        );
+    } catch (\Kavoryn\Upload\DocumentFileException $error) {
+        $status = in_array($error->errorCode, ['file_too_large'], true) ? 413 : 422;
+        if (in_array($error->errorCode, ['storage_unavailable', 'storage_not_configured', 'server_configuration_error'], true)) {
+            $status = 503;
+        }
+        respond($status, [
+            'error' => [
+                'code' => $error->errorCode,
+                'message' => $error->getMessage(),
+                'request_id' => $requestId,
+            ],
+        ]);
+    } catch (\Kavoryn\Upload\DocumentRegistryUnavailableException) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_registration_unavailable',
+                'message' => 'Secure document upload is temporarily unavailable. You can safely retry with the same idempotency key.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    respond(202, [
+        'document_id' => $registration->id,
+        'status' => $registration->status,
+        'created_at' => $registration->createdAt->format(DATE_ATOM),
+        'request_id' => $requestId,
+    ]);
+}
+
 respond(404, [
     'error' => [
         'code' => 'not_found',
