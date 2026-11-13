@@ -45,7 +45,7 @@ final class SupabaseChatStore
         $this->assertProvider($provider);
         if (!in_array($language, ['en','ha','ar','fr'], true) ||
             ($title !== null && strlen($title) > 120)) {
-            throw new \\InvalidArgumentException('Invalid chat conversation details.');
+            throw new \InvalidArgumentException('Invalid chat conversation details.');
         }
         $result = $this->rpc('create_chat_conversation', [
             'p_id'=>$this->uuid(), 'p_user_id'=>$userId,
