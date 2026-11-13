@@ -32,6 +32,7 @@ fun SupabaseSignInScreen(
     configured: Boolean,
     loading: Boolean,
     errorMessage: String?,
+    statusMessage: String? = null,
     onSignIn: (email: String, password: String) -> Unit,
     onSignUp: (email: String, password: String) -> Unit,
     onCancel: () -> Unit,
@@ -97,6 +98,7 @@ fun SupabaseSignInScreen(
             }
             validationMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            statusMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             Button(
                 onClick = {
                     val submittedEmail = email.trim()
