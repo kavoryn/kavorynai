@@ -61,6 +61,19 @@ final class SupabaseOcrJobStore implements OcrJobStore
         }
     }
 
+    public function renew(OcrJob $job, int $leaseSeconds = 600): bool
+    {
+        if ($leaseSeconds < 30 || $leaseSeconds > 600) {
+            throw new \InvalidArgumentException('Invalid OCR lease duration.');
+        }
+        $rows = $this->rpc('renew_ocr_job_lease', [
+            'p_job_id' => $job->id,
+            'p_worker_id' => $job->workerId,
+            'p_lease_seconds' => $leaseSeconds,
+        ]);
+        return ($rows[0] ?? null) === true;
+    }
+
     public function complete(OcrJob $job): bool
     {
         $rows = $this->rpc('complete_ocr_job', [
