@@ -467,6 +467,7 @@ if ($method === 'POST' && preg_match(
     require_once dirname(__DIR__) . '/src/Ocr/OcrResult.php';
     require_once dirname(__DIR__) . '/src/Ocr/SupabaseEncryptedOcrResultReader.php';
     require_once dirname(__DIR__) . '/src/Ai/DocumentExplainer.php';
+    require_once dirname(__DIR__) . '/src/Ai/DocumentExplainer.php';
     require_once dirname(__DIR__) . '/src/Ai/OpenAiDocumentExplainer.php';
     require_once dirname(__DIR__) . '/src/Ai/GeminiDocumentExplainer.php';
     require_once dirname(__DIR__) . '/src/Ai/DocumentExplainerFactory.php';
