@@ -33,8 +33,14 @@ Keep ground-truth transcription and key-detail annotations separate from app out
 | INTAKE-008 | Inspect a valid image | Pixel dimensions are displayed |
 | INTAKE-009 | Inspect a low-resolution image | Resolution warning is displayed |
 | INTAKE-010 | Confirm or cancel review | No network request or external processing occurs |
+| INTAKE-011 | Rotate a large JPEG/PNG/WebP image | A readable 90-degree derivative is created without changing the picker original |
+| INTAKE-012 | Rotate a transparent PNG/WebP | Transparent areas render against white in the JPEG derivative |
+| INTAKE-013 | Rotate a corrupt/unsupported image payload | A clear error appears; partial cache output is removed |
+| INTAKE-014 | Cancel camera capture | The empty temporary camera file is removed |
+| INTAKE-015 | Replace a scan selection with picker files | Previous app-owned temporary scan files are removed; picker originals remain untouched |
+| INTAKE-016 | Relaunch after force-stop during scan | Abandoned Kavoryn scan cache files are removed at startup |
 
-These are test cases, not recorded pass results. Camera crop/rotation, blur/glare detection and multi-page camera capture remain unimplemented.
+These are test cases, not recorded pass results. Camera crop, blur/glare detection and multi-page camera capture remain unimplemented. Rotation and cache-cleanup code are present but these new test cases have not been executed.
 
 ## Functional tests
 
