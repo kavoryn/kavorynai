@@ -145,8 +145,8 @@ The backend:
 
 The explanation is AI-generated and must be checked against the original OCR text. Critical names, dates and amounts must not be invented. The Android consent dialog and authenticated API client exist, but they are not yet wired into the signed-in document flow. Provider accuracy and staging verification remain release blockers.
 
-### POST /v1/documents/{document_id}/questions
-Document-grounded Q&A only. The answer must cite relevant OCR snippets/spans internally or in UI. If the answer is not supported by the document, respond that the document does not provide enough information.
+### POST /v1/documents/{document_id}/ask (planned)
+Document-grounded Q&A only. The server reads only the owner-checked completed OCR result; the client never supplies authoritative document text. The selected AI provider requires explicit provider-specific consent before any OCR text is sent externally. Questions are limited to 1,000 Unicode characters. Answers must include up to five exact OCR source excerpts (each no longer than 500 characters); unsupported answers must set `insufficient_information: true` and return no source excerpts. The backend rejects fabricated or non-matching excerpts. The question-answer provider adapter and authenticated endpoint are not yet implemented; this remains design/foundation work.
 
 ### POST /v1/documents/{document_id}/delete
 Immediately deletes temporary file, OCR/explanation artifacts and any provider-side temporary resource where provider supports deletion. Return deletion status and a request ID. The operation must be safe to retry.

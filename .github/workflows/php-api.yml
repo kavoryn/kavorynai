@@ -79,6 +79,9 @@ jobs:
       - name: AI processing consent recorder tests
         run: php backend/tests/AiProcessingConsentRecorderTest.php
 
+      - name: Grounded document Q&A policy tests
+        run: php backend/tests/GroundedQuestionPolicyTest.php
+
 
       - name: API smoke tests
         shell: bash
