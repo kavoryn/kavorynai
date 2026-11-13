@@ -12,8 +12,11 @@ enum class SpeechLanguage(val tag: String) {
     fun toLocale(): Locale = Locale.forLanguageTag(tag)
 
     companion object {
-        fun fromContentLanguage(value: String): SpeechLanguage? =
-            entries.firstOrNull { it.tag.equals(value.trim(), ignoreCase = true) }
+        fun fromContentLanguage(value: String): SpeechLanguage? {
+            val primaryTag = value.trim().replace("_", "-").substringBefore("-")
+            if (primaryTag.isBlank()) return null
+            return entries.firstOrNull { it.tag.equals(primaryTag, ignoreCase = true) }
+        }
     }
 }
 
