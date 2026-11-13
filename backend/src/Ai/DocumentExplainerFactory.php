@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Ai;
+namespace Kavoryn\Ai;
 
 final class DocumentExplainerFactory
 {
@@ -17,7 +17,7 @@ final class DocumentExplainerFactory
                 (string) ($environment['GEMINI_API_KEY'] ?? ''),
                 (string) ($environment['GEMINI_MODEL'] ?? 'gemini-3.6-flash'),
             ),
-            default => throw new \\InvalidArgumentException('The requested AI provider is not supported.'),
+            default => throw new \InvalidArgumentException('The requested AI provider is not supported.'),
         };
     }
 }
