@@ -79,6 +79,9 @@ jobs:
       - name: AI processing consent recorder tests
         run: php backend/tests/AiProcessingConsentRecorderTest.php
 
+      - name: SSE event decoder tests
+        run: php backend/tests/SseEventDecoderTest.php
+
       - name: Grounded document Q&A policy tests
         run: php backend/tests/GroundedQuestionPolicyTest.php
 
