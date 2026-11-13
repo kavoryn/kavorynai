@@ -43,6 +43,7 @@ Keep ground-truth transcription and key-detail annotations separate from app out
 | INTAKE-018 | Select a structurally damaged document | Confirm is disabled until invalid files are removed or replaced |
 | INTAKE-019 | Review multiple large images on a low-RAM phone | Preview memory remains bounded; scrolling and TalkBack remain usable |
 | INTAKE-020 | Camera returns a damaged image | File is rejected and temporary camera output is deleted |
+| INTAKE-021 | One file in a multi-file review is invalid | User can remove the invalid file and continue with valid files |
 
 These are test cases, not recorded pass results. Camera crop, blur/glare detection and multi-page camera capture remain unimplemented. Rotation, preview and cache-cleanup code are present but these test cases have not been executed.
 
