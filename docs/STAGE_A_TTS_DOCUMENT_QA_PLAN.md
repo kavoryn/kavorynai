@@ -41,7 +41,7 @@ Deliver two Stage A capabilities:
 - [ ] Add Android Q&A screen/client and consent UX integration.
 - [ ] Apply Supabase migrations and validate the endpoint in staging; keep DOCUMENT_QA_ENABLED=false until these gates pass.
 
-## Proposed API contract (design only)
+## Implemented API contract (server-side; feature disabled)
 
 ```http
 POST /v1/documents/{document_id}/ask
@@ -58,7 +58,7 @@ Content-Type: application/json
 }
 ```
 
-The server must authenticate the user, verify document ownership and completed OCR status, persist the document-specific AI consent audit before external processing, and then call only the explicitly selected provider. The response should include the answer, exact supporting excerpts, provider, language, and request ID. This contract is not implemented or enabled by this document.
+The PHP endpoint, OpenAI/Gemini adapters, owner-checked encrypted OCR reader, separate Q&A consent purpose, atomic 10-per-60-second account rate limit, and fail-closed excerpt validation are implemented on the feature branch. `DOCUMENT_QA_ENABLED=false` remains mandatory until migrations are applied and staging plus Android integration tests pass. The Android request client and consent/user interface are still outstanding.
 
 ## Test gates
 
