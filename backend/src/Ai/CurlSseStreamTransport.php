@@ -2,22 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Ai;
+namespace Kavoryn\Ai;
 
 /**
  * HTTPS-only, bounded cURL transport for provider Server-Sent Events.
- *
  * Provider URLs must be fixed application configuration, never user input.
- * Credentials are supplied by the server-side caller and are never logged.
  */
 final class CurlSseStreamTransport
 {
     /** @var list<string> */
     private array $allowedHosts;
 
-    /**
-     * @param list<string> $allowedHosts Exact provider hostnames, without ports.
-     */
+    /** @param list<string> $allowedHosts Exact provider hostnames, without ports. */
     public function __construct(
         array $allowedHosts,
         private readonly int $connectTimeoutSeconds = 10,
@@ -27,7 +23,7 @@ final class CurlSseStreamTransport
     ) {
         if ($allowedHosts === [] || $connectTimeoutSeconds < 1 || $totalTimeoutSeconds < $connectTimeoutSeconds
             || $maxResponseBytes < 1 || $maxEventBytes < 1 || $maxEventBytes > $maxResponseBytes) {
-            throw new \\InvalidArgumentException('The stream transport limits are invalid.');
+            throw new \InvalidArgumentException('The stream transport limits are invalid.');
         }
 
         $this->allowedHosts = array_values(array_unique(array_map(
@@ -36,14 +32,12 @@ final class CurlSseStreamTransport
         )));
         foreach ($this->allowedHosts as $host) {
             if ($host === '' || preg_match('/^[a-z0-9.-]+$/D', $host) !== 1) {
-                throw new \\InvalidArgumentException('The provider host configuration is invalid.');
+                throw new \InvalidArgumentException('The provider host configuration is invalid.');
             }
         }
     }
 
     /**
-     * Stream provider-neutral events to the caller.
-     *
      * @param list<string> $headers Server-generated HTTP headers; never user supplied.
      * @param callable(array{type:'delta',text:string}|array{type:'completed'}):void $onEvent
      * @param null|callable():bool $isCancelled
@@ -70,7 +64,6 @@ final class CurlSseStreamTransport
 
         $decoder = new SseEventDecoder($this->maxEventBytes);
         $responseBytes = 0;
-        $responseStatus = 0;
         $contentType = '';
         $transportFailure = null;
         $callbackFailure = null;
@@ -81,7 +74,7 @@ final class CurlSseStreamTransport
                 if ($mapped !== null) {
                     try {
                         $onEvent($mapped);
-                    } catch (\\Throwable $error) {
+                    } catch (\Throwable $error) {
                         $callbackFailure = $error;
                         throw new ProviderStreamException('The chat stream could not be delivered.');
                     }
@@ -103,10 +96,9 @@ final class CurlSseStreamTransport
                 CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
                 CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
-                CURLOPT_HEADERFUNCTION => static function ($curl, string $line) use (&$responseStatus, &$contentType): int {
+                CURLOPT_HEADERFUNCTION => static function ($curl, string $line) use (&$contentType): int {
                     $length = strlen($line);
-                    if (preg_match('/^HTTP\\/\\S+\\s+(\\d{3})/i', trim($line), $matches) === 1) {
-                        $responseStatus = (int) $matches[1];
+                    if (preg_match('/^HTTP\/\S+\s+\d{3}/i', trim($line)) === 1) {
                         $contentType = '';
                     } elseif (stripos($line, 'Content-Type:') === 0) {
                         $contentType = strtolower(trim(substr($line, strlen('Content-Type:'))));
@@ -138,7 +130,7 @@ final class CurlSseStreamTransport
 
                     try {
                         $dispatch($decoder->push($chunk));
-                    } catch (\\Throwable $error) {
+                    } catch (\Throwable) {
                         $transportFailure = 'event';
                         return 0;
                     }
@@ -163,11 +155,11 @@ final class CurlSseStreamTransport
             if ($transportFailure === 'limit') {
                 throw new ProviderStreamException('The AI provider response exceeded the allowed size.');
             }
-            if ($transportFailure !== null || $success === false || $curlError !== 0) {
-                throw new ProviderStreamException('The AI provider stream was interrupted.');
-            }
             if ($httpStatus < 200 || $httpStatus >= 300) {
                 throw new ProviderStreamException('The AI provider could not complete the response.');
+            }
+            if ($transportFailure !== null || $success === false || $curlError !== 0) {
+                throw new ProviderStreamException('The AI provider stream was interrupted.');
             }
             if (!str_starts_with($contentType, 'text/event-stream')) {
                 throw new ProviderStreamException('The AI provider returned an unsupported response.');
@@ -176,7 +168,7 @@ final class CurlSseStreamTransport
             $dispatch($decoder->finish());
         } catch (ProviderStreamException $error) {
             throw $error;
-        } catch (\\Throwable) {
+        } catch (\Throwable) {
             throw new ProviderStreamException('The AI provider stream was interrupted.');
         } finally {
             curl_close($handle);
@@ -202,8 +194,8 @@ final class CurlSseStreamTransport
     private function assertSafeHeaders(array $headers): void
     {
         foreach ($headers as $header) {
-            if (!is_string($header) || str_contains($header, "\\r") || str_contains($header, "\\n")
-                || preg_match('/^[A-Za-z0-9-]+:\\s*[^\\r\\n]*$/D', $header) !== 1) {
+            if (!is_string($header) || str_contains($header, "\r") || str_contains($header, "\n")
+                || preg_match('/^[A-Za-z0-9-]+:\s*[^\r\n]*$/D', $header) !== 1) {
                 throw new ProviderStreamException('The AI provider request could not be prepared.');
             }
         }
