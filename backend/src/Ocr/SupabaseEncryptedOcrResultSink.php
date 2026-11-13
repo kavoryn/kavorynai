@@ -17,17 +17,22 @@ final class SupabaseEncryptedOcrResultSink implements OcrResultSink
         private readonly string $keyVersion = '1',
         private readonly mixed $http = null,
     ) {
+        if (!function_exists('sodium_crypto_secretbox')) {
+            throw new \InvalidArgumentException('The PHP sodium extension is required for encrypted OCR results.');
+        }
         if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
             $secretKey === '' || $serviceRoleJwt === '' ||
             strlen($encryptionKey) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES ||
-            $keyVersion !== '1' ||
-            !function_exists('sodium_crypto_secretbox')) {
+            $keyVersion !== '1') {
             throw new \InvalidArgumentException('Encrypted OCR result storage is not configured.');
         }
     }
 
     public static function decodeKey(string $base64Key): string
     {
+        if (!function_exists('sodium_crypto_secretbox')) {
+            throw new \InvalidArgumentException('The PHP sodium extension is required for encrypted OCR results.');
+        }
         $decoded = base64_decode($base64Key, true);
         if (!is_string($decoded) || strlen($decoded) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
             throw new \InvalidArgumentException('OCR_RESULT_ENCRYPTION_KEY must be base64 for exactly 32 random bytes.');
