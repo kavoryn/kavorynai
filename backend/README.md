@@ -6,12 +6,14 @@ This directory contains the PHP API entry point for the Android document workflo
 
 - `GET /v1/health`: liveness response with request ID.
 - `GET /v1/me`: verifies a Supabase Auth user access token and returns the verified user ID.
-- `POST /v1/consents`: requires an authenticated user and explicit confirmation, then creates a five-minute, one-time consent token bound to the document SHA-256 digest, action, output language, and translation setting. Only the token hash is persisted.
+- `POST /v1/consents`: requires an authenticated user and explicit confirmation, then creates a short-lived, one-time consent token bound to the document SHA-256 digest, action, output language, and translation setting. Only the token hash is persisted.
+- `POST /v1/documents`: accepts an authenticated multipart upload, inspects actual file type/signature, validates size and image dimensions, computes SHA-256 on the server, stores the file outside the public web root, and atomically consumes matching consent while registering the document in Supabase. Returns `202` with status `uploaded`; OCR/job processing is not yet connected.
 
 The identity endpoint calls Supabase Auth's `/auth/v1/user` endpoint. It does not trust a user ID from request data or decode unverified JWT claims. It requires:
 
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
+- `PRIVATE_DOCUMENT_STORAGE_PATH` (absolute private directory outside `backend/public`)
 
 Set these in the server's secret/configuration manager. `SUPABASE_PUBLISHABLE_KEY` is for Auth identity verification. Consent persistence uses `SUPABASE_SECRET_KEY` as the `apikey` and the legacy `SUPABASE_SERVICE_ROLE_KEY` JWT as the Authorization bearer; the secret key cannot itself be used as a JWT bearer. Both elevated values are server-only and must never enter Android, Git, logs, or public documents. The legacy `service_role` JWT is a compatibility bridge only: Supabase plans to end support for legacy `anon`/`service_role` keys at the end of 2026. Before then, replace this bearer mechanism with a supported dedicated server-side database connection/credential approach and test it on the selected PHP host. PHP cURL with TLS verification is required.
 
@@ -50,10 +52,10 @@ Without server-side Supabase configuration, `/v1/me` must fail closed with HTTP 
 - The health route is liveness only; it must not expose database or provider status.
 - Do not accept user IDs supplied by clients as proof of identity.
 - The identity endpoint verifies the current user session only. Role authorization, account recovery, phone/email ownership policy, rate limiting, session revocation checks, and account creation UX remain outstanding.
-- Do not enable document upload until consent verification, file signature/MIME validation, quotas, temporary-file cleanup, and privacy tests are implemented.
+- Upload is implemented but must remain unavailable in production until server secrets and private storage are configured, host upload limits are raised appropriately, rate limits/quotas are added, and retention/deletion cleanup is implemented and tested.
 
 ## Current status
 
 Supabase-backed user identity verification is wired into `GET /v1/me`. The `POST /v1/consents` endpoint now issues consent grants through the server-only Supabase adapter. The database stores only a token hash and the one-time consume RPC atomically matches and marks a grant as consumed. Production readiness still depends on configuring server secrets, testing with a real session and real database, HTTPS, rate limiting, and a documented session revocation policy. PHP hosting suitability, queue/background-job support, request-size limits, temporary storage, and deletion behavior also require proof on the selected host.
 
-Secure document upload, OCR, explanation, and TTS are not yet implemented. See `docs/CONSENT_VERIFICATION_DESIGN.md` for the security flow and database prerequisites.
+Secure upload foundations and `POST /v1/documents` are implemented in code. The Supabase `documents` table is private to the service role, and `register_uploaded_document` atomically consumes consent and registers the file with per-user idempotency. The endpoint is not production-ready until the PHP host has an absolute private storage path, HTTPS, PHP `fileinfo`/cURL support, `upload_max_filesize` of at least 20M and `post_max_size` of at least 22M, plus rate limits, quota enforcement, page-count/PDF parsing, expiry cleanup, and a real authenticated integration test. The endpoint currently returns `uploaded`; it does not enqueue OCR yet. See `docs/CONSENT_VERIFICATION_DESIGN.md` and `docs/STAGE_A_API_CONTRACT.md`.
