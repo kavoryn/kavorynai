@@ -61,6 +61,64 @@ function authenticatedUser(string $supabaseUrl, string $publishableKey, string $
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
+if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
+    $contentLength = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($contentLength > 1048576) {
+        respond(413, ['error'=>['code'=>'webhook_too_large','message'=>'The webhook payload is too large.','request_id'=>$requestId]]);
+    }
+
+    $rawBody = file_get_contents('php://input');
+    if (!is_string($rawBody) || $rawBody === '' || strlen($rawBody) > 1048576) {
+        respond(400, ['error'=>['code'=>'invalid_webhook','message'=>'The webhook payload is invalid.','request_id'=>$requestId]]);
+    }
+
+    $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $supabaseSecret = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    if ($paystackSecret === '' || $supabaseUrl === '' || $supabaseSecret === '' || $serviceRoleJwt === '') {
+        respond(503, ['error'=>['code'=>'webhook_not_configured','message'=>'Payment notification processing is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Billing/PaystackWebhookVerifier.php';
+    require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackWebhookStore.php';
+
+    try {
+        $verifier = new \\Kavoryn\\Billing\\PaystackWebhookVerifier($paystackSecret);
+        $event = $verifier->verify($rawBody, $_SERVER['HTTP_X_PAYSTACK_SIGNATURE'] ?? null);
+    } catch (\\Kavoryn\\Billing\\InvalidPaystackWebhookException) {
+        respond(401, ['error'=>['code'=>'invalid_webhook_signature','message'=>'The payment notification could not be authenticated.','request_id'=>$requestId]]);
+    }
+
+    $eventReference = $event['data']['reference'] ?? null;
+    if (!is_string($eventReference) || $eventReference === '' || strlen($eventReference) > 120) {
+        $eventReference = null;
+    }
+
+    try {
+        $store = new \\Kavoryn\\Billing\\SupabasePaystackWebhookStore(
+            $supabaseUrl,
+            $supabaseSecret,
+            $serviceRoleJwt,
+        );
+        $created = $store->recordVerifiedReceipt(
+            bin2hex(random_bytes(16)),
+            hash('sha256', $rawBody),
+            $event['event'],
+            $eventReference,
+        );
+    } catch (\\Throwable) {
+        // A non-2xx response asks Paystack to retry; do not acknowledge a lost receipt.
+        respond(503, ['error'=>['code'=>'webhook_storage_unavailable','message'=>'Payment notification processing is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    respond(200, [
+        'received' => true,
+        'duplicate' => !$created,
+        'request_id' => $requestId,
+    ]);
+}
+
 if ($method === 'GET' && ($path === '/health' || $path === '/v1/health')) {
     respond(200, [
         'status' => 'ok',
