@@ -502,7 +502,7 @@ if ($method === 'POST' && preg_match(
     } catch (\Kavoryn\Ai\AiConsentStorageUnavailableException) {
         respond(503, ['error' => ['code' => 'ai_consent_storage_unavailable', 'message' => 'AI processing consent could not be recorded. No document text was sent to the AI provider.', 'request_id' => $requestId]]);
     } catch (\Kavoryn\Ai\OpenAiUnavailableException | \Kavoryn\Ai\GeminiUnavailableException) {
-        respond(503, ['error' => ['code' => 'ai_provider_unavailable', 'message' => 'The selected AI provider is temporarily unavailable. Your document text was not stored by Kavoryn.', 'request_id' => $requestId]]);
+        respond(503, ['error' => ['code' => 'ai_provider_unavailable', 'message' => 'The selected AI provider could not complete the explanation. No explanation was saved.', 'request_id' => $requestId]]);
     } catch (\InvalidArgumentException | \Kavoryn\Ocr\OcrResultReaderUnavailableException) {
         respond(503, ['error' => ['code' => 'document_explanation_unavailable', 'message' => 'Document explanation is temporarily unavailable.', 'request_id' => $requestId]]);
     }
