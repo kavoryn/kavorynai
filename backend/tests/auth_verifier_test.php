@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/Auth/AuthenticatedUser.php';
 require_once dirname(__DIR__) . '/src/Auth/AuthenticationException.php';
+require_once dirname(__DIR__) . '/src/Auth/AuthenticationServiceUnavailableException.php';
 require_once dirname(__DIR__) . '/src/Auth/SupabaseUserVerifier.php';
 
 use Kavoryn\Auth\AuthenticationException;
@@ -58,10 +59,10 @@ $invalidUserVerifier = new SupabaseUserVerifier(
 $rejected = false;
 try {
     $invalidUserVerifier->verifyBearerToken('Bearer opaque-access-token');
-} catch (AuthenticationException) {
+} catch (AuthenticationServiceUnavailableException) {
     $rejected = true;
 }
-expect($rejected, 'Malformed user identity must be rejected.');
+expect($rejected, 'Malformed Auth response must be treated as an upstream failure.');
 
 $rejectedVerifier = new SupabaseUserVerifier(
     'https://example.supabase.co',
@@ -75,5 +76,18 @@ try {
     $rejected = true;
 }
 expect($rejected, 'Auth server rejection must be rejected.');
+
+$unavailableVerifier = new SupabaseUserVerifier(
+    'https://example.supabase.co',
+    'sb_publishable_test_key',
+    static fn (): array => ['status' => 503, 'body' => '{}'],
+);
+$unavailable = false;
+try {
+    $unavailableVerifier->verifyBearerToken('Bearer opaque-access-token');
+} catch (AuthenticationServiceUnavailableException) {
+    $unavailable = true;
+}
+expect($unavailable, 'Auth provider outages must be distinguished from invalid sessions.');
 
 echo "Authentication verifier tests passed." . PHP_EOL;
