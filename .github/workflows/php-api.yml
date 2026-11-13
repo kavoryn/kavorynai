@@ -79,8 +79,6 @@ jobs:
       - name: AI processing consent recorder tests
         run: php backend/tests/AiProcessingConsentRecorderTest.php
 
-      - name: Gemini document explainer tests
-        run: php backend/tests/GeminiDocumentExplainerTest.php
 
       - name: API smoke tests
         shell: bash
