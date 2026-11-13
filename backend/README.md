@@ -58,7 +58,7 @@ curl -X POST "$API_BASE_URL/v1/documents" \
   -F "translate=false"
 ```
 
-The endpoint returns `201` and status `uploaded`; it does not yet enqueue OCR. A definite consent or idempotency conflict returns `409`. A transient registry failure returns `503`; retry using the same idempotency key. The feature flag remains off until the host release gates are complete. The Supabase-backed rate limiter fails closed if its RPC is unavailable and returns HTTP 429 with `Retry-After` when an account reaches either limit.
+The endpoint returns `201` with the current document status; the database trigger has already enqueued its private OCR job. A definite consent or idempotency conflict returns `409`. A transient registry failure returns `503`; retry using the same idempotency key. The feature flag remains off until the host release gates are complete. The Supabase-backed rate limiter fails closed if its RPC is unavailable and returns HTTP 429 with `Retry-After` when an account reaches either limit.
 
 ## Security and deployment boundaries
 
