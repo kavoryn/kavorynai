@@ -95,7 +95,7 @@ class DocumentQuestionApi(
                 }
                 throw DocumentQuestionException(message, status)
             }
-            return parseDocumentQuestionAnswer(body)
+            return parseDocumentQuestionAnswer(body, documentId)
         } catch (error: DocumentQuestionException) {
             throw error
         } catch (_: Exception) {
@@ -124,9 +124,9 @@ internal fun validatedApiRoot(apiBaseUrl: String): String {
     return root
 }
 
-internal fun parseDocumentQuestionAnswer(responseBody: String): DocumentQuestionAnswer {
+internal fun parseDocumentQuestionAnswer(responseBody: String, expectedDocumentId: String? = null): DocumentQuestionAnswer {
     val json = JSONObject(responseBody)
-    val answer = json.getString("answer").trim()
+    if (expectedDocumentId != null) {\n        require(json.optString("document_id") == expectedDocumentId) { "The answer belongs to a different document." }\n    }\n    val answer = json.getString("answer").trim()
     require(answer.isNotEmpty() && answer.length <= 8_000) { "The answer is empty or too large." }
     val excerptsJson = json.optJSONArray("source_excerpts") ?: JSONArray()
     require(excerptsJson.length() <= 5) { "The response contains too many source excerpts." }
