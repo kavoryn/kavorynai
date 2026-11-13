@@ -126,8 +126,7 @@ class HttpOcrSubmissionGateway(
     }
 
     private fun openConnection(path: String): HttpURLConnection {
-        val root = baseUrl.trimEnd('/')
-        require(root.startsWith("https://", ignoreCase = true)) { "The Kavoryn API must use HTTPS." }
+        val root = validatedHttpsApiRoot(baseUrl)
         return (URL("$root$path").openConnection() as HttpURLConnection).apply {
             connectTimeout = connectTimeoutMs
             readTimeout = readTimeoutMs
@@ -183,3 +182,12 @@ class OcrGatewayException(
     val errorCode: String?,
     message: String
 ) : Exception(message)
+
+/** Validate the API origin before opening a connection. Kept pure for deterministic tests. */
+internal fun validatedHttpsApiRoot(baseUrl: String): String {
+    val root = baseUrl.trimEnd('/')
+    require(root.startsWith("https://", ignoreCase = true)) {
+        "The Kavoryn API must use HTTPS."
+    }
+    return root
+}
