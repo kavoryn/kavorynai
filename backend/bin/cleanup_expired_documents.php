@@ -73,7 +73,7 @@ try {
     do {
         $cutoff = rawurlencode((new DateTimeImmutable('now'))->format(DATE_ATOM));
         $query = '?select=id,storage_key&expires_at=lt.' . $cutoff .
-            '&status=in.(uploaded,failed)&deleted_at=is.null&limit=100';
+            '&status=in.(uploaded,queued,processing,succeeded,failed)&deleted_at=is.null&limit=100';
         $response = cleanupRequest('GET', $baseUrl . $query, $headers);
         if ($response['status'] !== 200) {
             throw new RuntimeException('Could not list expired document records.');
@@ -162,6 +162,21 @@ try {
             $deletedCount++;
         }
     }
+    // Purge encrypted OCR output after its document retention window ends.
+    $ocrResultCleanup = cleanupRequest(
+        'POST',
+        rtrim($supabaseUrl, '/') . '/rest/v1/rpc/purge_expired_document_ocr_results',
+        $headers + ['Content-Type' => 'application/json'],
+        '{}',
+    );
+    if ($ocrResultCleanup['status'] < 200 || $ocrResultCleanup['status'] >= 300) {
+        throw new RuntimeException('Could not purge expired OCR results.');
+    }
+    $ocrResultsDeleted = json_decode($ocrResultCleanup['body'], true, 16, JSON_THROW_ON_ERROR);
+    if (!is_int($ocrResultsDeleted)) {
+        throw new RuntimeException('Invalid OCR result cleanup response.');
+    }
+
     // Prune old rate-limit buckets in the same trusted maintenance job.
     $rateLimitCleanup = cleanupRequest(
         'POST',
@@ -182,4 +197,5 @@ try {
 }
 
 echo 'Expired documents deleted: ' . $deletedCount .
+    '; expired OCR results deleted: ' . $ocrResultsDeleted .
     '; expired rate-limit buckets deleted: ' . $rateLimitDeleted . PHP_EOL;
