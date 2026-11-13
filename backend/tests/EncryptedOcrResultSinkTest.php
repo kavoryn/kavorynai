@@ -64,6 +64,7 @@ $plain = sodium_crypto_secretbox_open($ciphertext, $nonce, $key);
 expectSink(is_string($plain), 'Ciphertext must decrypt with the configured key.');
 $decoded = json_decode($plain, true, 16, JSON_THROW_ON_ERROR);
 expectSink(($decoded['text'] ?? null) === "Ƙarɓi ɗalibi", 'Decrypted OCR text does not match.');
+expectSink(($seen['body']['p_result_sha256'] ?? null) === hash_hmac('sha256', $plain, $key), 'Result integrity metadata must use a keyed HMAC.');
 expectSink(($decoded['uncertain_spans'][0]['reason'] ?? null) === 'low_confidence', 'Uncertain word markers were not preserved.');
 
 echo "Encrypted OCR result sink tests passed." . PHP_EOL;
