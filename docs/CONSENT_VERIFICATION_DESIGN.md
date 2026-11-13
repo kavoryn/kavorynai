@@ -1,52 +1,61 @@
 # Kavoryn — Consent verification implementation
 
-Status: domain logic drafted; persistent adapter and HTTP endpoints are not yet enabled.
+Status: Supabase schema migration applied; PHP consent issuance endpoint and persistent adapter implemented. Secure upload remains disabled.
 
 ## Security flow
 
-1. The Android app authenticates the user. The PHP API resolves the identity through `GET /v1/me`; user IDs from request bodies are never trusted.
-2. The app calculates SHA-256 over the selected document by streaming it locally. It displays the exact processing purpose, output language, whether translation is enabled, and that the document will be sent for external processing. The user must actively confirm.
-3. The app calls authenticated `POST /v1/consents` with `action`, `payload_sha256`, `language`, `translate`, and `confirmed: true`.
-4. The server creates a cryptographically random 256-bit opaque token with a five-minute lifetime. It returns the token once and stores only its SHA-256 hash, along with the authenticated user, action, document digest, language, translation flag, and timestamps.
-5. The app uploads the file and token. The server streams the received file to a temporary location, independently computes SHA-256, and compares it with the consent record before processing.
-6. Consent is consumed exactly once using one atomic database operation. A read-then-update sequence is not acceptable because two concurrent requests could replay the same grant.
-7. Expired, revoked, reused, wrong-user, wrong-action, wrong-language, wrong-translation-setting, or wrong-document grants are rejected. Cancellation before confirmation sends no document bytes.
+1. Android authenticates the user. PHP resolves identity through Supabase Auth; user IDs from request bodies are never trusted.
+2. Android calculates SHA-256 over the selected document by streaming it locally. It displays the processing purpose, output language, translation setting, external processing disclosure, and delete-after-use default. The user must actively confirm.
+3. Android calls authenticated `POST /v1/consents` with `action`, `payload_sha256`, `language`, `translate`, and `confirmed: true`.
+4. PHP creates a cryptographically random 256-bit opaque token with a five-minute default lifetime. The database stores only its SHA-256 hash, bound to the authenticated user, action, document digest, output language, translation flag, expiry, and timestamps.
+5. The app uploads the file and token only after confirmation. The future upload handler must independently hash the received bytes and compare the digest with the grant.
+6. The future upload handler must consume consent using the atomic database RPC. A read-then-update sequence is not acceptable because concurrent requests could replay a grant.
+7. Expired, revoked, reused, wrong-user, wrong-action, wrong-language, wrong-translation-setting, or wrong-document grants are rejected.
 
-The token is short-lived and bound to one user, one action, one exact file digest, one output language, and one translation setting. Consent does not grant access to another user's documents and does not replace normal authorization.
+The consent endpoint does not accept a user ID from the client. Consent does not grant access to another user's documents and does not replace normal authorization.
 
-## Code added
+## Implemented code
 
-- `ConsentRecord`: server-side record shape.
-- `ConsentGrant`: one-time API response shape.
-- `ConsentStore`: persistence contract. Its `consumeOnce` method explicitly requires an atomic implementation.
-- `ConsentService`: validates the request, generates a 256-bit opaque token, stores only its hash, and delegates atomic one-time consumption.
-- `backend/tests/consent_service_test.php`: tests confirmation, token hashing, expiry, user/document binding, and replay rejection with an in-memory test double.
+- `ConsentService`: validates consent input, generates the 256-bit opaque token, stores only its hash, and sets a bounded TTL (60–600 seconds; default 300).
+- `SupabaseConsentStore`: server-only persistence adapter. It sends the new Supabase secret API key in `apikey` and the legacy `service_role` JWT in the Authorization bearer. The new `sb_secret` API key is not a JWT and must not be used as a bearer token.
+- `POST /v1/consents`: authenticated JSON endpoint. It derives the user ID from verified Supabase Auth, requires explicit boolean confirmation, validates request shape, and returns the opaque token once.
+- `ConsentStore`: persistence contract. Consumption is delegated to a single atomic database function.
+- Tests: service unit tests, Supabase adapter HTTP-contract tests, and CI syntax/smoke checks.
 
-The in-memory test double is for unit testing only. It is not durable storage and is not used by the API. No consent HTTP endpoint or upload route is enabled yet.
+The endpoint requires server environment variables:
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY` (server-only API key)
+- `SUPABASE_SERVICE_ROLE_KEY` (server-only legacy JWT until the backend migrates to a suitable supported auth mechanism)
+- Optional `CONSENT_TTL_SECONDS` (default 300)
 
-## Existing database review — not approved for production use
+Never commit or expose the secret key or service-role JWT to Android, public source, logs, or user documents.
 
-The currently connected Supabase project's `public.processing_consents` table has these relevant fields:
+## Database migration applied
 
-- `id`, `user_id`, `feature`, `provider_name`, `purpose`
-- `consented_at`, `confirmation_token_hash`, `expires_at`, `revoked_at`
+Supabase project `nncrkjvldpeisyquulic` now has migration `20261113142411_secure_single_use_document_consents` applied.
 
-RLS is enabled. The only policy observed is a SELECT policy scoped to `auth.uid() = user_id`. The table's grants include broad privileges for `anon` and `authenticated`, so the RLS policy remains the actual row-level barrier; the table should not be written to directly from the mobile client.
+The `public.processing_consents` table now includes:
+- `action` (restricted to `document.process`)
+- `payload_sha256` (64-character SHA-256 hex)
+- `output_language` (restricted to `en`, `ha`, `ar`, `fr`)
+- `translate`
+- `consumed_at`
 
-The current table does not yet expose explicit columns for the document SHA-256 digest, output language, translation setting, or consumed timestamp. Those are required to enforce the contract above. Before wiring a persistent adapter, the project/database choice must be confirmed and the schema must be safely migrated with:
-- a unique index for token hashes,
-- the payload digest and language/translation binding fields,
-- a `consumed_at` field,
-- an atomic consume operation that matches owner, token hash, action, digest, language, translation flag, expiry, and revocation state,
-- least-privilege server access and reviewed RLS/grants.
+A unique index protects `confirmation_token_hash`. The old client SELECT policy was removed; RLS remains enabled. Table privileges were revoked from `public`, `anon`, and `authenticated`, and granted to `service_role` only.
 
-No database schema or policy was changed during this review.
+The migration adds `public.consume_processing_consent(...)`, a SECURITY INVOKER SQL function that atomically updates a matching row only if owner, action, digest, language, translation setting, expiry, revocation state, and unused state all match. Execute is revoked from `public`, `anon`, and `authenticated`, and granted to `service_role` only. The function uses the database clock as the source of truth.
 
-## Release gates before enabling the endpoint
+A second migration, `20261113142434_allow_provider_selection_before_consent`, makes `provider_name` nullable because provider selection may happen after the user gives processing consent.
 
-- Confirm whether this Supabase project is the approved persistent database for Kavoryn.
-- Add and review the schema migration and least-privilege server adapter.
-- Add integration tests against the real database for atomic replay prevention and cross-user isolation.
-- Add authenticated HTTP route tests for missing/false consent and malformed requests.
-- Verify the Android confirmation screen and local digest calculation.
-- Keep uploads disabled until server-side file hashing and consent consumption are integrated in the same upload workflow.
+Both migrations are recorded in `supabase/migrations/` in this repository. The table had zero rows before the migration, so the new required binding columns were added without migrating existing consent records.
+
+## Release gates still open
+
+- Configure the server-side secrets in the PHP host; do not put them in Git or Android.
+- Test `GET /v1/me` and `POST /v1/consents` with a real signed-in account and the live Supabase project.
+- Run database-backed integration tests proving successful one-time consume, replay rejection, and cross-user/digest/language mismatch rejection.
+- Add consent revocation endpoint/flow and define session revocation policy.
+- Add Android confirmation UI and streaming SHA-256 calculation.
+- Implement secure upload so server-side file hashing and atomic consent consumption happen in the same upload workflow.
+- Keep document upload disabled until MIME/signature validation, size/page limits, temporary storage, deletion, and privacy tests are implemented.
