@@ -99,3 +99,15 @@ private fun deleteOwnedTemporaryScan(context: Context, uri: Uri) {
 fun cleanupTemporaryScans(context: Context, documents: List<SelectedDocument>) {
     documents.forEach { deleteOwnedTemporaryScan(context, it.uri) }
 }
+
+/** Removes abandoned app-owned scan files left by a process death or force-stop. */
+fun cleanupStaleTemporaryScans(context: Context) {
+    try {
+        File(context.cacheDir, "camera-scans").listFiles()?.forEach { file ->
+            if (file.isFile && (file.name.startsWith("kavoryn_scan_") ||
+                    file.name.startsWith("kavoryn_rotated_"))) {
+                file.delete()
+            }
+        }
+    } catch (_: Exception) { /* Cache cleanup is best-effort. */ }
+}
