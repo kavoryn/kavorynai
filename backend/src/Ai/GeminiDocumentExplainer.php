@@ -80,7 +80,7 @@ final class GeminiDocumentExplainer implements DocumentExplainer
             'input' => "Explain this OCR text. OCR detected language: " . ($ocr->detectedLanguage ?? 'unknown') .
                 ". UNCERTAIN OCR SPANS (character offsets and extracted text; verify these carefully): " .
                 json_encode($this->uncertainSpanContext($ocr), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) .
-                "\\n\\nDOCUMENT OCR TEXT:\\n" . $ocr->text,
+                "\n\nDOCUMENT OCR TEXT:\n" . $ocr->text,
             'response_format' => [
                 'type' => 'text',
                 'mime_type' => 'application/json',
