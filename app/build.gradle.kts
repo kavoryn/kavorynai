@@ -7,6 +7,9 @@ val supabaseUrl = providers.gradleProperty("SUPABASE_URL")
     .orElse(providers.environmentVariable("SUPABASE_URL")).getOrElse("")
 val supabasePublishableKey = providers.gradleProperty("SUPABASE_PUBLISHABLE_KEY")
     .orElse(providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY")).getOrElse("")
+// Deliberately unset until the user supplies a verified HTTPS staging API origin.
+val kavorynApiBaseUrl = providers.gradleProperty("KAVORYN_API_BASE_URL")
+    .orElse(providers.environmentVariable("KAVORYN_API_BASE_URL")).getOrElse("")
 fun buildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
@@ -22,6 +25,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", buildConfigString(supabaseUrl))
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", buildConfigString(supabasePublishableKey))
+        buildConfigField("String", "KAVORYN_API_BASE_URL", buildConfigString(kavorynApiBaseUrl))
     }
     buildFeatures {
         compose = true
