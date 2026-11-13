@@ -1,6 +1,6 @@
 # Stage A — Document API contract (draft)
 
-Status: partially implemented; upload foundation active in code, remaining endpoints are draft  
+Status: consent, secure upload, OCR queue/worker foundation, and temporary OCR result retrieval are implemented in code; provider accuracy and host staging remain open  
 Version: 0.2  
 All endpoints require HTTPS. Exact auth mechanism, API base URL, upload caps and job transport remain deployment decisions.
 
@@ -68,7 +68,7 @@ Multipart upload. Required parts:
 - output_language: supported language code
 - translate: boolean
 
-Implemented upload checks actual MIME using fileinfo, PDF magic bytes, image parsing/dimensions, extension consistency, per-type size caps, and server-computed SHA-256. The private storage layer uses random names, 0700 directory permissions and 0600 files, and re-hashes bytes while copying. The database RPC atomically consumes matching one-time consent and registers the file with user-scoped idempotency. Still outstanding before production: PDF parsing/page-count limits, full decompression/PDF safety checks, rate limits/quotas, retention cleanup, and host-specific integration testing. Never trust filename or client MIME headers.
+Implemented upload checks actual MIME using fileinfo, PDF magic bytes, image parsing/dimensions, extension consistency, per-type size caps, server-computed SHA-256, and Poppler PDF validation (damaged/encrypted files rejected, maximum 50 pages). The private storage layer uses random names, 0700 directory permissions and 0600 files, and re-hashes bytes while copying. The database RPC atomically consumes matching one-time consent and registers the file with user-scoped idempotency; a trigger creates a private OCR queue job. Upload rate limits are enforced atomically per account. The endpoint remains disabled by default until host configuration and authenticated staging tests pass. Never trust filename or client MIME headers.
 
 201:
 {
@@ -76,7 +76,7 @@ Implemented upload checks actual MIME using fileinfo, PDF magic bytes, image par
   "status": "uploaded"
 }
 
-Errors include stable codes: unsupported_file, file_too_large, page_limit_exceeded, consent_invalid, idempotency_conflict, quota_exceeded, rate_limited, processing_unavailable. The current endpoint creates an `uploaded` document only; it does not yet create a processing job.
+Errors include stable codes: unsupported_file, file_too_large, page_limit_exceeded, consent_invalid, idempotency_conflict, quota_exceeded, rate_limited, processing_unavailable. The current endpoint may return document status `uploaded` while the corresponding OCR job waits in the private queue. A worker must be enabled separately to process it.
 
 ### GET /v1/jobs/{job_id}
 Returns state for the authenticated owner only.
@@ -95,30 +95,20 @@ Returns state for the authenticated owner only.
 No document text is included until the result endpoint. Progress values are approximate and must not be invented.
 
 ### GET /v1/documents/{document_id}/result
-Returns original OCR and generated explanation as separate fields.
+Implemented for the authenticated owner. It returns the temporary original OCR text and uncertain spans; generated explanations are not connected yet.
 
 200:
 {
   "document_id": "<opaque-id>",
-  "language": "ha",
-  "original_ocr": {
-    "text": "...",
-    "uncertain_spans": [
-      {"start": 12, "end": 18, "reason": "low_confidence"}
-    ]
-  },
-  "explanation": {
-    "summary": "...",
-    "detailed": "...",
-    "what_to_do": ["..."],
-    "key_details": [
-      {"type": "date|amount|name|number|deadline", "value": "...", "source_span": [0, 12], "confidence": "good|check_it"}
-    ]
-  },
-  "disclaimer": "AI-generated explanation. Not professional medical, legal, or financial advice."
+  "text": "...",
+  "uncertain_spans": [
+    {"start": 12, "end": 18, "confidence": 0.42, "reason": "low_confidence"}
+  ],
+  "detected_language": "ha|ar|en|fr|und",
+  "request_id": "<opaque-id>"
 }
 
-All key details should include a source span/reference to original OCR where possible. Never present inferred or missing details as facts. The user must be able to inspect original OCR.
+The backend checks the authenticated owner, decrypts the stored payload, verifies its keyed HMAC and metadata, and returns `Cache-Control: no-store`. Results expire with the source document after one hour. Summary, Detailed, What to do, key details and document-grounded Q&A remain separate future work. Never present inferred or missing details as facts.
 
 ### POST /v1/documents/{document_id}/questions
 Document-grounded Q&A only. The answer must cite relevant OCR snippets/spans internally or in UI. If the answer is not supported by the document, respond that the document does not provide enough information.
@@ -138,7 +128,7 @@ Immediately deletes temporary file, OCR/explanation artifacts and any provider-s
 
 ## Data and retention
 
-- Delete-after-use is default. Until OCR processing is connected, unprocessed `uploaded`/`failed` files expire after one hour and are removed by `backend/bin/cleanup_expired_documents.php` on a five-minute host cron. The same script removes unreferenced staged files older than one hour after interrupted upload registration.
+- Delete-after-use is default. Source files and encrypted OCR results expire after one hour and are removed by `backend/bin/cleanup_expired_documents.php` on a five-minute host cron. The same script removes unreferenced staged files older than one hour after interrupted upload registration.
 - No document/image content in analytics, usage events, audit events or ordinary application logs.
 - Saving is opt-in and must have a separate explicit action and retention notice.
 - Temporary data must be deleted on success, failure, timeout, cancellation and expiry.
@@ -150,11 +140,11 @@ Immediately deletes temporary file, OCR/explanation artifacts and any provider-s
 - [ ] Cancel on review sends no document bytes.
 - [ ] Cross-account document/job/result access is rejected.
 - [x] Upload validates actual MIME, supported signatures, file size, image dimensions and SHA-256; PDF page-count/malformed-file parser validation remains open.
-- [ ] OCR returns original text and uncertainty spans.
+- [ ] Live OCR returns original text and uncertainty spans accurately for the approved corpus (provider adapter and mocked tests exist; real accuracy benchmarking remains open).
 - [ ] Summary, Detailed and What to do are grounded in OCR.
 - [ ] Dates, amounts, names, numbers and deadlines have source references.
 - [ ] Document Q&A refuses unsupported answers.
-- [ ] Expired unprocessed uploads are removed by the host cleanup cron; processing success/failure/timeout/cancel deletion remains to be integrated with the OCR worker.
+- [ ] Expired source files and temporary encrypted OCR results are removed by the host cleanup cron; processing cancellation and immediate user-requested deletion still require end-to-end verification.
 - [ ] Logs contain no document text, images, secrets or tokens.
 - [ ] TalkBack can complete Home → Review → Result without assistance.
 - [ ] Hausa characters ɓ, ɗ, ƙ, ƴ and Arabic RTL pass the fixed test set.
