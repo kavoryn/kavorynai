@@ -70,15 +70,26 @@ private fun DocumentFlow() {
         cleanupStaleTemporaryScans(context)
         val saved = withContext(Dispatchers.IO) { authStore.read() }
         if (saved != null) {
-            try {
-                val valid = if (saved.expiresAtEpochSeconds <= System.currentTimeMillis() / 1000 + 60) {
-                    withContext(Dispatchers.IO) {
+            if (saved.expiresAtEpochSeconds > System.currentTimeMillis() / 1000 + 60) {
+                authSession = saved
+            } else {
+                try {
+                    authSession = withContext(Dispatchers.IO) {
                         authApi.refreshSession(saved.refreshToken).also(authStore::save)
                     }
-                } else saved
-                authSession = valid
-            } catch (_: Exception) {
-                withContext(Dispatchers.IO) { authStore.clear() }
+                    authError = null
+                } catch (error: SupabaseAuthException) {
+                    // Only a rejected refresh credential proves the saved session is unusable.
+                    // Network errors, rate limits and server failures must not erase it.
+                    if (error.httpStatus == 400 || error.httpStatus == 401) {
+                        withContext(Dispatchers.IO) { authStore.clear() }
+                        authError = "Your saved sign-in has expired. Please sign in again."
+                    } else {
+                        authError = "Kavoryn couldn't reconnect. Your encrypted session is kept; try again when you're online."
+                    }
+                } catch (_: Exception) {
+                    authError = "Kavoryn couldn't reconnect. Your encrypted session is kept; try again when you're online."
+                }
             }
         }
     }
@@ -149,6 +160,8 @@ private fun DocumentFlow() {
             error = pickerError,
             signedInEmail = authSession?.email,
             authConfigured = authConfigured,
+            accountError = authError,
+            authLoading = authLoading,
             onOpenSignIn = { authError = null; screen = Screen.AUTH },
             onSignOut = {
                 val session = authSession
@@ -246,6 +259,8 @@ private fun HomeScreen(
     error: String?,
     signedInEmail: String?,
     authConfigured: Boolean,
+    accountError: String?,
+    authLoading: Boolean,
     onOpenSignIn: () -> Unit,
     onSignOut: () -> Unit,
     selectedLanguage: OcrLanguage,
@@ -296,15 +311,22 @@ private fun HomeScreen(
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Account", style = MaterialTheme.typography.titleMedium)
+                if (accountError != null) {
+                    Text(accountError, color = MaterialTheme.colorScheme.error)
+                }
                 if (signedInEmail != null) {
                     Text("Signed in as $signedInEmail")
-                    OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
-                        Text("Sign out")
+                    OutlinedButton(
+                        onClick = onSignOut,
+                        enabled = !authLoading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (authLoading) "Signing out…" else "Sign out")
                     }
                 } else {
                     Text(if (authConfigured) "Sign in to access your private workspace."
                         else "Sign-in is unavailable until Supabase build configuration is provided.")
-                    OutlinedButton(onClick = onOpenSignIn, enabled = authConfigured,
+                    OutlinedButton(onClick = onOpenSignIn, enabled = authConfigured && !authLoading,
                         modifier = Modifier.fillMaxWidth()) { Text("Sign in") }
                 }
             }
