@@ -12,11 +12,11 @@ require_once dirname(__DIR__) . '/src/Ai/OpenAiResponsesRequestFactory.php';
 require_once dirname(__DIR__) . '/src/Ai/GeminiInteractionsRequestFactory.php';
 require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamer.php';
 
-use Kavoryn\\Ai\\GeminiInteractionsRequestFactory;
-use Kavoryn\\Ai\\OpenAiResponsesRequestFactory;
-use Kavoryn\\Ai\\ProviderChatStreamer;
-use Kavoryn\\Ai\\ProviderStreamRequest;
-use Kavoryn\\Ai\\ProviderStreamTransport;
+use Kavoryn\Ai\GeminiInteractionsRequestFactory;
+use Kavoryn\Ai\OpenAiResponsesRequestFactory;
+use Kavoryn\Ai\ProviderChatStreamer;
+use Kavoryn\Ai\ProviderStreamRequest;
+use Kavoryn\Ai\ProviderStreamTransport;
 
 $transport = new class implements ProviderStreamTransport {
     public ?ProviderStreamRequest $lastRequest = null;
