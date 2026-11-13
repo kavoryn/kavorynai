@@ -53,8 +53,13 @@ class SupabaseSessionStore(context: Context) {
 
     @Synchronized
     fun read(): SupabaseAuthSession? {
-        val encodedIv = preferences.getString(KEY_IV, null) ?: return null
-        val encodedCiphertext = preferences.getString(KEY_CIPHERTEXT, null) ?: return null
+        val encodedIv = preferences.getString(KEY_IV, null)
+        val encodedCiphertext = preferences.getString(KEY_CIPHERTEXT, null)
+        if (encodedIv == null && encodedCiphertext == null) return null
+        if (encodedIv.isNullOrBlank() || encodedCiphertext.isNullOrBlank()) {
+            clear()
+            return null
+        }
         return try {
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(
