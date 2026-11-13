@@ -30,9 +30,11 @@ function ocrWorkerExpect(bool $condition, string $message): void
 final class TestOcrJobStore implements OcrJobStore
 {
     public bool $completed = false;
+    public int $renewals = 0;
     public array $failures = [];
     public function __construct(private ?OcrJob $job) {}
     public function claim(string $workerId, int $leaseSeconds = 120): ?OcrJob { return $this->job; }
+    public function renew(OcrJob $job, int $leaseSeconds = 600): bool { $this->renewals++; return true; }
     public function complete(OcrJob $job): bool { $this->completed = true; return true; }
     public function fail(OcrJob $job, string $errorCode, int $retryDelaySeconds = 60): bool {
         $this->failures[] = [$errorCode, $retryDelaySeconds];
@@ -45,6 +47,7 @@ final class TestOcrProvider implements OcrProvider
     public bool $called = false;
     public function recognize(OcrRequest $request): OcrResult {
         $this->called = true;
+        if ($request->heartbeat !== null) ($request->heartbeat)();
         return new OcrResult("Ƙarɓi ɗalibi", [], 'ha');
     }
 }
@@ -86,6 +89,7 @@ try {
     ocrWorkerExpect($provider->called, 'Worker must call the OCR provider for a readable private file.');
     ocrWorkerExpect($sink->stored, 'Worker must persist OCR result before completion.');
     ocrWorkerExpect($jobs->completed, 'Worker must complete the job after result persistence.');
+    ocrWorkerExpect($jobs->renewals === 1, 'Worker must renew the lease while the provider is processing.');
     ocrWorkerExpect($jobs->failures === [], 'Successful OCR processing must not record a failure.');
 } finally {
     unlink($root . '/' . $key);
