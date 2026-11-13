@@ -24,7 +24,8 @@ final class SupabaseUserVerifier
 
         $token = $matches[1];
         if ($token === '' || strlen($token) > 8192 ||
-            $this->supabaseUrl === '' || $this->publishableKey === '') {
+            parse_url($this->supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
+            $this->publishableKey === '') {
             throw new AuthenticationException();
         }
 
