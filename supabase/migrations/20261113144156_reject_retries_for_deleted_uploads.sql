@@ -57,7 +57,7 @@ begin
    where d.user_id = p_user_id and d.idempotency_key = p_idempotency_key;
 
   if found then
-    if v_existing.status = 'deleted'
+    if v_existing.status = 'deleted' or v_existing.expires_at <= v_now
        or v_existing.payload_sha256 <> p_payload_sha256
        or v_existing.output_language <> p_output_language
        or v_existing.translate <> p_translate then
@@ -102,6 +102,7 @@ begin
      where d.user_id = p_user_id and d.idempotency_key = p_idempotency_key;
     if v_existing.id is null
        or v_existing.status = 'deleted'
+       or v_existing.expires_at <= v_now
        or v_existing.payload_sha256 <> p_payload_sha256
        or v_existing.output_language <> p_output_language
        or v_existing.translate <> p_translate then
