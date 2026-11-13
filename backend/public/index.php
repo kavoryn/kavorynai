@@ -327,6 +327,13 @@ if ($method === 'POST' && $path === '/v1/documents') {
     require_once dirname(__DIR__) . '/src/Upload/DocumentUploadService.php';
 
     try {
+        $rateLimiter = new Kavoryn\Upload\SupabaseDocumentRateLimiter(
+            $supabaseUrl,
+            $secretKey,
+            $serviceRoleJwt,
+        );
+        $rateLimiter->consume($user->id);
+
         $service = new Kavoryn\Upload\DocumentUploadService(
             new Kavoryn\Upload\DocumentFileInspector(),
             new Kavoryn\Upload\PrivateDocumentStorage($storagePath, __DIR__),
@@ -341,6 +348,24 @@ if ($method === 'POST' && $path === '/v1/documents') {
             $translateRaw === 'true',
             $idempotencyKey,
         );
+    } catch (\Kavoryn\Upload\DocumentRateLimitExceededException $error) {
+        header('Retry-After: ' . $error->retryAfterSeconds);
+        respond(429, [
+            'error' => [
+                'code' => 'upload_rate_limited',
+                'message' => 'You have reached the document upload limit. Please wait before trying again.',
+                'retry_after_seconds' => $error->retryAfterSeconds,
+                'request_id' => $requestId,
+            ],
+        ]);
+    } catch (\Kavoryn\Upload\DocumentRateLimiterUnavailableException) {
+        respond(503, [
+            'error' => [
+                'code' => 'upload_rate_limit_unavailable',
+                'message' => 'Secure document upload is temporarily unavailable.',
+                'request_id' => $requestId,
+            ],
+        ]);
     } catch (\Kavoryn\Upload\DocumentFileException $error) {
         $status = in_array($error->errorCode, ['file_too_large'], true) ? 413 : 422;
         if (in_array($error->errorCode, ['storage_unavailable', 'storage_not_configured', 'storage_permissions_failed', 'storage_write_failed', 'unsafe_storage_path', 'server_configuration_error'], true)) {
