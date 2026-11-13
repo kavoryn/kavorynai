@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,32 +26,34 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
-/**
- * Accessible sign-in form. Network work is delegated to the caller so the UI never
- * performs blocking I/O on the main thread and credentials are not retained in state
- * after a successful submission.
- */
+/** Accessible sign-in and registration form. Network work is delegated to the caller. */
 @Composable
 fun SupabaseSignInScreen(
     configured: Boolean,
     loading: Boolean,
     errorMessage: String?,
     onSignIn: (email: String, password: String) -> Unit,
+    onSignUp: (email: String, password: String) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var creatingAccount by remember { mutableStateOf(false) }
+    var validationMessage by remember { mutableStateOf<String?>(null) }
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Sign in to Kavoryn", style = MaterialTheme.typography.headlineMedium)
         Text(
-            "Sign in to access your private document workspace.",
+            if (creatingAccount) "Create your Kavoryn account" else "Sign in to Kavoryn",
+            style = MaterialTheme.typography.headlineMedium
+        )
+        Text(
+            if (creatingAccount) "Create a private account to use your document workspace."
+            else "Sign in to access your private document workspace.",
             style = MaterialTheme.typography.bodyLarge
         )
         if (!configured) {
@@ -61,36 +64,55 @@ fun SupabaseSignInScreen(
         } else {
             OutlinedTextField(
                 value = email,
-                onValueChange = { email = it },
+                onValueChange = { email = it; validationMessage = null },
                 label = { Text("Email address") },
                 singleLine = true,
                 enabled = !loading,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                modifier = Modifier.fillMaxWidth()
-                    .semantics { contentDescription = "Email address" }
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Email address" }
             )
             OutlinedTextField(
                 value = password,
-                onValueChange = { password = it },
+                onValueChange = { password = it; validationMessage = null },
                 label = { Text("Password") },
                 singleLine = true,
                 enabled = !loading,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth()
-                    .semantics { contentDescription = "Password" }
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Password" }
             )
-            if (errorMessage != null) {
-                Text(errorMessage, color = MaterialTheme.colorScheme.error)
+            if (creatingAccount) {
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it; validationMessage = null },
+                    label = { Text("Confirm password") },
+                    singleLine = true,
+                    enabled = !loading,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth().semantics {
+                        contentDescription = "Confirm password"
+                    }
+                )
             }
+            validationMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(
                 onClick = {
                     val submittedEmail = email.trim()
                     val submittedPassword = password
-                    password = ""
-                    onSignIn(submittedEmail, submittedPassword)
+                    if (creatingAccount && password != confirmPassword) {
+                        validationMessage = "The passwords do not match."
+                    } else {
+                        password = ""
+                        confirmPassword = ""
+                        validationMessage = null
+                        if (creatingAccount) onSignUp(submittedEmail, submittedPassword)
+                        else onSignIn(submittedEmail, submittedPassword)
+                    }
                 },
-                enabled = !loading && email.isNotBlank() && password.isNotEmpty(),
+                enabled = !loading && email.isNotBlank() && password.isNotEmpty() &&
+                    (!creatingAccount || confirmPassword.isNotEmpty()),
                 modifier = Modifier.fillMaxWidth().height(56.dp)
             ) {
                 if (loading) {
@@ -99,9 +121,19 @@ fun SupabaseSignInScreen(
                         color = MaterialTheme.colorScheme.onPrimary,
                         strokeWidth = 2.dp
                     )
-                } else {
-                    Text("Sign in")
-                }
+                } else Text(if (creatingAccount) "Create account" else "Sign in")
+            }
+            OutlinedButton(
+                onClick = {
+                    creatingAccount = !creatingAccount
+                    password = ""
+                    confirmPassword = ""
+                    validationMessage = null
+                },
+                enabled = !loading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (creatingAccount) "I already have an account" else "Create an account")
             }
         }
         Spacer(Modifier.weight(1f))
