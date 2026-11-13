@@ -94,8 +94,12 @@ final class PrivateDocumentStorage
             throw new DocumentFileException('storage_not_configured', 'The public web root could not be verified.');
         }
 
-        if (!is_dir($this->storagePath) && !@mkdir($this->storagePath, 0700, true) && !is_dir($this->storagePath)) {
-            throw new DocumentFileException('storage_unavailable', 'Private document storage is unavailable.');
+        $createdDirectory = false;
+        if (!is_dir($this->storagePath)) {
+            if (!@mkdir($this->storagePath, 0700, true) && !is_dir($this->storagePath)) {
+                throw new DocumentFileException('storage_unavailable', 'Private document storage is unavailable.');
+            }
+            $createdDirectory = true;
         }
         if (!@chmod($this->storagePath, 0700)) {
             throw new DocumentFileException('storage_permissions_failed', 'Private storage permissions could not be secured.');
@@ -107,6 +111,7 @@ final class PrivateDocumentStorage
 
         $publicPrefix = rtrim($public, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         if ($root === $public || str_starts_with($root . DIRECTORY_SEPARATOR, $publicPrefix)) {
+            if ($createdDirectory) @rmdir($root);
             throw new DocumentFileException('unsafe_storage_path', 'Private storage must be outside the public web root.');
         }
 
