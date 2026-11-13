@@ -13,31 +13,35 @@ final class ProviderChatStreamerFactory
      *
      * @param array<string, string> $environment
      */
-    public static function fromEnvironment(array $environment): ProviderChatStreamer
+    public static function fromEnvironment(array $environment, string $provider): ProviderChatStreamer
     {
-        $openAiKey = self::required($environment, 'OPENAI_API_KEY');
-        $openAiModel = self::required($environment, 'OPENAI_CHAT_MODEL');
-        $geminiKey = self::required($environment, 'GEMINI_API_KEY');
-        $geminiModel = self::required($environment, 'GEMINI_CHAT_MODEL');
+        if (!in_array($provider, ['openai', 'gemini'], true)) {
+            throw new \InvalidArgumentException('The requested AI provider is not supported.');
+        }
 
         $transport = new CurlSseStreamTransport([
             'api.openai.com',
             'generativelanguage.googleapis.com',
         ]);
 
-        return new ProviderChatStreamer(
-            new OpenAiResponsesRequestFactory(
-                $openAiKey,
-                $openAiModel,
+        $openAi = null;
+        $gemini = null;
+
+        if ($provider === 'openai') {
+            $openAi = new OpenAiResponsesRequestFactory(
+                self::required($environment, 'OPENAI_API_KEY'),
+                self::required($environment, 'OPENAI_CHAT_MODEL'),
                 self::SYSTEM_INSTRUCTION,
-            ),
-            new GeminiInteractionsRequestFactory(
-                $geminiKey,
-                $geminiModel,
+            );
+        } else {
+            $gemini = new GeminiInteractionsRequestFactory(
+                self::required($environment, 'GEMINI_API_KEY'),
+                self::required($environment, 'GEMINI_CHAT_MODEL'),
                 self::SYSTEM_INSTRUCTION,
-            ),
-            $transport,
-        );
+            );
+        }
+
+        return new ProviderChatStreamer($openAi, $gemini, $transport);
     }
 
     private static function required(array $environment, string $name): string
