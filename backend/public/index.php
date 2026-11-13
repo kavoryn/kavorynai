@@ -311,6 +311,8 @@ if ($method === 'POST' && $path === '/v1/documents') {
     require_once dirname(__DIR__) . '/src/Upload/DocumentRegistration.php';
     require_once dirname(__DIR__) . '/src/Upload/DocumentRegistry.php';
     require_once dirname(__DIR__) . '/src/Upload/DocumentRegistryUnavailableException.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentConsentRejectedException.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentIdempotencyConflictException.php';
     require_once dirname(__DIR__) . '/src/Upload/SupabaseDocumentRegistry.php';
     require_once dirname(__DIR__) . '/src/Upload/DocumentUploadService.php';
 
@@ -341,6 +343,22 @@ if ($method === 'POST' && $path === '/v1/documents') {
                 'request_id' => $requestId,
             ],
         ]);
+    } catch (\Kavoryn\Upload\DocumentConsentRejectedException) {
+        respond(409, [
+            'error' => [
+                'code' => 'consent_invalid',
+                'message' => 'Your processing confirmation has expired or cannot be used. Please review and confirm again.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    } catch (\Kavoryn\Upload\DocumentIdempotencyConflictException) {
+        respond(409, [
+            'error' => [
+                'code' => 'idempotency_conflict',
+                'message' => 'This retry key belongs to a different upload. Start a new upload attempt.',
+                'request_id' => $requestId,
+            ],
+        ]);
     } catch (\Kavoryn\Upload\DocumentRegistryUnavailableException) {
         respond(503, [
             'error' => [
@@ -351,7 +369,7 @@ if ($method === 'POST' && $path === '/v1/documents') {
         ]);
     }
 
-    respond(202, [
+    respond(201, [
         'document_id' => $registration->id,
         'status' => $registration->status,
         'created_at' => $registration->createdAt->format(DATE_ATOM),
