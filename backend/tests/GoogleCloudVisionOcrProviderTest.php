@@ -86,6 +86,39 @@ try {
     expectVision($visionCalls === 1 && $tokenCalls === 1, 'Expected one Vision call and one OAuth token call.');
     $tokens->accessToken();
     expectVision($tokenCalls === 1, 'OAuth token should be cached within the worker process.');
+
+    $pdfPath = sys_get_temp_dir() . '/kavoryn-vision-pdf-' . bin2hex(random_bytes(5)) . '.pdf';
+    $pdf = "%PDF-1.4\n";
+    $objects = [
+        '<< /Type /Catalog /Pages 2 0 R >>',
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>',
+    ];
+    $offsets = [0];
+    foreach ($objects as $index => $object) {
+        $offsets[] = strlen($pdf);
+        $pdf .= ($index + 1) . " 0 obj\n" . $object . "\nendobj\n";
+    }
+    $xrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 4\n0000000000 65535 f \n";
+    foreach (array_slice($offsets, 1) as $offset) $pdf .= sprintf("%010d 00000 n \n", $offset);
+    $pdf .= "trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n" . $xrefOffset . "\n%%EOF\n";
+    file_put_contents($pdfPath, $pdf);
+
+    $heartbeatCount = 0;
+    try {
+        $pdfResult = $provider->recognize(new OcrRequest(
+            $pdfPath,
+            'application/pdf',
+            'ha',
+            function () use (&$heartbeatCount): void { $heartbeatCount++; },
+        ));
+        expectVision($pdfResult->text === "Ƙarɓi ɗalibi", 'PDF page OCR text was not returned.');
+        expectVision($heartbeatCount >= 2, 'Long PDF processing must renew the worker lease between stages.');
+        expectVision($visionCalls === 2, 'PDF page must be rendered and submitted to Vision.');
+    } finally {
+        @unlink($pdfPath);
+    }
 } finally {
     @unlink($credentialsPath);
     @unlink($imagePath);
