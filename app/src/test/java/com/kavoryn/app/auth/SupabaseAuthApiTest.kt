@@ -18,6 +18,12 @@ class SupabaseAuthApiTest {
         assertThrows(IllegalArgumentException::class.java) {
             validatedSupabaseAuthRoot("https://")
         }
+        assertThrows(IllegalArgumentException::class.java) {
+            validatedSupabaseAuthRoot("https://project.supabase.co/unexpected/path")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            validatedSupabaseAuthRoot("https://user@project.supabase.co")
+        }
     }
 
     @Test
