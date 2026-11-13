@@ -91,6 +91,9 @@ jobs:
       - name: Provider stream request factory tests
         run: php backend/tests/ProviderStreamRequestFactoryTest.php
 
+      - name: Provider chat streamer tests
+        run: php backend/tests/ProviderChatStreamerTest.php
+
       - name: Grounded document Q&A policy tests
         run: php backend/tests/GroundedQuestionPolicyTest.php
 
