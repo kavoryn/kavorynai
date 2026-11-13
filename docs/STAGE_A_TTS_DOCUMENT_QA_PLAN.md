@@ -30,6 +30,15 @@ Deliver two Stage A capabilities:
 - Do not store questions, answers, or document content in application logs. Apply bounded request/response sizes and rate limits.
 - Keep OpenAI/Gemini provider selection explicit; no silent fallback.
 
+## Q&A implementation status
+
+- [x] Define a provider-neutral `DocumentQuestionAnswerer` contract.
+- [x] Add fail-closed validation for bounded questions, bounded answers, and exact source excerpts.
+- [x] Add tests for valid evidence, fabricated excerpts, missing evidence, contradictory insufficient-information responses, and oversized questions.
+- [ ] Implement OpenAI and Gemini question-answer adapters with document text treated as untrusted data.
+- [ ] Add authenticated owner-checked `/v1/documents/{document_id}/ask` endpoint and document-specific provider consent audit before external processing.
+- [ ] Add rate limiting, API contract tests, and Android Q&A screen/client.
+
 ## Proposed API contract (design only)
 
 ```http
