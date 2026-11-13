@@ -21,6 +21,24 @@ final class SupabaseChatStore
         }
     }
 
+    public function newId(): string
+    {
+        return $this->uuid();
+    }
+
+    public function consumeRateLimit(string $userId, int $limit = 20, int $windowSeconds = 60): bool
+    {
+        $this->assertUuid($userId);
+        $result = $this->rpc('consume_chat_rate_limit', [
+            'p_user_id'=>$userId, 'p_limit'=>max(1,min($limit,100)),
+            'p_window_seconds'=>max(1,min($windowSeconds,3600)),
+        ]);
+        if (!is_bool($result)) {
+            throw new ChatStorageUnavailableException('Invalid chat rate-limit response.');
+        }
+        return $result;
+    }
+
     public function createConversation(string $userId, string $provider, string $language, ?string $title = null): array
     {
         $this->assertUuid($userId);
