@@ -12,9 +12,10 @@ final class SupabaseConsentStore implements ConsentStore
     public function __construct(
         private readonly string $supabaseUrl,
         private readonly string $secretKey,
+        private readonly string $serviceRoleJwt,
         private readonly mixed $http = null,
     ) {
-        if ($supabaseUrl === '' || $secretKey === '') {
+        if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '') {
             throw new ConsentStorageUnavailableException('Consent storage is not configured.');
         }
     }
@@ -60,7 +61,7 @@ final class SupabaseConsentStore implements ConsentStore
         $url = rtrim($this->supabaseUrl, '/') . $path;
         $headers = [
             'apikey' => $this->secretKey,
-            'Authorization' => 'Bearer ' . $this->secretKey,
+            'Authorization' => 'Bearer ' . $this->serviceRoleJwt,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ];
