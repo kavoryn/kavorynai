@@ -38,6 +38,9 @@ jobs:
       - name: Authentication verifier tests
         run: php backend/tests/auth_verifier_test.php
 
+      - name: Consent service tests
+        run: php backend/tests/consent_service_test.php
+
       - name: API smoke tests
         shell: bash
         run: |
