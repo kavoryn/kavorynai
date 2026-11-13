@@ -21,6 +21,8 @@ $mock=function(string $url,array $headers,string $body) use (&$calls,$user,$conv
     chatStoreExpect(($headers['Authorization']??null)==='Bearer service-role-test','Service role auth must remain server-side.');
     $name=basename($url);
     return match($name) {
+        'create_chat_conversation'=>['status'=>200,'body'=>json_encode(['id'=>$calls[array_key_last($calls)]['payload']['p_id'],'provider'=>'gemini','language'=>'ha'],JSON_THROW_ON_ERROR)],
+        'consume_chat_rate_limit'=>['status'=>200,'body'=>'true'],
         'record_chat_provider_consent'=>['status'=>200,'body'=>json_encode($calls[array_key_last($calls)]['payload']['p_id'],JSON_THROW_ON_ERROR)],
         'has_chat_provider_consent'=>['status'=>200,'body'=>'true'],
         'revoke_chat_provider_consent'=>['status'=>200,'body'=>'1'],
@@ -37,6 +39,9 @@ $mock=function(string $url,array $headers,string $body) use (&$calls,$user,$conv
     };
 };
 $store=new SupabaseChatStore('https://example.supabase.co','secret-test','service-role-test',$mock);
+$created=$store->createConversation($user,'gemini','ha','Hausa test');
+chatStoreExpect(($created['provider']??null)==='gemini','Conversation provider should be returned.');
+chatStoreExpect($store->consumeRateLimit($user),'Rate limit should allow an available request.');
 $consentId=$store->recordConsent($user,'gemini','chat-policy-v1');
 chatStoreExpect((bool)preg_match('/^[0-9a-f-]{36}$/',$consentId),'Consent should return a UUID.');
 chatStoreExpect($store->hasConsent($user,'gemini'),'Active consent should be verified.');
