@@ -20,7 +20,9 @@ Last updated: 2026-11-13
 - Consent-before-upload coordinator and authenticated HTTPS gateway for `POST /v1/consents` and multipart `POST /v1/documents`. Upload streams data and uses idempotency keys.
 - Authenticated HTTPS client for completed OCR results, Unicode code-point to UTF-16 uncertainty range conversion, and an accessible OCR text review screen.
 - AI processing consent dialog with OpenAI/Gemini and language selection, plus authenticated explanation API client.
-- Supabase Auth REST client foundation supports password sign-in, refresh-token exchange and sign-out over HTTPS using a client publishable key. Session token persistence, refresh lifecycle and sign-in UI are not yet implemented.
+- Supabase Auth REST client supports password sign-in, refresh-token exchange and sign-out over HTTPS using an injected client publishable key.
+- Supabase access/refresh tokens can be stored using AES-256-GCM encryption backed by an Android Keystore key; corrupt or undecryptable session data is cleared.
+- Accessible Supabase sign-in form is implemented as a reusable Compose screen. It does not yet have an end-to-end activity/session lifecycle integration, registration flow or automatic refresh scheduling.
 - Unit tests cover Supabase project URL validation and auth-session parsing.
 - Android CI runs unit tests before assembling the debug APK.
 
@@ -37,14 +39,15 @@ Last updated: 2026-11-13
 ## Verified build evidence
 
 - Android workflow [43475751689](https://github.com/kavoryn/kavorynai/actions/runs/43475751689) completed successfully on commit `7279de5f9b5fd4967166beea079838c37ab5c5c2`; unit tests and debug APK assembly passed.
+- The first Supabase Auth PR CI attempt exposed JVM unit-test JSON stubbing failures. A JVM JSON implementation was added for tests; the rerun is in progress and must pass before the PR is considered verified.
 - Latest main-branch workflow [43476229668](https://github.com/kavoryn/kavorynai/actions/runs/43476229668), commit `538dd609e586552898a3f0b3a19ccc30843361f0`, completed successfully; unit tests and debug APK assembly passed. The new Supabase Auth client branch has its own CI run pending.
 
 A successful CI build is not a staging or device acceptance test.
 
 ## Not yet complete / release blockers
 
-- Android sign-in/session lifecycle is not wired into the app. Supabase client configuration (project URL and publishable key) must be supplied through safe build configuration; never place a service-role key in Android or source control.
-- Session tokens are not yet stored in encrypted app storage; refresh scheduling and sign-out/session-expiry UI remain outstanding.
+- Android sign-in/session lifecycle is not yet wired into the main document flow. Supabase URL and publishable key are injected from Gradle properties or environment variables (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`); never place a service-role key in Android or source control.
+- Automatic token refresh scheduling, registration, sign-out/session-expiry UI and encrypted-store device tests remain outstanding.
 - Staging API base URL and staging credentials have not been supplied, so authenticated end-to-end staging tests have not run.
 - The local review screen is not yet connected to authenticated upload, OCR completion polling, OCR result display, AI explanation consent/API, and result actions.
 - Text-to-speech, document-grounded Q&A, Share and Delete controls are not yet connected end-to-end in the Android result flow.
