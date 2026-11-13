@@ -114,6 +114,52 @@ try {
             $deletedCount++;
         }
     } while (count($records) === 100);
+
+    // Remove old staged files that never acquired a database row after an
+    // interrupted registration request. Never touch recent or referenced files.
+    $referenced = [];
+    $offset = 0;
+    do {
+        $query = '?select=storage_key&status=neq.deleted&deleted_at=is.null&limit=1000&offset=' . $offset;
+        $response = cleanupRequest('GET', $baseUrl . $query, $headers);
+        if ($response['status'] !== 200) {
+            throw new RuntimeException('Could not list registered document keys.');
+        }
+        $rows = json_decode($response['body'], true, 32, JSON_THROW_ON_ERROR);
+        if (!is_array($rows)) {
+            throw new RuntimeException('Invalid registered document key response.');
+        }
+        foreach ($rows as $row) {
+            if (is_array($row) && is_string($row['storage_key'] ?? null)) {
+                $referenced[$row['storage_key']] = true;
+            }
+        }
+        $count = count($rows);
+        $offset += $count;
+    } while ($count === 1000);
+
+    $publicRoot = realpath(dirname(__DIR__) . '/public');
+    $privateRoot = realpath($storagePath);
+    if ($publicRoot === false) {
+        throw new RuntimeException('Public web root could not be verified.');
+    }
+    if ($privateRoot !== false) {
+        $publicPrefix = rtrim($publicRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        if ($privateRoot === $publicRoot || str_starts_with($privateRoot . DIRECTORY_SEPARATOR, $publicPrefix)) {
+            throw new RuntimeException('Private storage must be outside the public web root.');
+        }
+        foreach (new DirectoryIterator($privateRoot) as $entry) {
+            if ($entry->isDot() || !$entry->isFile()) continue;
+            $key = $entry->getFilename();
+            if (!preg_match('/^[a-f0-9]{32}\\.(pdf|jpg|png|webp)$/', $key) ||
+                $entry->getMTime() >= time() - 3600 ||
+                isset($referenced[$key])) {
+                continue;
+            }
+            $storage->delete($key);
+            $deletedCount++;
+        }
+    }
 } catch (Throwable $error) {
     fwrite(STDERR, "Document cleanup failed: " . $error->getMessage() . PHP_EOL);
     exit(1);
