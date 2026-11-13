@@ -158,3 +158,35 @@ Results are temporary, not a saved document library. Their expiry is copied from
 ### Current integration boundary
 
 The provider adapter, service-account token exchange, worker CLI, encrypted result sink/reader, and queue wrappers are implemented. Automated tests mock Google and Supabase HTTP responses; they do not prove live Google OCR accuracy or production credentials. Hausa benchmark accuracy, staging end-to-end verification, provider billing/quotas, and the final upload/worker enablement gate remain outstanding.
+
+
+## AI document explanation (OpenAI + Gemini)
+
+The authenticated endpoint `POST /v1/documents/{document_id}/explain` reads only the owner's completed, encrypted OCR result and generates a plain-language explanation. It does not accept document text from the client and does not persist the generated explanation.
+
+The request must be JSON and include an explicit provider-specific confirmation:
+
+```json
+{
+  "confirmed": true,
+  "provider": "gemini",
+  "language": "ha"
+}
+```
+
+Supported providers are `openai` and `gemini`; supported output languages are `en`, `ha`, `ar`, and `fr`. The endpoint records the user's AI-processing consent (provider, language, document ID, and document SHA-256) in the private `private.ai_processing_consents` audit table before sending OCR text to the selected external provider. The RPC is callable only by the server's service role. If consent recording fails, the endpoint fails closed and does not send document text to either provider.
+
+Both providers implement the same `DocumentExplainer` contract and return summary, detailed explanation, suggested next steps, and key facts with exact source quotes. The backend rejects any key fact whose quote does not occur in the OCR source. Provider selection is explicit per request; the backend does not silently switch providers or send a document to a second provider as a fallback.
+
+Gemini uses the current stateless Interactions API with `store=false` and structured JSON output. OpenAI uses the Responses API with `store=false`. Keep `OPENAI_API_KEY` and `GEMINI_API_KEY` in the private server environment only. Never add either key to Android, browser code, logs, or Git. Set `GEMINI_MODEL` to an available model; the current default is `gemini-3.6-flash`.
+
+Example cURL request (use a real user's access token and a completed document ID):
+
+```bash
+curl --fail-with-body -X POST "https://YOUR_API_HOST/v1/documents/DOCUMENT_UUID/explain" \\
+  -H "Authorization: Bearer USER_ACCESS_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"confirmed":true,"provider":"gemini","language":"ha"}'
+```
+
+This is backend implementation and automated mock-test coverage only. It is not a live-provider or production-host staging pass. Do not enable document uploads or the OCR worker until the full authenticated upload → OCR → encrypted result → consented explanation flow has passed staging tests with rotated credentials and real provider access.
