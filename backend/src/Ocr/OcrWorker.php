@@ -30,10 +30,17 @@ final class OcrWorker
                 throw new OcrJobProcessingException('document_file_unavailable');
             }
 
+            $heartbeat = function () use ($job): void {
+                if (!$this->jobs->renew($job, 600)) {
+                    throw new OcrJobProcessingException('job_lease_lost');
+                }
+            };
+
             $result = $this->provider->recognize(new OcrRequest(
                 $filePath,
                 $job->mimeType,
                 $job->language,
+                $heartbeat,
             ));
 
             // The result sink must enforce the approved retention/encryption policy.
