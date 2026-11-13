@@ -1,0 +1,62 @@
+name: PHP API checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/php-api.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/php-api.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  php-api-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          coverage: none
+
+      - name: PHP syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            php -l "$file"
+          done < <(find backend -type f -name '*.php' -print0)
+
+      - name: Health endpoint smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -S 127.0.0.1:8080 -t backend/public > /tmp/kavoryn-php-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:8080/v1/health > /tmp/kavoryn-health.json; then
+              break
+            fi
+            sleep 1
+          done
+
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-health.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["status"] ?? null) !== "ok" ||
+                ($data["service"] ?? null) !== "kavoryn-api" ||
+                !is_string($data["request_id"] ?? null) ||
+                $data["request_id"] === "") {
+                fwrite(STDERR, "Health response contract failed.\n");
+                exit(1);
+            }
+          '
