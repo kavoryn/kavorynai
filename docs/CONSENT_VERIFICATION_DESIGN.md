@@ -48,7 +48,9 @@ The migration adds `public.consume_processing_consent(...)`, a SECURITY INVOKER 
 
 A second migration, `20261113142434_allow_provider_selection_before_consent`, makes `provider_name` nullable because provider selection may happen after the user gives processing consent.
 
-Both migrations are recorded in `supabase/migrations/` in this repository. The table had zero rows before the migration, so the new required binding columns were added without migrating existing consent records.
+A third migration, `20261113142706_lock_down_signup_trigger_function`, revokes direct execution of the existing SECURITY DEFINER signup trigger function from `public`, `anon`, and `authenticated`. The trigger remains enabled on `auth.users`; the function is no longer directly callable through the Data API by client roles.
+
+All three migrations are recorded in `supabase/migrations/` in this repository. The table had zero rows before the migration, so the new required binding columns were added without migrating existing consent records.
 
 ## Release gates still open
 
