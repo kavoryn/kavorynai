@@ -6,7 +6,7 @@ namespace Kavoryn\Ai;
 
 use Kavoryn\Ocr\OcrResult;
 
-final class OpenAiDocumentExplainer
+final class OpenAiDocumentExplainer implements DocumentExplainer
 {
     /** @param callable(string,array<string,string>,string):array{status:int,body:string}|null $http */
     public function __construct(
