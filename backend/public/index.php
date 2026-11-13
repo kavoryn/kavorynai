@@ -412,6 +412,113 @@ if ($method === 'POST' && $path === '/v1/documents') {
     ]);
 }
 
+if ($method === 'POST' && preg_match(
+    '#^/v1/documents/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12})/explain$#i',
+    $path,
+    $matches,
+)) {
+    if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 8192) {
+        respond(413, ['error' => ['code' => 'request_too_large', 'message' => 'The explanation request is too large.', 'request_id' => $requestId]]);
+    }
+
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $contentType = strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '')[0]));
+    if ($contentType !== 'application/json') {
+        respond(415, ['error' => ['code' => 'unsupported_content_type', 'message' => 'Send the AI processing consent as JSON.', 'request_id' => $requestId]]);
+    }
+
+    $rawBody = file_get_contents('php://input');
+    if (!is_string($rawBody) || strlen($rawBody) > 8192) {
+        respond(413, ['error' => ['code' => 'request_too_large', 'message' => 'The explanation request is too large.', 'request_id' => $requestId]]);
+    }
+    try {
+        $input = json_decode($rawBody, true, 16, JSON_THROW_ON_ERROR);
+    } catch (\\JsonException) {
+        respond(400, ['error' => ['code' => 'invalid_json', 'message' => 'The explanation request is not valid JSON.', 'request_id' => $requestId]]);
+    }
+
+    if (!is_array($input) || ($input['confirmed'] ?? null) !== true ||
+        !is_string($input['provider'] ?? null) ||
+        !is_string($input['language'] ?? null) ||
+        !in_array($input['provider'], ['openai', 'gemini'], true) ||
+        !in_array($input['language'], ['en', 'ha', 'ar', 'fr'], true)) {
+        respond(422, [
+            'error' => [
+                'code' => 'ai_processing_consent_required',
+                'message' => 'Review the AI processing notice and explicitly confirm the selected provider and output language.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
+    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $encryptionKey === '') {
+        respond(503, ['error' => ['code' => 'document_explanation_not_configured', 'message' => 'Document explanation is temporarily unavailable.', 'request_id' => $requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Ocr/OcrResult.php';
+    require_once dirname(__DIR__) . '/src/Ocr/SupabaseEncryptedOcrResultReader.php';
+    require_once dirname(__DIR__) . '/src/Ai/DocumentExplainer.php';
+    require_once dirname(__DIR__) . '/src/Ai/OpenAiDocumentExplainer.php';
+    require_once dirname(__DIR__) . '/src/Ai/GeminiDocumentExplainer.php';
+    require_once dirname(__DIR__) . '/src/Ai/DocumentExplainerFactory.php';
+    require_once dirname(__DIR__) . '/src/Ai/SupabaseAiProcessingConsentRecorder.php';
+
+    try {
+        $reader = new \\Kavoryn\\Ocr\\SupabaseEncryptedOcrResultReader(
+            $supabaseUrl,
+            $secretKey,
+            $serviceRoleJwt,
+            \\Kavoryn\\Ocr\\SupabaseEncryptedOcrResultReader::decodeKey($encryptionKey),
+        );
+        $ocrResult = $reader->read($matches[1], $user->id);
+
+        $explainer = \\Kavoryn\\Ai\\DocumentExplainerFactory::create($input['provider'], [
+            'OPENAI_API_KEY' => getenv('OPENAI_API_KEY') ?: '',
+            'OPENAI_MODEL' => getenv('OPENAI_MODEL') ?: 'gpt-5-mini',
+            'GEMINI_API_KEY' => getenv('GEMINI_API_KEY') ?: '',
+            'GEMINI_MODEL' => getenv('GEMINI_MODEL') ?: 'gemini-3.6-flash',
+        ]);
+
+        $consentRecorder = new \\Kavoryn\\Ai\\SupabaseAiProcessingConsentRecorder(
+            $supabaseUrl,
+            $secretKey,
+            $serviceRoleJwt,
+        );
+        // Persist the user's explicit provider-specific consent before sending OCR text externally.
+        $consentRecorder->record($user->id, $matches[1], $input['provider'], $input['language']);
+
+        $explanation = $explainer->explain($ocrResult, $input['language']);
+    } catch (\\Kavoryn\\Ocr\\OcrResultNotFoundException) {
+        respond(404, ['error' => ['code' => 'document_result_not_found', 'message' => 'A completed document result is not available or has expired.', 'request_id' => $requestId]]);
+    } catch (\\Kavoryn\\Ai\\AiConsentStorageUnavailableException) {
+        respond(503, ['error' => ['code' => 'ai_consent_storage_unavailable', 'message' => 'AI processing consent could not be recorded. No document text was sent to the AI provider.', 'request_id' => $requestId]]);
+    } catch (\\Kavoryn\\Ai\\OpenAiUnavailableException | \\Kavoryn\\Ai\\GeminiUnavailableException) {
+        respond(503, ['error' => ['code' => 'ai_provider_unavailable', 'message' => 'The selected AI provider is temporarily unavailable. Your document text was not stored by Kavoryn.', 'request_id' => $requestId]]);
+    } catch (\\InvalidArgumentException | \\Kavoryn\\Ocr\\OcrResultReaderUnavailableException) {
+        respond(503, ['error' => ['code' => 'document_explanation_unavailable', 'message' => 'Document explanation is temporarily unavailable.', 'request_id' => $requestId]]);
+    }
+
+    respond(200, [
+        'document_id' => $matches[1],
+        'provider' => $input['provider'],
+        'language' => $input['language'],
+        'summary' => $explanation['summary'],
+        'detailed_explanation' => $explanation['detailed_explanation'],
+        'actions' => $explanation['actions'],
+        'key_facts' => $explanation['key_facts'],
+        'request_id' => $requestId,
+    ]);
+}
+
 if ($method === 'GET' && preg_match(
     '#^/v1/documents/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/result$#i',
     $path,
