@@ -141,7 +141,7 @@ final class SupabaseDocumentRegistry implements DocumentRegistry
 }
 
 
-final class DocumentRateLimitExceededException extends \\RuntimeException
+final class DocumentRateLimitExceededException extends \RuntimeException
 {
     public function __construct(public readonly int $retryAfterSeconds)
     {
@@ -149,7 +149,7 @@ final class DocumentRateLimitExceededException extends \\RuntimeException
     }
 }
 
-final class DocumentRateLimiterUnavailableException extends \\RuntimeException {}
+final class DocumentRateLimiterUnavailableException extends \RuntimeException {}
 
 final class SupabaseDocumentRateLimiter
 {
@@ -212,7 +212,7 @@ final class SupabaseDocumentRateLimiter
             }
         } catch (DocumentRateLimitExceededException | DocumentRateLimiterUnavailableException $error) {
             throw $error;
-        } catch (\\Throwable) {
+        } catch (\Throwable) {
             throw new DocumentRateLimiterUnavailableException();
         }
 
@@ -225,7 +225,7 @@ final class SupabaseDocumentRateLimiter
 
         try {
             $rows = json_decode($response['body'], true, 16, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException) {
+        } catch (\JsonException) {
             throw new DocumentRateLimiterUnavailableException();
         }
         $row = is_array($rows) ? ($rows[0] ?? null) : null;
