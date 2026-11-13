@@ -110,7 +110,18 @@ private fun DocumentFlow() {
         )
         Screen.REVIEW -> ReviewScreen(
             documents = selectedDocuments,
+            onRotate = { document ->
+                val rotated = rotateDocumentImage(context, document)
+                if (rotated != null) {
+                    selectedDocuments = selectedDocuments.map {
+                        if (it.uri == document.uri) rotated else it
+                    }
+                } else {
+                    pickerError = "This image could not be rotated. The original file is unchanged."
+                }
+            },
             onCancel = {
+                cleanupTemporaryScans(context, selectedDocuments)
                 selectedDocuments = emptyList()
                 confirmed = false
                 screen = Screen.HOME
@@ -118,6 +129,7 @@ private fun DocumentFlow() {
             onConfirm = { confirmed = true; screen = Screen.LOCAL_READY }
         )
         Screen.LOCAL_READY -> LocalReadyScreen(confirmed) {
+            cleanupTemporaryScans(context, selectedDocuments)
             selectedDocuments = emptyList()
             screen = Screen.HOME
             confirmed = false
@@ -164,7 +176,12 @@ private fun ModeCard(title: String, subtitle: String) {
 }
 
 @Composable
-private fun ReviewScreen(documents: List<SelectedDocument>, onCancel: () -> Unit, onConfirm: () -> Unit) {
+private fun ReviewScreen(
+    documents: List<SelectedDocument>,
+    onRotate: (SelectedDocument) -> Unit,
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val inspections = remember(documents) {
         documents.map { it to inspectDocument(context, it.uri, it.mimeType) }
@@ -188,6 +205,9 @@ private fun ReviewScreen(documents: List<SelectedDocument>, onCancel: () -> Unit
                                 if (inspection.qualityNote != null) {
                                     Text(inspection.qualityNote, color = MaterialTheme.colorScheme.error)
                                 } else Text("Image dimensions look suitable for a scan.")
+                                OutlinedButton(onClick = { onRotate(document) }) {
+                                    Text("Rotate 90°")
+                                }
                             }
                             is DocumentInspection.Problem -> Text(inspection.message, color = MaterialTheme.colorScheme.error)
                         }
