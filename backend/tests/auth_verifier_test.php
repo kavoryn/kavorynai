@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/src/Auth/AuthenticationServiceUnavailableExcep
 require_once dirname(__DIR__) . '/src/Auth/SupabaseUserVerifier.php';
 
 use Kavoryn\Auth\AuthenticationException;
+use Kavoryn\Auth\AuthenticationServiceUnavailableException;
 use Kavoryn\Auth\SupabaseUserVerifier;
 
 function expect(bool $condition, string $message): void
