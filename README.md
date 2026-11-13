@@ -10,15 +10,18 @@ Kavoryn is an accessibility-first application that helps people read, understand
 
 ## Current implementation status
 
-- Android document intake, local PDF/image inspection, camera capture, image rotation and bounded local preview are in progress; device/build verification remains outstanding.
-- A provider-neutral OCR contract now models English, Hausa, Arabic and French, per-page text, uncertain spans, word confidence and normalized geometry.
+- Android document intake, local PDF/image inspection, camera capture, image rotation and bounded local preview are implemented as foundations; device/build verification remains outstanding.
+- A provider-neutral OCR contract models English, Hausa, Arabic and French, per-page text, uncertain spans, word confidence and normalized geometry.
 - OCR provider selection is intentionally open. See `docs/OCR_PROVIDER_EVALUATION.md` for the multilingual corpus and comparison gate.
-- A consent-gated OCR submission coordinator streams SHA-256, requests a short-lived consent grant, and only then streams the document. An authenticated HTTPS gateway now implements `POST /v1/consents` and multipart `POST /v1/documents`, with user bearer-token auth, idempotency keys, bounded response reads and no provider secrets on-device.
+- A consent-gated OCR submission coordinator streams SHA-256, requests a short-lived consent grant, and only then streams the document. An authenticated HTTPS gateway implements `POST /v1/consents` and multipart `POST /v1/documents`, with user bearer-token auth, idempotency keys, bounded response reads and no provider secrets on-device.
 - The Android home/review flow includes a selectable output language for English, Hausa, Arabic and French.
 - A reusable AI explanation consent dialog lets the user choose OpenAI or Gemini and an output language, and disables confirmation until explicit consent is checked.
-- An authenticated Android API client now calls `POST /v1/documents/{document_id}/explain` over HTTPS with the user's bearer token, explicit provider/language consent payload, bounded response size and sanitized errors. The UI is not yet connected to this client because Android sign-in, upload/OCR completion and document-ID state are not yet integrated end-to-end.
-- An authenticated Android OCR result reader now calls `GET /v1/documents/{document_id}/result` over HTTPS, validates the returned document reference and bounded payload, and converts server Unicode code-point uncertainty offsets to Android UTF-16 ranges safely. Result display and end-to-end sign-in/session wiring remain outstanding.
-- A reusable accessible OCR result screen now displays the original extracted text, highlights uncertain spans without altering the source text, supports text selection, and provides a hand-off action for document explanation. It is not yet wired into a signed-in end-to-end flow.
+- An authenticated Android API client calls `POST /v1/documents/{document_id}/explain` over HTTPS with the user's bearer token, explicit provider/language consent payload, bounded response size and sanitized errors. The UI is not yet connected to this client because Android sign-in, upload/OCR completion and document-ID state are not yet integrated end-to-end.
+- An authenticated Android OCR result reader calls `GET /v1/documents/{document_id}/result` over HTTPS, validates the returned document reference and bounded payload, and converts server Unicode code-point uncertainty offsets to Android UTF-16 ranges safely. Result display and end-to-end sign-in/session wiring remain outstanding.
+- A reusable accessible OCR result screen displays the original extracted text, highlights uncertain spans without altering the source text, supports text selection, and provides a hand-off action for document explanation. It is not yet wired into a signed-in end-to-end flow.
+- A Supabase Auth REST client supports password sign-in, refresh-token exchange and sign-out over HTTPS with a client publishable key.
+- Supabase session tokens can be stored encrypted using AES-256-GCM with an Android Keystore key; the reusable Compose sign-in screen is implemented. Main-flow wiring, automatic refresh scheduling and registration remain outstanding.
+- Supply `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` through Gradle properties or environment variables. Never commit a service-role key or provider secret.
 
 ## Non-negotiable requirements
 
