@@ -184,3 +184,7 @@ internal fun parseSupabaseAuthSession(
         email = user.optString("email").takeIf { it.isNotBlank() }
     )
 }
+
+/** Clear persisted credentials only when Supabase explicitly rejects the refresh token. */
+internal fun shouldClearStoredSessionAfterRefreshFailure(error: SupabaseAuthException): Boolean =
+    error.httpStatus == 400 || error.httpStatus == 401
