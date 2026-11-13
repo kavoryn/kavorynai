@@ -28,7 +28,7 @@ $mock = function (string $url, array $headers, string $body) use ($userId, $docu
     ]], JSON_THROW_ON_ERROR)];
 };
 
-$recorder = new SupabaseAiProcessingConsentRecorder(
+$recorder = new \Kavoryn\Ai\SupabaseAiProcessingConsentRecorder(
     'https://example.supabase.co',
     'secret-test',
     'service-role-test',
@@ -45,7 +45,7 @@ $failed = new SupabaseAiProcessingConsentRecorder(
 try {
     $failed->record($userId, $documentId, 'openai', 'en');
     throw new RuntimeException('Failed consent persistence must stop AI processing.');
-} catch (AiConsentStorageUnavailableException) {
+} catch (\Kavoryn\Ai\AiConsentStorageUnavailableException) {
     // Expected fail-closed behavior.
 }
 
