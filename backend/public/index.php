@@ -84,9 +84,9 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
     require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackWebhookStore.php';
 
     try {
-        $verifier = new \\Kavoryn\\Billing\\PaystackWebhookVerifier($paystackSecret);
+        $verifier = new \Kavoryn\\Billing\\PaystackWebhookVerifier($paystackSecret);
         $event = $verifier->verify($rawBody, $_SERVER['HTTP_X_PAYSTACK_SIGNATURE'] ?? null);
-    } catch (\\Kavoryn\\Billing\\InvalidPaystackWebhookException) {
+    } catch (\Kavoryn\\Billing\\InvalidPaystackWebhookException) {
         respond(401, ['error'=>['code'=>'invalid_webhook_signature','message'=>'The payment notification could not be authenticated.','request_id'=>$requestId]]);
     }
 
@@ -96,7 +96,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
     }
 
     try {
-        $store = new \\Kavoryn\\Billing\\SupabasePaystackWebhookStore(
+        $store = new \Kavoryn\\Billing\\SupabasePaystackWebhookStore(
             $supabaseUrl,
             $supabaseSecret,
             $serviceRoleJwt,
