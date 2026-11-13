@@ -8,7 +8,7 @@ use DateTimeImmutable;
 
 interface ConsentStore
 {
-    public function create(ConsentRecord $record): void;
+    public function create(ConsentRecord $record): ConsentRecord;
 
     /**
      * Atomically consumes a matching, unexpired, unrevoked grant exactly once.
