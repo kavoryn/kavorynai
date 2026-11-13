@@ -83,7 +83,7 @@ final class SupabaseChatStore
         $outputTokens = $message['output_tokens'] ?? null;
         if (!in_array($role, ['user','assistant'], true) ||
             !in_array($status, ['pending','streaming','completed','failed','cancelled'], true) ||
-            !is_string($content) || trim($content) === '' || mb_strlen($content) > 24000 ||
+            !is_string($content) || trim($content) === '' || strlen($content) > 96000 ||
             !is_string($provider)) {
             throw new \InvalidArgumentException('Invalid chat message.');
         }
