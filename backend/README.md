@@ -1,19 +1,34 @@
 # Kavoryn PHP API — Stage A foundation
 
-This directory contains the first PHP API entry point for the Android document workflow.
+This directory contains the PHP API entry point for the Android document workflow.
 
-## Current implementation
+## Implemented endpoints
 
-- `public/index.php` exposes a minimal `GET /v1/health` liveness response.
-- Responses include a request ID and no-store/security headers.
-- Unknown routes return a stable JSON error envelope.
-- No document upload, consent issuance, authentication, OCR provider, or database access is enabled yet.
+- `GET /v1/health`: liveness response with request ID.
+- `GET /v1/me`: verifies a Supabase Auth user access token and returns the verified user ID.
+
+The identity endpoint calls Supabase Auth's `/auth/v1/user` endpoint. It does not trust a user ID from request data or decode unverified JWT claims. It requires:
+
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+
+Set both in the server's secret/configuration manager. A publishable key is intended for API identification; do not put a Supabase secret/service-role key in the Android app or use it for this check. PHP cURL with TLS verification is required.
+
+Example request:
+
+```http
+GET /v1/me
+Authorization: Bearer <Supabase user access token>
+```
+
+A valid session receives `authenticated: true` and a server-verified `user_id`. Missing server configuration returns `503 authentication_not_configured`; a missing, invalid, or rejected access token returns `401 unauthorized`. The bearer token and raw Auth response must never be logged.
 
 ## Local smoke test
 
 Requires PHP 8.2 or newer.
 
 ```sh
+cd backend
 php -S 127.0.0.1:8080 -t public
 ```
 
@@ -21,19 +36,23 @@ In another terminal:
 
 ```sh
 curl -i http://127.0.0.1:8080/v1/health
+curl -i http://127.0.0.1:8080/v1/me
 ```
 
-Expected JSON fields: `status=ok`, `service=kavoryn-api`, and a non-empty `request_id`.
+Without server-side Supabase configuration, `/v1/me` must fail closed with HTTP 503. To test a real signed-in user, configure the two server variables and send a current Supabase user access token.
 
-## Deployment rules
+## Security and deployment boundaries
 
 - Point the web server document root to `backend/public`, never the repository root.
 - Keep `.env`, Composer files, source, logs, and temporary files outside the public web root.
 - Require HTTPS before accepting credentials or document data.
-- Configure secrets only in the hosting provider's secret manager.
-- Do not enable upload or processing endpoints until authentication, server-side consent verification, MIME/signature validation, quotas, temporary-file cleanup, and privacy tests exist.
 - The health route is liveness only; it must not expose database or provider status.
+- Do not accept user IDs supplied by clients as proof of identity.
+- This endpoint verifies identity only. It does not yet implement roles, account recovery, phone/email ownership policy, rate limiting, session revocation checks, or account creation UX.
+- Do not enable document upload until consent verification, file signature/MIME validation, quotas, temporary-file cleanup, and privacy tests are implemented.
 
 ## Current status
 
-The health route is a development foundation, not a production-ready API. PHP hosting suitability, queue/background-job support, request-size limits, temporary storage, and deletion behavior still require proof on the selected host.
+Supabase-backed user identity verification is wired into `GET /v1/me`, but production readiness still depends on configuring Supabase, testing with a real session, HTTPS, rate limiting, and a documented session revocation policy. PHP hosting suitability, queue/background-job support, request-size limits, temporary storage, and deletion behavior also require proof on the selected host.
+
+Consent issuance/verification, document upload, OCR, explanation, and TTS are not yet implemented.
