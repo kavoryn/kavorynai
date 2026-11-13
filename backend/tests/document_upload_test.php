@@ -68,7 +68,7 @@ $rateLimitHttp = static function (string $url, array $headers, string $body): ar
     uploadExpect(($headers['Authorization'] ?? '') === 'Bearer service-role-test-jwt', 'Rate limiter must authenticate server-side only.');
     return ['status' => 200, 'body' => '[{"allowed":true,"retry_after_seconds":0}]'];
 };
-$rateLimiter = new \\Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
+$rateLimiter = new \Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
     'https://example.supabase.co',
     'test-publishable-key',
     'service-role-test-jwt',
@@ -76,7 +76,7 @@ $rateLimiter = new \\Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
 );
 $rateLimiter->consume('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12');
 
-$blockedLimiter = new \\Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
+$blockedLimiter = new \Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
     'https://example.supabase.co',
     'test-publishable-key',
     'service-role-test-jwt',
@@ -85,7 +85,7 @@ $blockedLimiter = new \\Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
 $rateLimited = false;
 try {
     $blockedLimiter->consume('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12');
-} catch (\\Kavoryn\\Upload\\DocumentRateLimitExceededException $error) {
+} catch (\Kavoryn\\Upload\\DocumentRateLimitExceededException $error) {
     $rateLimited = $error->retryAfterSeconds === 42;
 }
 uploadExpect($rateLimited, 'Rate limiter must reject blocked uploads with a retry delay.');
