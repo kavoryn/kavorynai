@@ -60,6 +60,7 @@ private fun DocumentFlow() {
     var authSession by remember { mutableStateOf<SupabaseAuthSession?>(null) }
     var authLoading by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
+    var authNotice by remember { mutableStateOf<String?>(null) }
     val authConfigured = BuildConfig.SUPABASE_URL.isNotBlank() &&
         BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()
     val authStore = remember(context) { SupabaseSessionStore(context) }
@@ -164,7 +165,7 @@ private fun DocumentFlow() {
             authConfigured = authConfigured,
             accountError = authError,
             authLoading = authLoading,
-            onOpenSignIn = { authError = null; screen = Screen.AUTH },
+            onOpenSignIn = { authError = null; authNotice = null; screen = Screen.AUTH },
             onSignOut = {
                 val session = authSession
                 authLoading = true
@@ -199,10 +200,12 @@ private fun DocumentFlow() {
             configured = authConfigured,
             loading = authLoading,
             errorMessage = authError,
-            onCancel = { authError = null; screen = Screen.HOME },
+            statusMessage = authNotice,
+            onCancel = { authError = null; authNotice = null; screen = Screen.HOME },
             onSignIn = { email, password ->
                 authLoading = true
                 authError = null
+                authNotice = null
                 scope.launch {
                     try {
                         val session = withContext(Dispatchers.IO) {
@@ -212,6 +215,30 @@ private fun DocumentFlow() {
                         screen = Screen.HOME
                     } catch (error: Exception) {
                         authError = error.message ?: "Sign-in failed. Please try again."
+                    } finally {
+                        authLoading = false
+                    }
+                }
+            },
+            onSignUp = { email, password ->
+                authLoading = true
+                authError = null
+                authNotice = null
+                scope.launch {
+                    try {
+                        val result = withContext(Dispatchers.IO) {
+                            authApi.signUpWithPassword(email, password).also { signup ->
+                                signup.session?.let(authStore::save)
+                            }
+                        }
+                        if (result.session != null) {
+                            authSession = result.session
+                            screen = Screen.HOME
+                        } else {
+                            authNotice = "Account created. Check your email to confirm it, then sign in."
+                        }
+                    } catch (error: Exception) {
+                        authError = error.message ?: "Registration failed. Please try again."
                     } finally {
                         authLoading = false
                     }
