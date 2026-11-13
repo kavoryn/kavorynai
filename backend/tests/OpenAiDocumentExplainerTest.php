@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/Ocr/OcrResult.php';
+require_once dirname(__DIR__) . '/src/Ai/DocumentExplainer.php';
 require_once dirname(__DIR__) . '/src/Ai/OpenAiDocumentExplainer.php';
 
 use Kavoryn\Ai\OpenAiDocumentExplainer;
