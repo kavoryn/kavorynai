@@ -232,6 +232,7 @@ private fun ReviewScreen(
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(document.displayName, style = MaterialTheme.typography.titleSmall)
                         Text("${document.mimeType} • ${document.sizeLabel}", style = MaterialTheme.typography.bodySmall)
+                        DocumentPreview(document)
                         when (inspection) {
                             is DocumentInspection.Pdf -> Text("PDF • ${inspection.pageCount} page(s) detected")
                             is DocumentInspection.Image -> {
