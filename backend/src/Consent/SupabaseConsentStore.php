@@ -36,7 +36,7 @@ final class SupabaseConsentStore implements ConsentStore
 
         try {
             $rows = json_decode($body, true, 16, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException) {
+        } catch (\JsonException) {
             throw new ConsentStorageUnavailableException('Invalid consent creation response.');
         }
 
@@ -51,7 +51,7 @@ final class SupabaseConsentStore implements ConsentStore
         try {
             $createdAt = new DateTimeImmutable($row['consented_at']);
             $expiresAt = new DateTimeImmutable($row['expires_at']);
-        } catch (\\Throwable) {
+        } catch (\Throwable) {
             throw new ConsentStorageUnavailableException('Invalid consent timestamps returned by database.');
         }
 
