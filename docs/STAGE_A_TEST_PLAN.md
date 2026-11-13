@@ -19,6 +19,23 @@ Prepare a versioned, synthetic or permission-cleared corpus containing:
 
 Keep ground-truth transcription and key-detail annotations separate from app output. Do not claim accuracy until scored against this corpus.
 
+## Local intake and scan tests added for the current Android foundation
+
+| ID | Scenario | Expected |
+|---|---|---|
+| INTAKE-001 | Open the document picker and select PDF/JPEG/PNG/WebP | Supported file metadata is displayed |
+| INTAKE-002 | Select an unsupported or unverifiable MIME type | File is rejected with a readable message |
+| INTAKE-003 | Select an empty file | File is rejected |
+| INTAKE-004 | Capture a page with the system camera | Image is saved to app cache and shown in review |
+| INTAKE-005 | Cancel camera capture | No document is added; user receives a clear message |
+| INTAKE-006 | Inspect a valid PDF | Local PDF page count is displayed |
+| INTAKE-007 | Inspect a damaged/unreadable PDF | Safe validation error is displayed |
+| INTAKE-008 | Inspect a valid image | Pixel dimensions are displayed |
+| INTAKE-009 | Inspect a low-resolution image | Resolution warning is displayed |
+| INTAKE-010 | Confirm or cancel review | No network request or external processing occurs |
+
+These are test cases, not recorded pass results. Camera crop/rotation, blur/glare detection and multi-page camera capture remain unimplemented.
+
 ## Functional tests
 
 | ID | Scenario | Expected |
