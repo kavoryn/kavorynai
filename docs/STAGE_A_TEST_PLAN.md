@@ -38,9 +38,13 @@ Keep ground-truth transcription and key-detail annotations separate from app out
 | INTAKE-013 | Rotate a corrupt/unsupported image payload | A clear error appears; partial cache output is removed |
 | INTAKE-014 | Cancel camera capture | The empty temporary camera file is removed |
 | INTAKE-015 | Replace a scan selection with picker files | Previous app-owned temporary scan files are removed; picker originals remain untouched |
-| INTAKE-016 | Relaunch after force-stop during scan | Abandoned Kavoryn scan cache files are removed at startup |
+| INTAKE-016 | Relaunch after force-stop during scan | Abandoned Kavoryn scan cache files older than 24 hours are removed at startup |
+| INTAKE-017 | Review an image or PDF | A bounded preview appears without blocking the UI |
+| INTAKE-018 | Select a structurally damaged document | Confirm is disabled until invalid files are removed or replaced |
+| INTAKE-019 | Review multiple large images on a low-RAM phone | Preview memory remains bounded; scrolling and TalkBack remain usable |
+| INTAKE-020 | Camera returns a damaged image | File is rejected and temporary camera output is deleted |
 
-These are test cases, not recorded pass results. Camera crop, blur/glare detection and multi-page camera capture remain unimplemented. Rotation and cache-cleanup code are present but these new test cases have not been executed.
+These are test cases, not recorded pass results. Camera crop, blur/glare detection and multi-page camera capture remain unimplemented. Rotation, preview and cache-cleanup code are present but these test cases have not been executed.
 
 ## Functional tests
 
