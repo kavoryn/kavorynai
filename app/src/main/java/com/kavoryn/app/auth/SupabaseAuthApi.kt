@@ -130,8 +130,9 @@ class SupabaseAuthApi(
         }
     }
 
-    private fun openConnection(url: String): HttpURLConnection =
-        (URL(url).openConnection() as HttpURLConnection).apply {
+    private fun openConnection(url: String): HttpURLConnection {
+        require(publishableKey.isNotBlank()) { "A Supabase publishable key is required." }
+        return (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = connectTimeoutMs
             readTimeout = readTimeoutMs
             doInput = true
@@ -139,6 +140,7 @@ class SupabaseAuthApi(
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Cache-Control", "no-store")
         }
+    }
 
     private companion object {
         const val MAX_RESPONSE_BYTES = 64 * 1024
@@ -150,7 +152,12 @@ internal fun validatedSupabaseAuthRoot(projectUrl: String): String {
     require(root.startsWith("https://", ignoreCase = true)) {
         "Supabase Auth must use HTTPS."
     }
-    require(root.length > "https://".length) { "A valid Supabase project URL is required." }
+    val parsed = java.net.URI(root)
+    require(
+        !parsed.host.isNullOrBlank() && parsed.userInfo == null &&
+            parsed.rawQuery == null && parsed.rawFragment == null &&
+            (parsed.rawPath.isNullOrEmpty() || parsed.rawPath == "/")
+    ) { "Provide the Supabase project origin, without a path or credentials." }
     return root
 }
 
