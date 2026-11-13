@@ -26,8 +26,8 @@ final class GoogleServiceAccountTokenProvider
         }
 
         $mode = fileperms($path);
-        if ($mode !== false && ($mode & 0077) !== 0) {
-            throw new OcrProviderUnavailableException('Google OCR credentials file permissions are too broad.');
+        if ($mode === false || ($mode & 0077) !== 0) {
+            throw new OcrProviderUnavailableException('Google OCR credentials file permissions cannot be verified safely.');
         }
 
         $raw = file_get_contents($path);
