@@ -102,13 +102,10 @@ class DocumentOcrResultApi(
                 require(startCodePoint >= 0 && endCodePoint > startCodePoint) {
                     "The OCR result contains an invalid uncertainty range."
                 }
-                val codePointCount = text.codePointCount(0, text.length)
-                require(endCodePoint <= codePointCount) {
-                    "The OCR result contains an out-of-range uncertainty span."
-                }
+                val range = codePointRangeToUtf16(text, startCodePoint, endCodePoint)
                 OcrUncertainSpan(
-                    start = text.offsetByCodePoints(0, startCodePoint),
-                    endExclusive = text.offsetByCodePoints(0, endCodePoint),
+                    start = range.first,
+                    endExclusive = range.second,
                     confidence = item.getDouble("confidence").toFloat().also {
                         require(it.isFinite() && it in 0f..1f) {
                             "The OCR result contains invalid confidence data."
@@ -141,4 +138,17 @@ class DocumentOcrResultApi(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
         )
     }
+}
+
+
+/** Convert server Unicode-code-point offsets to Android/Kotlin UTF-16 indices. */
+internal fun codePointRangeToUtf16(text: String, start: Int, endExclusive: Int): Pair<Int, Int> {
+    require(start >= 0 && endExclusive > start) {
+        "The OCR result contains an invalid uncertainty range."
+    }
+    val codePointCount = text.codePointCount(0, text.length)
+    require(endExclusive <= codePointCount) {
+        "The OCR result contains an out-of-range uncertainty span."
+    }
+    return text.offsetByCodePoints(0, start) to text.offsetByCodePoints(0, endExclusive)
 }
