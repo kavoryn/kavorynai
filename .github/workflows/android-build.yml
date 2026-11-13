@@ -23,3 +23,10 @@ jobs:
         run: gradle :app:testDebugUnitTest
       - name: Assemble debug APK
         run: gradle :app:assembleDebug
+      - name: Run Android Keystore instrumentation tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          disable-animations: true
+          script: gradle :app:connectedDebugAndroidTest
