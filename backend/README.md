@@ -6,6 +6,7 @@ This directory contains the PHP API entry point for the Android document workflo
 
 - `GET /v1/health`: liveness response with request ID.
 - `GET /v1/me`: verifies a Supabase Auth user access token and returns the verified user ID.
+- Consent domain classes define short-lived, document-digest-bound, single-use grants behind a persistence interface. No HTTP consent or upload route is enabled until a durable store is approved and implemented.
 
 The identity endpoint calls Supabase Auth's `/auth/v1/user` endpoint. It does not trust a user ID from request data or decode unverified JWT claims. It requires:
 
@@ -53,6 +54,6 @@ Without server-side Supabase configuration, `/v1/me` must fail closed with HTTP 
 
 ## Current status
 
-Supabase-backed user identity verification is wired into `GET /v1/me`, but production readiness still depends on configuring Supabase, testing with a real session, HTTPS, rate limiting, and a documented session revocation policy. PHP hosting suitability, queue/background-job support, request-size limits, temporary storage, and deletion behavior also require proof on the selected host.
+Supabase-backed user identity verification is wired into `GET /v1/me`. Consent grant domain logic and an atomic persistence interface are drafted and unit-test coverage is added, but no durable consent store or HTTP consent endpoint is enabled. Production readiness still depends on configuring Supabase, testing with a real session, HTTPS, rate limiting, and a documented session revocation policy. PHP hosting suitability, queue/background-job support, request-size limits, temporary storage, and deletion behavior also require proof on the selected host.
 
-Consent issuance/verification, document upload, OCR, explanation, and TTS are not yet implemented.
+Secure document upload, OCR, explanation, and TTS are not yet implemented. See `docs/CONSENT_VERIFICATION_DESIGN.md` for the security flow and database prerequisites.
