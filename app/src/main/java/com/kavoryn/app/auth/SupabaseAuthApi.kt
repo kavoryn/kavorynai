@@ -66,18 +66,7 @@ class SupabaseAuthApi(
             val status = connection.responseCode
             val bytes = readBoundedResponse(connection, status)
             if (status !in 200..299) throw authError(status, bytes, "Sign-up")
-            val json = JSONObject(bytes.toString(Charsets.UTF_8))
-            val user = json.optJSONObject("user") ?: json
-            val userId = user.optString("id")
-            require(userId.isNotBlank()) { "Supabase Auth returned an incomplete registration response." }
-            val session = if (json.has("access_token") && json.has("refresh_token")) {
-                parseSupabaseAuthSession(json.toString())
-            } else null
-            return SupabaseSignUpResult(
-                userId = userId,
-                email = user.optString("email").takeIf { it.isNotBlank() } ?: email.trim(),
-                session = session
-            )
+            return parseSupabaseSignUpResult(bytes.toString(Charsets.UTF_8), email.trim())
         } catch (error: SupabaseAuthException) {
             throw error
         } catch (error: IllegalArgumentException) {
@@ -237,3 +226,24 @@ internal fun parseSupabaseAuthSession(
 /** Clear persisted credentials only when Supabase explicitly rejects the refresh token. */
 internal fun shouldClearStoredSessionAfterRefreshFailure(error: SupabaseAuthException): Boolean =
     error.httpStatus == 400 || error.httpStatus == 401
+
+
+internal fun parseSupabaseSignUpResult(
+    responseBody: String,
+    requestedEmail: String
+): SupabaseSignUpResult {
+    val json = JSONObject(responseBody)
+    val user = json.optJSONObject("user") ?: json
+    val userId = user.optString("id")
+    require(userId.isNotBlank()) {
+        "Supabase Auth returned an incomplete registration response."
+    }
+    val session = if (json.has("access_token") && json.has("refresh_token")) {
+        parseSupabaseAuthSession(json.toString())
+    } else null
+    return SupabaseSignUpResult(
+        userId = userId,
+        email = user.optString("email").takeIf { it.isNotBlank() } ?: requestedEmail,
+        session = session
+    )
+}
