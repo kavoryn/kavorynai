@@ -21,6 +21,24 @@ final class SupabaseChatStore
         }
     }
 
+    public function createConversation(string $userId, string $provider, string $language, ?string $title = null): array
+    {
+        $this->assertUuid($userId);
+        $this->assertProvider($provider);
+        if (!in_array($language, ['en','ha','ar','fr'], true) ||
+            ($title !== null && strlen($title) > 120)) {
+            throw new \\InvalidArgumentException('Invalid chat conversation details.');
+        }
+        $result = $this->rpc('create_chat_conversation', [
+            'p_id'=>$this->uuid(), 'p_user_id'=>$userId,
+            'p_title'=>$title, 'p_provider'=>$provider, 'p_language'=>$language,
+        ]);
+        if (!is_array($result) || !is_string($result['id'] ?? null)) {
+            throw new ChatStorageUnavailableException('Invalid conversation creation response.');
+        }
+        return $result;
+    }
+
     public function recordConsent(string $userId, string $provider, string $policyVersion): string
     {
         $this->assertUuid($userId);
