@@ -68,7 +68,7 @@ $rateLimitHttp = static function (string $url, array $headers, string $body): ar
     uploadExpect(($headers['Authorization'] ?? '') === 'Bearer service-role-test-jwt', 'Rate limiter must authenticate server-side only.');
     return ['status' => 200, 'body' => '[{"allowed":true,"retry_after_seconds":0}]'];
 };
-$rateLimiter = new \Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
+$rateLimiter = new \Kavoryn\Upload\SupabaseDocumentRateLimiter(
     'https://example.supabase.co',
     'test-publishable-key',
     'service-role-test-jwt',
@@ -76,7 +76,7 @@ $rateLimiter = new \Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
 );
 $rateLimiter->consume('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12');
 
-$blockedLimiter = new \Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
+$blockedLimiter = new \Kavoryn\Upload\SupabaseDocumentRateLimiter(
     'https://example.supabase.co',
     'test-publishable-key',
     'service-role-test-jwt',
@@ -85,7 +85,7 @@ $blockedLimiter = new \Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
 $rateLimited = false;
 try {
     $blockedLimiter->consume('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12');
-} catch (\Kavoryn\\Upload\\DocumentRateLimitExceededException $error) {
+} catch (\Kavoryn\Upload\DocumentRateLimitExceededException $error) {
     $rateLimited = $error->retryAfterSeconds === 42;
 }
 uploadExpect($rateLimited, 'Rate limiter must reject blocked uploads with a retry delay.');
@@ -101,7 +101,7 @@ $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<
 file_put_contents($pdfPath, $pdf);
 
 $inspector = new DocumentFileInspector(
-    static fn (string $path): array => ['exit_code' => 0, 'stdout' => "Pages:          2\\nEncrypted:       no\\n", 'stderr' => ''],
+    static fn (string $path): array => ['exit_code' => 0, 'stdout' => "Pages:          2\nEncrypted:       no\n", 'stderr' => ''],
 );
 $document = $inspector->inspect($pdfPath, 'sample.pdf');
 uploadExpect($document->mimeType === 'application/pdf', 'PDF must be identified by content, not filename alone.');
@@ -110,11 +110,11 @@ uploadExpect($document->sizeBytes === strlen($pdf), 'Inspector must report exact
 uploadExpect($document->pageCount === 2, 'PDF inspection must return a verified page count.');
 
 foreach ([
-    ['exit_code' => 0, 'stdout' => "Pages: 51\\nEncrypted: no\\n", 'stderr' => ''],
-    ['exit_code' => 0, 'stdout' => "Pages: 0\\nEncrypted: no\\n", 'stderr' => ''],
-    ['exit_code' => 0, 'stdout' => "Pages: 1\\nEncrypted: yes\\n", 'stderr' => ''],
+    ['exit_code' => 0, 'stdout' => "Pages: 51\nEncrypted: no\n", 'stderr' => ''],
+    ['exit_code' => 0, 'stdout' => "Pages: 0\nEncrypted: no\n", 'stderr' => ''],
+    ['exit_code' => 0, 'stdout' => "Pages: 1\nEncrypted: yes\n", 'stderr' => ''],
     ['exit_code' => 1, 'stdout' => '', 'stderr' => 'Syntax Error'],
-    ['exit_code' => 0, 'stdout' => "File size: 100 bytes\\n", 'stderr' => ''],
+    ['exit_code' => 0, 'stdout' => "File size: 100 bytes\n", 'stderr' => ''],
 ] as $pdfInfoResult) {
     $badInspector = new DocumentFileInspector(static fn (string $path): array => $pdfInfoResult);
     $pdfRejected = false;
