@@ -705,8 +705,8 @@ if (str_starts_with($path, '/v1/chat/')) {
 
     require_once dirname(__DIR__) . '/src/Ai/SupabaseChatStore.php';
     try {
-        $store = new \\Kavoryn\\Ai\\SupabaseChatStore($supabaseUrl, $secretKey, $serviceRoleJwt);
-    } catch (\\InvalidArgumentException) {
+        $store = new \Kavoryn\Ai\SupabaseChatStore($supabaseUrl, $secretKey, $serviceRoleJwt);
+    } catch (\InvalidArgumentException) {
         respond(503, ['error'=>['code'=>'chat_storage_not_configured','message'=>'Chat is temporarily unavailable.','request_id'=>$requestId]]);
     }
 
@@ -723,7 +723,7 @@ if (str_starts_with($path, '/v1/chat/')) {
             respond(413, ['error'=>['code'=>'request_too_large','message'=>'The chat request is too large.','request_id'=>$requestId]]);
         }
         try { $data = json_decode($raw, true, 16, JSON_THROW_ON_ERROR); }
-        catch (\\JsonException) {
+        catch (\JsonException) {
             respond(400, ['error'=>['code'=>'invalid_json','message'=>'The chat request is not valid JSON.','request_id'=>$requestId]]);
         }
         if (!is_array($data) || array_is_list($data)) {
@@ -784,9 +784,9 @@ if (str_starts_with($path, '/v1/chat/')) {
                 respond(200, ['deleted'=>true,'conversation_id'=>$conversationId,'request_id'=>$requestId]);
             }
         }
-    } catch (\\Kavoryn\\Ai\\ChatStorageUnavailableException) {
+    } catch (\Kavoryn\Ai\ChatStorageUnavailableException) {
         respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
-    } catch (\\InvalidArgumentException) {
+    } catch (\InvalidArgumentException) {
         respond(422, ['error'=>['code'=>'invalid_chat_request','message'=>'The chat request is invalid.','request_id'=>$requestId]]);
     }
 }
