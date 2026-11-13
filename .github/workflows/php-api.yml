@@ -41,6 +41,9 @@ jobs:
       - name: Consent service tests
         run: php backend/tests/consent_service_test.php
 
+      - name: Supabase consent adapter tests
+        run: php backend/tests/supabase_consent_store_test.php
+
       - name: API smoke tests
         shell: bash
         run: |
