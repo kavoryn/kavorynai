@@ -1,6 +1,6 @@
 # Kavoryn — Consent verification implementation
 
-Status: Supabase schema migration applied; PHP consent issuance endpoint and persistent adapter implemented. Secure upload remains disabled.
+Status: Supabase consent and document registry schema applied; PHP consent issuance and secure upload endpoints implemented. Upload remains disabled by default until host setup and release gates pass.
 
 ## Security flow
 
@@ -31,6 +31,18 @@ The endpoint requires server environment variables:
 
 Never commit or expose the secret key or service-role JWT to Android, public source, logs, or user documents. The legacy `service_role` JWT is only a temporary compatibility bridge; Supabase has announced end-of-2026 support sunset for legacy `anon`/`service_role` keys. Replace it with a supported dedicated server-side database credential/connection before that deadline and verify PHP host support.
 
+## Secure document upload
+
+`POST /v1/documents` is implemented behind `DOCUMENT_UPLOAD_ENABLED=false`. It requires an authenticated session, multipart file, consent token, output language, translation flag, and an `Idempotency-Key` header.
+
+The server uses `fileinfo` and content parsing rather than trusting the client MIME header or filename. Supported formats are PDF, JPEG, PNG, and WebP. PDF uploads are capped at 20 MiB; image uploads are capped at 10 MiB and 40 megapixels, with a minimum image size of 200×200. The server computes SHA-256 and the private storage layer hashes again while streaming the file to a random filename outside `backend/public`. Directories are set to 0700 and files to 0600; the upload fails closed if those permissions cannot be set.
+
+The `public.documents` table is RLS-enabled and has no client policies or client grants; only the server service role can access it. `register_uploaded_document(...)` is a SECURITY INVOKER RPC with EXECUTE revoked from `public`, `anon`, and `authenticated`. In one database transaction it serializes per-user idempotency, returns an existing matching document on a retry, or atomically consumes the matching one-time consent and inserts a new document row. A missing, expired, mismatched, revoked, or reused consent is rejected. The database never receives the document bytes, only the private storage key and verified metadata.
+
+Unprocessed uploads expire after one hour. `backend/bin/cleanup_expired_documents.php` deletes the private file first and then marks the row deleted; if the database update fails, a later cron run retries the idempotent file deletion. Configure the host cron every five minutes. The endpoint is disabled by default and must remain disabled until the cron and server environment are configured and verified.
+
+Still outstanding: PDF parser/page-count validation, rate limits and quotas, OCR worker/queue integration, successful live authenticated upload testing, and deletion after OCR completion.
+
 ## Database migration applied
 
 Supabase project `nncrkjvldpeisyquulic` now has the consent schema and RPC migrations applied: `20261113142411_secure_single_use_document_consents`, `20261113142434_allow_provider_selection_before_consent`, `20261113142706_lock_down_signup_trigger_function`, `20261113142849_create_processing_consent_with_db_clock`, and `20261113142952_validate_all_consent_creation_parameters`.
@@ -52,7 +64,7 @@ A third migration, `20261113142706_lock_down_signup_trigger_function`, revokes d
 
 The fourth and fifth migrations, `20261113142849_create_processing_consent_with_db_clock` and `20261113142952_validate_all_consent_creation_parameters`, add and harden the database-clock creation RPC. The database returns the authoritative creation and expiry timestamps, and all required arguments are validated before insertion.
 
-All five migrations are recorded in `supabase/migrations/` in this repository. The table had zero rows before the migration, so the new required binding columns were added without migrating existing consent records.
+All five consent migrations are recorded in `supabase/migrations/` in this repository. The document registry, idempotency serialization, one-hour expiry, and consent foreign-key index migrations are also recorded there. The table had zero rows before the migration, so the new required binding columns were added without migrating existing consent records.
 
 At the time of this implementation, `auth.users` contains zero accounts in this project. The SQL migration and invalid-parameter rejection were verified, but a successful live sign-in and positive one-time-consumption test must wait until the Android sign-up flow creates a test account and the PHP host has its server-only credentials configured.
 
@@ -63,5 +75,7 @@ At the time of this implementation, `auth.users` contains zero accounts in this 
 - Run database-backed integration tests proving successful one-time consume, replay rejection, and cross-user/digest/language mismatch rejection.
 - Add consent revocation endpoint/flow and define session revocation policy.
 - Add Android confirmation UI and streaming SHA-256 calculation.
-- Implement secure upload so server-side file hashing and atomic consent consumption happen in the same upload workflow.
+- Configure private storage, HTTPS, PHP upload limits, server secrets and the five-minute cleanup cron on the selected host.
+- Complete PDF parser/page-count validation, rate limits and quotas before enabling the upload feature flag.
+- Add live authenticated upload tests and verify retry/idempotency behavior with a real Supabase user.
 - Keep document upload disabled until MIME/signature validation, size/page limits, temporary storage, deletion, and privacy tests are implemented.
