@@ -28,10 +28,11 @@ final class InMemoryConsentStore implements ConsentStore
     /** @var array<string, bool> */
     private array $consumed = [];
 
-    public function create(ConsentRecord $record): void
+    public function create(ConsentRecord $record): ConsentRecord
     {
         $this->records[$record->tokenHash] = $record;
         $this->consumed[$record->tokenHash] = false;
+        return $record;
     }
 
     public function consumeOnce(
