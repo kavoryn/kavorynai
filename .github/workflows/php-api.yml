@@ -107,6 +107,9 @@ jobs:
         run: php backend/tests/SupabaseAiQuestionRateLimiterTest.php
 
 
+      - name: Chat storage adapter tests
+        run: php backend/tests/SupabaseChatStoreTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
