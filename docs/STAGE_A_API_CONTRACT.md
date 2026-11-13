@@ -138,7 +138,7 @@ Immediately deletes temporary file, OCR/explanation artifacts and any provider-s
 
 ## Data and retention
 
-- Delete-after-use is default.
+- Delete-after-use is default. Until OCR processing is connected, unprocessed `uploaded`/`failed` files expire after one hour and are removed by `backend/bin/cleanup_expired_documents.php` on a five-minute host cron.
 - No document/image content in analytics, usage events, audit events or ordinary application logs.
 - Saving is opt-in and must have a separate explicit action and retention notice.
 - Temporary data must be deleted on success, failure, timeout, cancellation and expiry.
@@ -154,7 +154,7 @@ Immediately deletes temporary file, OCR/explanation artifacts and any provider-s
 - [ ] Summary, Detailed and What to do are grounded in OCR.
 - [ ] Dates, amounts, names, numbers and deadlines have source references.
 - [ ] Document Q&A refuses unsupported answers.
-- [ ] Temporary files are removed in success/failure/timeout/cancel paths.
+- [ ] Expired unprocessed uploads are removed by the host cleanup cron; processing success/failure/timeout/cancel deletion remains to be integrated with the OCR worker.
 - [ ] Logs contain no document text, images, secrets or tokens.
 - [ ] TalkBack can complete Home → Review → Result without assistance.
 - [ ] Hausa characters ɓ, ɗ, ƙ, ƴ and Arabic RTL pass the fixed test set.
