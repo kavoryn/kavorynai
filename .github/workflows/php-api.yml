@@ -61,6 +61,12 @@ jobs:
       - name: OCR worker tests
         run: php backend/tests/OcrWorkerTest.php
 
+      - name: Encrypted OCR result sink tests
+        run: php backend/tests/EncryptedOcrResultSinkTest.php
+
+      - name: Google Cloud Vision OCR provider tests
+        run: php backend/tests/GoogleCloudVisionOcrProviderTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
