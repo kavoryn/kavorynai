@@ -21,6 +21,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
+import com.kavoryn.app.speech.DocumentSpeechControls
+import com.kavoryn.app.speech.SpeechLanguage
 
 /**
  * Accessible original-text review. Uncertain OCR ranges are highlighted, but the
@@ -100,6 +102,16 @@ fun OcrResultScreen(
                     )
                 )
             }
+        }
+        val speechLanguage = SpeechLanguage.fromContentLanguage(result.detectedLanguage)
+        if (speechLanguage != null) {
+            DocumentSpeechControls(
+                text = result.text,
+                language = speechLanguage,
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else {
+            Text("Read-aloud is unavailable for the detected language (${result.detectedLanguage}).")
         }
         Button(onClick = onExplain, modifier = Modifier.fillMaxWidth()) {
             Text("Explain this document")
