@@ -1,0 +1,5 @@
+-- Historical reconciliation checkpoint.
+-- The live project briefly received a second queue migration at this version.
+-- The canonical queue is private.ocr_jobs (created in 20261113151205).
+-- The later 20261113151253 migration removes the duplicate objects and restores
+-- the trigger to the canonical queue. Keep this checkpoint for migration history.
