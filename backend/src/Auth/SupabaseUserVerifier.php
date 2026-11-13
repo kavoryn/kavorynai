@@ -23,10 +23,12 @@ final class SupabaseUserVerifier
         }
 
         $token = $matches[1];
-        if ($token === '' || strlen($token) > 8192 ||
-            parse_url($this->supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
-            $this->publishableKey === '') {
+        if ($token === '' || strlen($token) > 8192) {
             throw new AuthenticationException();
+        }
+        if (parse_url($this->supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
+            $this->publishableKey === '') {
+            throw new AuthenticationServiceUnavailableException();
         }
 
         $url = rtrim($this->supabaseUrl, '/') . '/auth/v1/user';
