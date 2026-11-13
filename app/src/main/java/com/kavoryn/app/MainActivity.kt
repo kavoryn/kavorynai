@@ -63,8 +63,13 @@ private fun DocumentFlow() {
         val output = pendingCamera
         if (saved && output != null && output.file.exists() && output.file.length() > 0L) {
             acceptUri(output.uri)
-        } else if (!saved) {
-            pickerError = "Camera capture was cancelled or did not complete."
+        } else {
+            output?.file?.delete()
+            pickerError = if (saved) {
+                "The camera did not produce a readable image. Please try again."
+            } else {
+                "Camera capture was cancelled."
+            }
         }
         pendingCamera = null
     }
@@ -110,6 +115,7 @@ private fun DocumentFlow() {
         )
         Screen.REVIEW -> ReviewScreen(
             documents = selectedDocuments,
+            error = pickerError,
             onRotate = { document ->
                 val rotated = rotateDocumentImage(context, document)
                 if (rotated != null) {
@@ -178,6 +184,7 @@ private fun ModeCard(title: String, subtitle: String) {
 @Composable
 private fun ReviewScreen(
     documents: List<SelectedDocument>,
+    error: String?,
     onRotate: (SelectedDocument) -> Unit,
     onCancel: () -> Unit,
     onConfirm: () -> Unit
@@ -189,6 +196,9 @@ private fun ReviewScreen(
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Review and validate", style = MaterialTheme.typography.headlineMedium)
         Text("${documents.size} file(s) selected. Checks run locally on this device.")
+        if (error != null) {
+            Text(error, color = MaterialTheme.colorScheme.error)
+        }
         LazyColumn(
             modifier = Modifier.weight(1f, fill = false),
             verticalArrangement = Arrangement.spacedBy(8.dp)
