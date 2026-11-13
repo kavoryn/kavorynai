@@ -412,6 +412,69 @@ if ($method === 'POST' && $path === '/v1/documents') {
     ]);
 }
 
+if ($method === 'GET' && preg_match(
+    '#^/v1/documents/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/result$#i',
+    $path,
+    $matches,
+)) {
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
+    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $encryptionKey === '') {
+        respond(503, [
+            'error' => [
+                'code' => 'ocr_result_storage_not_configured',
+                'message' => 'Document results are temporarily unavailable.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Ocr/OcrResult.php';
+    require_once dirname(__DIR__) . '/src/Ocr/SupabaseEncryptedOcrResultReader.php';
+
+    try {
+        $reader = new \Kavoryn\Ocr\SupabaseEncryptedOcrResultReader(
+            $supabaseUrl,
+            $secretKey,
+            $serviceRoleJwt,
+            \Kavoryn\Ocr\SupabaseEncryptedOcrResultReader::decodeKey($encryptionKey),
+        );
+        $result = $reader->read($matches[1], $user->id);
+    } catch (\Kavoryn\Ocr\OcrResultNotFoundException) {
+        respond(404, [
+            'error' => [
+                'code' => 'document_result_not_found',
+                'message' => 'The document result is not available or has expired.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    } catch (\InvalidArgumentException | \Kavoryn\Ocr\OcrResultReaderUnavailableException) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_result_unavailable',
+                'message' => 'Document results are temporarily unavailable.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    respond(200, [
+        'document_id' => $matches[1],
+        'text' => $result->text,
+        'uncertain_spans' => $result->uncertainSpans,
+        'detected_language' => $result->detectedLanguage ?? 'und',
+        'request_id' => $requestId,
+    ]);
+}
+
 respond(404, [
     'error' => [
         'code' => 'not_found',
