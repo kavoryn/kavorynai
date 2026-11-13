@@ -96,7 +96,7 @@ class HttpOcrSubmissionGateway(
             val json = JSONObject(response.body)
             val documentId = json.getString("document_id")
             require(UUID_REGEX.matches(documentId)) { "The server returned an invalid document reference." }
-            return OcrJobReceipt(documentId, documentId, json.getString("status"))
+            return OcrJobReceipt(documentId, null, json.getString("status"))
         } catch (error: OcrGatewayException) {
             throw error
         } catch (_: Exception) {
