@@ -556,6 +556,9 @@ if ($method === 'POST' && preg_match(
         respond(503, ['error' => ['code' => 'document_qa_not_configured', 'message' => 'Document questions are temporarily unavailable.', 'request_id' => $requestId]]);
     }
 
+    // These existing provider files declare the shared provider-unavailable exception classes.
+    require_once dirname(__DIR__) . '/src/Ai/OpenAiDocumentExplainer.php';
+    require_once dirname(__DIR__) . '/src/Ai/GeminiDocumentExplainer.php';
     require_once dirname(__DIR__) . '/src/Ai/GroundedQuestionPolicy.php';
     require_once dirname(__DIR__) . '/src/Ai/DocumentQuestionAnswerer.php';
     require_once dirname(__DIR__) . '/src/Ai/OpenAiDocumentQuestionAnswerer.php';
