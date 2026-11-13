@@ -1,6 +1,7 @@
 package com.kavoryn.app.ocr
 
 import java.io.InputStream
+import java.util.Locale
 
 /** Languages planned for Stage A. Availability does not imply OCR accuracy has been verified. */
 enum class OcrLanguage(
@@ -95,7 +96,8 @@ fun validateOcrResult(result: OcrDocumentResult): List<String> {
     if (result.engineId.isBlank()) issues += "OCR engine identifier is missing."
 
     result.pages.forEachIndexed { index, page ->
-        if (page.pageNumber < 1) issues += "Page numbers must start at 1."
+        if (index == 0 && page.pageNumber != 1) issues += "The first page number must be 1."
+        if (page.pageNumber < 1) issues += "Page numbers must be positive."
         if (index > 0 && page.pageNumber <= result.pages[index - 1].pageNumber) {
             issues += "Pages must be ordered and have unique page numbers."
         }
