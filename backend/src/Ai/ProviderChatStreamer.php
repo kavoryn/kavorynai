@@ -27,9 +27,9 @@ final class ProviderChatStreamer
     ): void {
         $request = match ($provider) {
             'openai' => $this->openAi?->create($userInput)
-                ?? throw new \\InvalidArgumentException('The selected AI provider is not configured.'),
+                ?? throw new \InvalidArgumentException('The selected AI provider is not configured.'),
             'gemini' => $this->gemini?->create($userInput)
-                ?? throw new \\InvalidArgumentException('The selected AI provider is not configured.'),
+                ?? throw new \InvalidArgumentException('The selected AI provider is not configured.'),
             default => throw new \InvalidArgumentException('The requested AI provider is not supported.'),
         };
 
