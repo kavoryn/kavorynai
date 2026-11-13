@@ -69,3 +69,16 @@ Thresholds must be approved after measuring the baseline; do not invent a public
 - Android provider-neutral data contracts are in `app/src/main/java/com/kavoryn/app/ocr/OcrContracts.kt`.
 - Unit tests cover language codes, Hausa Unicode preservation, Arabic direction metadata, confidence/geometry/span validation and page ordering.
 - No OCR provider SDK is installed and no real OCR request is made yet.
+
+
+## Backend provider boundary (implemented foundation)
+
+The PHP API now has a provider-neutral contract under `backend/src/Ocr/`:
+
+- `OcrRequest` accepts only readable server-side files, the supported PDF/image MIME types, and `en`, `ha`, `ar`, or `fr`.
+- `OcrProvider` defines the server-side `recognize()` boundary. Vendor SDKs and credentials must remain behind this interface.
+- `OcrResult` preserves the original UTF-8 text and validates uncertainty spans as Unicode character offsets, plus an optional detected-language code.
+- `OcrProviderUnavailableException` provides a safe failure type for future adapters.
+- `backend/tests/OcrContractTest.php` covers supported request values, unsupported languages, Hausa/Arabic Unicode preservation, and invalid uncertainty offsets.
+
+This is a contract and test foundation only. There is intentionally no vendor adapter, OCR endpoint, background job, OCR text persistence, or provider credential configured yet. The provider-selection gate above remains in force; do not enable external OCR until comparative Hausa/Arabic testing and privacy review are complete.
