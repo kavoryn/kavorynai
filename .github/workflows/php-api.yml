@@ -85,6 +85,9 @@ jobs:
       - name: Grounded document Q&A provider adapter tests
         run: php backend/tests/DocumentQuestionAnswererTest.php
 
+      - name: Supabase document Q&A rate limiter tests
+        run: php backend/tests/SupabaseAiQuestionRateLimiterTest.php
+
 
       - name: API smoke tests
         shell: bash
