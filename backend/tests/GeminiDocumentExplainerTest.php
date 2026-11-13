@@ -6,9 +6,9 @@ require_once dirname(__DIR__) . '/src/Ocr/OcrResult.php';
 require_once dirname(__DIR__) . '/src/Ai/DocumentExplainer.php';
 require_once dirname(__DIR__) . '/src/Ai/GeminiDocumentExplainer.php';
 
-use Kavoryn\\Ai\\GeminiDocumentExplainer;
-use Kavoryn\\Ai\\GeminiUnavailableException;
-use Kavoryn\\Ocr\\OcrResult;
+use Kavoryn\Ai\GeminiDocumentExplainer;
+use Kavoryn\Ai\GeminiUnavailableException;
+use Kavoryn\Ocr\OcrResult;
 
 function geminiExpect(bool $ok, string $message): void {
     if (!$ok) { fwrite(STDERR, $message . PHP_EOL); exit(1); }
