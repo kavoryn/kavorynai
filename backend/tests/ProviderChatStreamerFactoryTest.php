@@ -15,7 +15,7 @@ require_once dirname(__DIR__) . '/src/Ai/GeminiInteractionsRequestFactory.php';
 require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamer.php';
 require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamerFactory.php';
 
-use Kavoryn\\Ai\\ProviderChatStreamerFactory;
+use Kavoryn\Ai\ProviderChatStreamerFactory;
 
 $openAiOnly = [
     'OPENAI_API_KEY' => 'openai-test-key',
@@ -28,7 +28,7 @@ $geminiOnly = [
 
 foreach ([['openai', $openAiOnly], ['gemini', $geminiOnly]] as [$provider, $config]) {
     $streamer = ProviderChatStreamerFactory::fromEnvironment($config, $provider);
-    if (!$streamer instanceof \\Kavoryn\\Ai\\ProviderChatStreamer) {
+    if (!$streamer instanceof \\Kavoryn\Ai\ProviderChatStreamer) {
         throw new RuntimeException('The selected provider configuration must create a streamer.');
     }
 }
@@ -57,7 +57,7 @@ try {
 }
 
 $unsafe = $openAiOnly;
-$unsafe['OPENAI_API_KEY'] = "bad-key\\r\\nX-Injected: true";
+$unsafe['OPENAI_API_KEY'] = "bad-key\r\nX-Injected: true";
 try {
     ProviderChatStreamerFactory::fromEnvironment($unsafe, 'openai');
     throw new RuntimeException('Unsafe provider credentials must be rejected.');
