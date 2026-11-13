@@ -14,7 +14,7 @@ function rateExpect(bool $ok,string $message):void
 $user='a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12';
 $limiter=new SupabaseAiQuestionRateLimiter(
     'https://example.supabase.co','secret-test','service-role-test',
-    function(string $url,array $headers,string $body):array use (&$seen) {
+    function(string $url,array $headers,string $body):array {
         $payload=json_decode($body,true,16,JSON_THROW_ON_ERROR);
         rateExpect(($payload['p_limit']??null)===10,'Expected ten questions per window.');
         rateExpect(($payload['p_window_seconds']??null)===60,'Expected sixty-second window.');
