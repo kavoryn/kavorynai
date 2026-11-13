@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Kavoryn\Ocr;
 
+use Closure;
+
 final class GoogleCloudVisionOcrProvider implements OcrProvider
 {
     private const MAX_PDF_PAGES = 50;
@@ -28,7 +30,7 @@ final class GoogleCloudVisionOcrProvider implements OcrProvider
     public function recognize(OcrRequest $request): OcrResult
     {
         if ($request->mimeType === 'application/pdf') {
-            return $this->recognizePdf($request->filePath);
+            return $this->recognizePdf($request->filePath, $request->heartbeat);
         }
 
         $bytes = file_get_contents($request->filePath);
@@ -36,11 +38,11 @@ final class GoogleCloudVisionOcrProvider implements OcrProvider
             throw new OcrProviderUnavailableException('OCR image input is unavailable or too large for a safe inline request.');
         }
 
-        $responses = $this->annotate([$bytes]);
+        $responses = $this->annotate([$bytes], $request->heartbeat);
         return $this->parseResponse($responses[0] ?? []);
     }
 
-    private function recognizePdf(string $path): OcrResult
+    private function recognizePdf(string $path, ?Closure $heartbeat = null): OcrResult
     {
         $pageCount = $this->pdfPageCount($path);
         if ($pageCount < 1 || $pageCount > self::MAX_PDF_PAGES) {
@@ -60,9 +62,9 @@ final class GoogleCloudVisionOcrProvider implements OcrProvider
         try {
             $batch = [];
             $batchBytes = 0;
-            $flush = function () use (&$batch, &$batchBytes, &$pageTexts, &$pageSpans, &$characterOffset, &$languages): void {
+            $flush = function () use (&$batch, &$batchBytes, &$pageTexts, &$pageSpans, &$characterOffset, &$languages, $heartbeat): void {
                 if ($batch === []) return;
-                $responses = $this->annotate($batch);
+                $responses = $this->annotate($batch, $heartbeat);
                 if (count($responses) !== count($batch)) throw new OcrProviderUnavailableException();
 
                 foreach ($responses as $response) {
@@ -90,6 +92,7 @@ final class GoogleCloudVisionOcrProvider implements OcrProvider
             };
 
             for ($page = 1; $page <= $pageCount; $page++) {
+                if ($heartbeat !== null) $heartbeat();
                 $prefix = $directory . DIRECTORY_SEPARATOR . 'page-' . $page;
                 $this->runProcess([
                     $this->pdfToPpmBinary, '-f', (string) $page, '-l', (string) $page,
@@ -126,8 +129,9 @@ final class GoogleCloudVisionOcrProvider implements OcrProvider
     }
 
     /** @param list<string> $images @return list<array<string,mixed>> */
-    private function annotate(array $images): array
+    private function annotate(array $images, ?Closure $heartbeat = null): array
     {
+        if ($heartbeat !== null) $heartbeat();
         $requests = [];
         foreach ($images as $bytes) {
             if (strlen($bytes) > self::MAX_IMAGE_BYTES) {
