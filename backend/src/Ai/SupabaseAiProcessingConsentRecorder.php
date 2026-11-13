@@ -18,14 +18,14 @@ final class SupabaseAiProcessingConsentRecorder
         }
     }
 
-    public function record(string $userId, string $documentId, string $provider, string $language): void
+    public function record(string $userId, string $documentId, string $provider, string $language, string $purpose = 'explain'): void
     {
         foreach ([$userId, $documentId] as $id) {
             if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $id)) {
                 throw new \InvalidArgumentException('Invalid AI consent identity.');
             }
         }
-        if (!in_array($provider, ['openai', 'gemini'], true) || !in_array($language, ['en', 'ha', 'ar', 'fr'], true)) {
+        if (!in_array($provider, ['openai', 'gemini'], true) || !in_array($language, ['en', 'ha', 'ar', 'fr'], true) || !in_array($purpose, ['explain', 'ask'], true)) {
             throw new \InvalidArgumentException('Invalid AI consent selection.');
         }
 
@@ -47,7 +47,7 @@ final class SupabaseAiProcessingConsentRecorder
             'p_user_id' => $userId,
             'p_document_id' => $documentId,
             'p_provider_name' => $provider,
-            'p_output_language' => $language,
+            'p_output_language' => $language,\n            'p_purpose' => $purpose === 'ask'\n                ? 'Answer a question using the selected external AI provider'\n                : 'Explain OCR text using the selected external AI provider',
         ], JSON_THROW_ON_ERROR);
 
         try {
