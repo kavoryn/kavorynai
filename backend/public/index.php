@@ -101,8 +101,17 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
             $supabaseSecret,
             $serviceRoleJwt,
         );
+        $receiptHex = bin2hex(random_bytes(16));
+        $receiptId = sprintf(
+            '%s-%s-%s-%s-%s',
+            substr($receiptHex, 0, 8),
+            substr($receiptHex, 8, 4),
+            substr($receiptHex, 12, 4),
+            substr($receiptHex, 16, 4),
+            substr($receiptHex, 20, 12),
+        );
         $created = $store->recordVerifiedReceipt(
-            bin2hex(random_bytes(16)),
+            $receiptId,
             hash('sha256', $rawBody),
             $event['event'],
             $eventReference,
