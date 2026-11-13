@@ -20,7 +20,7 @@ $mock = function (string $url, array $headers, string $body) use ($userId, $docu
     aiConsentExpect(($payload['p_user_id'] ?? null) === $userId, 'Consent must bind the authenticated user.');
     aiConsentExpect(($payload['p_document_id'] ?? null) === $documentId, 'Consent must bind the exact document.');
     aiConsentExpect(($payload['p_provider_name'] ?? null) === 'gemini', 'Consent must bind selected AI provider.');
-    aiConsentExpect(($payload['p_output_language'] ?? null) === 'ha', 'Consent must bind output language.');
+    aiConsentExpect(($payload['p_output_language'] ?? null) === 'ha', 'Consent must bind output language.');\n    aiConsentExpect(($payload['p_purpose'] ?? null) === 'Explain OCR text using the selected external AI provider', 'Explanation consent purpose must be explicit.');
     return ['status' => 200, 'body' => json_encode([[
         'consent_id' => $payload['p_id'],
         'document_sha256' => hash('sha256', 'document'),
