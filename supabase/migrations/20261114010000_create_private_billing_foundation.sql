@@ -167,3 +167,47 @@ comment on table private.billing_webhook_receipts is
   'Webhook deduplication and processing ledger; raw request bodies and signatures are not stored.';
 comment on table private.billing_audit_events is
   'Append-only audit trail for privileged billing and subscription actions.';
+
+-- Store only a verified webhook receipt. This deliberately does not activate
+-- subscriptions or mark payments paid; reconciliation is a separate release gate.
+create or replace function public.record_paystack_webhook_receipt(
+  p_id uuid,
+  p_payload_sha256 text,
+  p_event_type text,
+  p_event_reference text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  inserted_count integer;
+begin
+  if p_id is null
+     or p_payload_sha256 !~ '^[0-9a-f]{64}$'
+     or p_event_type is null
+     or char_length(p_event_type) < 1
+     or char_length(p_event_type) > 120
+     or (p_event_reference is not null and char_length(p_event_reference) > 120) then
+    raise exception 'invalid webhook receipt';
+  end if;
+
+  insert into private.billing_webhook_receipts (
+    id, provider, payload_sha256, event_type, event_reference,
+    processing_status
+  ) values (
+    p_id, 'paystack', p_payload_sha256, p_event_type, p_event_reference,
+    'received'
+  )
+  on conflict (provider, payload_sha256) do nothing;
+
+  get diagnostics inserted_count = row_count;
+  return inserted_count = 1;
+end;
+$$;
+
+revoke all on function public.record_paystack_webhook_receipt(uuid, text, text, text)
+  from public, anon, authenticated;
+grant execute on function public.record_paystack_webhook_receipt(uuid, text, text, text)
+  to service_role;
