@@ -95,8 +95,7 @@ create table if not exists private.billing_transactions (
   ),
   paid_at timestamptz null,
   created_at timestamptz not null default pg_catalog.now(),
-  updated_at timestamptz not null default pg_catalog.now(),
-  check (actual_amount_minor is null or actual_amount_minor >= 0)
+  updated_at timestamptz not null default pg_catalog.now()
 );
 
 create unique index if not exists billing_transactions_provider_id_idx
