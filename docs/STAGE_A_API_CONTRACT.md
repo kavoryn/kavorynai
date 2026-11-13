@@ -1,7 +1,7 @@
 # Stage A — Document API contract (draft)
 
-Status: draft for implementation and provider testing  
-Version: 0.1  
+Status: partially implemented; upload foundation active in code, remaining endpoints are draft  
+Version: 0.2  
 All endpoints require HTTPS. Exact auth mechanism, API base URL, upload caps and job transport remain deployment decisions.
 
 ## Shared rules
@@ -68,13 +68,12 @@ Multipart upload. Required parts:
 - output_language: supported language code
 - translate: boolean
 
-Server checks actual MIME signature, extension consistency, size, page count, decompression limits, PDF safety, user quota, consent binding (including language and server-computed SHA-256 digest) and rate limit. Store temporary uploads outside public web root with random names. Never trust filename or MIME header alone.
+Implemented upload checks actual MIME using fileinfo, PDF magic bytes, image parsing/dimensions, extension consistency, per-type size caps, and server-computed SHA-256. The private storage layer uses random names, 0700 directory permissions and 0600 files, and re-hashes bytes while copying. The database RPC atomically consumes matching one-time consent and registers the file with user-scoped idempotency. Still outstanding before production: PDF parsing/page-count limits, full decompression/PDF safety checks, rate limits/quotas, retention cleanup, and host-specific integration testing. Never trust filename or client MIME headers.
 
 202:
 {
   "document_id": "<opaque-id>",
-  "job_id": "<opaque-id>",
-  "status": "queued"
+  "status": "uploaded"
 }
 
 Errors include stable codes: unsupported_file, file_too_large, page_limit_exceeded, consent_required, consent_expired, quota_exceeded, rate_limited, processing_unavailable.
@@ -150,7 +149,7 @@ Immediately deletes temporary file, OCR/explanation artifacts and any provider-s
 - [ ] Consent absent/expired/replayed/mismatched is rejected.
 - [ ] Cancel on review sends no document bytes.
 - [ ] Cross-account document/job/result access is rejected.
-- [ ] Upload validates actual MIME, size, page count and malformed files.
+- [x] Upload validates actual MIME, supported signatures, file size, image dimensions and SHA-256; PDF page-count/malformed-file parser validation remains open.
 - [ ] OCR returns original text and uncertainty spans.
 - [ ] Summary, Detailed and What to do are grounded in OCR.
 - [ ] Dates, amounts, names, numbers and deadlines have source references.
