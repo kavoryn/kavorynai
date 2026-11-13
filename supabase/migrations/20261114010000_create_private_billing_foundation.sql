@@ -28,7 +28,8 @@ create table if not exists private.billing_prices (
   interval_count integer not null default 1 check (interval_count between 1 and 12),
   active boolean not null default false,
   created_at timestamptz not null default pg_catalog.now(),
-  unique (plan_id, currency, interval_unit, interval_count)
+  unique (plan_id, currency, interval_unit, interval_count),
+  unique (id, plan_id)
 );
 
 create index if not exists billing_prices_active_lookup_idx
@@ -39,7 +40,7 @@ create table if not exists private.user_subscriptions (
   id uuid primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
   plan_id uuid not null references private.billing_plans(id) on delete restrict,
-  price_id uuid null references private.billing_prices(id) on delete restrict,
+  price_id uuid null,
   provider text not null check (provider = 'paystack'),
   provider_customer_code text null check (
     provider_customer_code is null or char_length(provider_customer_code) <= 120
@@ -60,7 +61,9 @@ create table if not exists private.user_subscriptions (
   check (
     current_period_start is null or current_period_end is null
     or current_period_end > current_period_start
-  )
+  ),
+  foreign key (price_id, plan_id)
+    references private.billing_prices(id, plan_id) on delete restrict
 );
 
 create index if not exists user_subscriptions_owner_history_idx
@@ -93,7 +96,7 @@ create table if not exists private.billing_transactions (
   paid_at timestamptz null,
   created_at timestamptz not null default pg_catalog.now(),
   updated_at timestamptz not null default pg_catalog.now(),
-  check (actual_amount_minor is null or actual_amount_minor = expected_amount_minor)
+  check (actual_amount_minor is null or actual_amount_minor >= 0)
 );
 
 create unique index if not exists billing_transactions_provider_id_idx
