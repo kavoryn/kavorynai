@@ -541,7 +541,7 @@ if ($method === 'POST' && preg_match(
         respond(413, ['error' => ['code' => 'request_too_large', 'message' => 'The question request is too large.', 'request_id' => $requestId]]);
     }
     try { $input = json_decode($rawBody, true, 16, JSON_THROW_ON_ERROR); }
-    catch (\\JsonException) { respond(400, ['error' => ['code' => 'invalid_json', 'message' => 'The question request is not valid JSON.', 'request_id' => $requestId]]); }
+    catch (\JsonException) { respond(400, ['error' => ['code' => 'invalid_json', 'message' => 'The question request is not valid JSON.', 'request_id' => $requestId]]); }
     if (!is_array($input) || ($input['confirmed'] ?? null) !== true ||
         !is_string($input['provider'] ?? null) || !in_array($input['provider'], ['openai', 'gemini'], true) ||
         !is_string($input['language'] ?? null) || !in_array($input['language'], ['en', 'ha', 'ar', 'fr'], true) ||
@@ -567,35 +567,35 @@ if ($method === 'POST' && preg_match(
     require_once dirname(__DIR__) . '/src/Ocr/SupabaseEncryptedOcrResultReader.php';
 
     try {
-        $limiter = new \\Kavoryn\\Ai\\SupabaseAiQuestionRateLimiter($supabaseUrl, $secretKey, $serviceRoleJwt);
+        $limiter = new \Kavoryn\Ai\SupabaseAiQuestionRateLimiter($supabaseUrl, $secretKey, $serviceRoleJwt);
         if (!$limiter->allow($user->id)) {
             header('Retry-After: 60');
             respond(429, ['error' => ['code' => 'rate_limited', 'message' => 'You have reached the document question limit. Please try again shortly.', 'request_id' => $requestId]]);
         }
-        $reader = new \\Kavoryn\\Ocr\\SupabaseEncryptedOcrResultReader(
+        $reader = new \Kavoryn\Ocr\SupabaseEncryptedOcrResultReader(
             $supabaseUrl, $secretKey, $serviceRoleJwt,
-            \\Kavoryn\\Ocr\\SupabaseEncryptedOcrResultReader::decodeKey($encryptionKey),
+            \Kavoryn\Ocr\SupabaseEncryptedOcrResultReader::decodeKey($encryptionKey),
         );
         $ocrResult = $reader->read($matches[1], $user->id);
-        $consentRecorder = new \\Kavoryn\\Ai\\SupabaseAiProcessingConsentRecorder($supabaseUrl, $secretKey, $serviceRoleJwt);
+        $consentRecorder = new \Kavoryn\Ai\SupabaseAiProcessingConsentRecorder($supabaseUrl, $secretKey, $serviceRoleJwt);
         // Persist distinct Q&A consent before any OCR text is sent to an external provider.
         $consentRecorder->record($user->id, $matches[1], $input['provider'], $input['language'], 'ask');
-        $answerer = \\Kavoryn\\Ai\\DocumentQuestionAnswererFactory::create($input['provider'], [
+        $answerer = \Kavoryn\Ai\DocumentQuestionAnswererFactory::create($input['provider'], [
             'OPENAI_API_KEY' => getenv('OPENAI_API_KEY') ?: '',
             'OPENAI_MODEL' => getenv('OPENAI_MODEL') ?: 'gpt-5-mini',
             'GEMINI_API_KEY' => getenv('GEMINI_API_KEY') ?: '',
             'GEMINI_MODEL' => getenv('GEMINI_MODEL') ?: 'gemini-3.6-flash',
         ]);
         $answer = $answerer->answer($ocrResult, $input['question'], $input['language']);
-    } catch (\\Kavoryn\\Ocr\\OcrResultNotFoundException) {
+    } catch (\Kavoryn\Ocr\OcrResultNotFoundException) {
         respond(404, ['error' => ['code' => 'document_result_not_found', 'message' => 'A completed document result is not available or has expired.', 'request_id' => $requestId]]);
-    } catch (\\Kavoryn\\Ai\\AiConsentStorageUnavailableException) {
+    } catch (\Kavoryn\Ai\AiConsentStorageUnavailableException) {
         respond(503, ['error' => ['code' => 'ai_consent_storage_unavailable', 'message' => 'AI processing consent could not be recorded. No document text was sent to the AI provider.', 'request_id' => $requestId]]);
-    } catch (\\Kavoryn\\Ai\\AiQuestionRateLimitUnavailableException) {
+    } catch (\Kavoryn\Ai\AiQuestionRateLimitUnavailableException) {
         respond(503, ['error' => ['code' => 'rate_limit_unavailable', 'message' => 'Document questions are temporarily unavailable.', 'request_id' => $requestId]]);
-    } catch (\\Kavoryn\\Ai\\OpenAiUnavailableException | \\Kavoryn\\Ai\\GeminiUnavailableException) {
+    } catch (\Kavoryn\Ai\OpenAiUnavailableException | \Kavoryn\Ai\GeminiUnavailableException) {
         respond(503, ['error' => ['code' => 'ai_provider_unavailable', 'message' => 'The selected AI provider could not answer this question.', 'request_id' => $requestId]]);
-    } catch (\\InvalidArgumentException | \\Kavoryn\\Ocr\\OcrResultReaderUnavailableException) {
+    } catch (\InvalidArgumentException | \Kavoryn\Ocr\OcrResultReaderUnavailableException) {
         respond(503, ['error' => ['code' => 'document_qa_unavailable', 'message' => 'Document questions are temporarily unavailable.', 'request_id' => $requestId]]);
     }
 
