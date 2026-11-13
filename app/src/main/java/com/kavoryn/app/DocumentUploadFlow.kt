@@ -87,14 +87,15 @@ fun DocumentUploadFlow(
                         status = "Document uploaded. Waiting for OCR to finish…"
                         result = awaitOcrResult(
                             maxAttempts = DEFAULT_OCR_POLL_ATTEMPTS,
-                            intervalMs = DEFAULT_OCR_POLL_INTERVAL_MS
-                        ) {
-                            withContext(Dispatchers.IO) {
-                                DocumentOcrResultApi(apiBaseUrl).getResult(
-                                    outcome.receipt.documentId, accessToken
-                                )
+                            intervalMs = DEFAULT_OCR_POLL_INTERVAL_MS,
+                            fetch = {
+                                withContext(Dispatchers.IO) {
+                                    DocumentOcrResultApi(apiBaseUrl).getResult(
+                                        outcome.receipt.documentId, accessToken
+                                    )
+                                }
                             }
-                        }
+                        )
                         status = null
                         running = false
                     }
