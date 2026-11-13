@@ -75,12 +75,18 @@ final class PrivateDocumentStorage
         return $key;
     }
 
-    public function delete(string $storageKey): void
+    public function delete(string $storageKey): bool
     {
-        if (!preg_match('/^[a-f0-9]{32}\.(pdf|jpg|png|webp)$/', $storageKey)) return;
+        if (!preg_match('/^[a-f0-9]{32}\.(pdf|jpg|png|webp)$/', $storageKey)) {
+            throw new DocumentFileException('invalid_storage_key', 'The private storage key is invalid.');
+        }
         $root = $this->resolvePrivateRoot();
         $path = $root . DIRECTORY_SEPARATOR . $storageKey;
-        if (is_file($path)) @unlink($path);
+        if (!is_file($path)) return true;
+        if (!@unlink($path)) {
+            throw new DocumentFileException('storage_delete_failed', 'The private document could not be deleted.');
+        }
+        return true;
     }
 
     private function resolvePrivateRoot(): string
