@@ -24,8 +24,8 @@ final class OcrWorker
             return false;
         }
 
-        $filePath = $this->resolveFile($job->storageKey);
         try {
+            $filePath = $this->resolveFile($job->storageKey);
             if (!is_file($filePath) || !is_readable($filePath)) {
                 throw new OcrJobProcessingException('document_file_unavailable');
             }
@@ -36,8 +36,8 @@ final class OcrWorker
                 $job->language,
             ));
 
-            // Persist only through an explicitly configured sink with an approved
-            // retention/encryption policy. Never mark success before this succeeds.
+            // The result sink must enforce the approved retention/encryption policy.
+            // Never mark a job successful before durable result storage succeeds.
             $this->results->store($job, $result);
 
             if (!$this->jobs->complete($job)) {
