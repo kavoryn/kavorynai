@@ -20,7 +20,7 @@ Kavoryn is an accessibility-first application that helps people read, understand
 - An authenticated Android OCR result reader calls `GET /v1/documents/{document_id}/result` over HTTPS, validates the returned document reference and bounded payload, and converts server Unicode code-point uncertainty offsets to Android UTF-16 ranges safely. Result display and end-to-end sign-in/session wiring remain outstanding.
 - A reusable accessible OCR result screen displays the original extracted text, highlights uncertain spans without altering the source text, supports text selection, and provides a hand-off action for document explanation. It is not yet wired into a signed-in end-to-end flow.
 - A Supabase Auth REST client supports password sign-in, refresh-token exchange and sign-out over HTTPS with a client publishable key.
-- Supabase session tokens can be stored encrypted using AES-256-GCM with an Android Keystore key; the reusable Compose sign-in screen is implemented. Main-flow wiring, automatic refresh scheduling and registration remain outstanding.
+- The main Compose flow includes an accessible sign-in/sign-out entry point, encrypted Android Keystore-backed session persistence, startup session restoration and refresh when a saved token is near expiry. Network and secure-storage operations run off the main thread. Registration and proactive background refresh scheduling remain outstanding.
 - Supply `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` through Gradle properties or environment variables. Never commit a service-role key or provider secret.
 
 ## Non-negotiable requirements
