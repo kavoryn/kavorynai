@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/Ai/GroundedQuestionPolicy.php';
 
-use Kavoryn\\Ai\\GroundedQuestionPolicy;
+use Kavoryn\Ai\GroundedQuestionPolicy;
 
 function questionExpect(bool $ok, string $message): void {
     if (!$ok) { fwrite(STDERR, $message . PHP_EOL); exit(1); }
