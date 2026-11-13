@@ -23,7 +23,9 @@ import com.kavoryn.app.auth.shouldClearStoredSessionAfterRefreshFailure
 import com.kavoryn.app.auth.SupabaseAuthSession
 import com.kavoryn.app.auth.SupabaseSessionStore
 import com.kavoryn.app.auth.SupabaseSignInScreen
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -93,6 +95,40 @@ private fun DocumentFlow() {
                 } catch (_: Exception) {
                     authError = "Kavoryn couldn't reconnect. Your encrypted session is kept; try again when you're online."
                 }
+            }
+        }
+    }
+
+    // Refresh the encrypted Supabase session shortly before expiry. Transient
+    // network/server failures retain the session and retry without blocking the UI.
+    LaunchedEffect(authSession?.refreshToken, authSession?.expiresAtEpochSeconds) {
+        val session = authSession ?: return@LaunchedEffect
+        while (true) {
+            val now = System.currentTimeMillis() / 1000
+            val secondsUntilRefresh =
+                (session.expiresAtEpochSeconds - now - 60).coerceAtLeast(0)
+            delay(secondsUntilRefresh * 1000)
+            try {
+                val refreshed = withContext(Dispatchers.IO) {
+                    authApi.refreshSession(session.refreshToken).also(authStore::save)
+                }
+                authSession = refreshed
+                authError = null
+                break
+            } catch (error: SupabaseAuthException) {
+                if (shouldClearStoredSessionAfterRefreshFailure(error)) {
+                    withContext(Dispatchers.IO) { authStore.clear() }
+                    authSession = null
+                    authError = "Your saved sign-in has expired. Please sign in again."
+                    break
+                }
+                authError = "Kavoryn couldn't refresh your session. Your encrypted session is kept; retrying when possible."
+                delay(30_000)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                authError = "Kavoryn couldn't refresh your session. Your encrypted session is kept; retrying when possible."
+                delay(30_000)
             }
         }
     }
