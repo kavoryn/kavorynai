@@ -114,3 +114,19 @@ Test at least two low-end Android devices, including 2–3 GB RAM class devices.
 ## Release gate
 
 Stage A is not approved until all critical security/privacy/accessibility cases pass, OCR error baseline and key-detail accuracy are measured on the fixed corpus, the TalkBack end-to-end journey passes with real users, and all open critical defects are closed. A mock, screenshot, or happy-path demo is not evidence of completion.
+
+
+## OCR contract unit tests
+
+| ID | Test | Expected |
+|---|---|---|
+| OCR-001 | Parse en/ha/ar/fr language codes | Stable codes resolve; unsupported codes are rejected |
+| OCR-002 | Normalize Hausa text | ɓ, ɗ, ƙ and ƴ remain unchanged |
+| OCR-003 | Inspect Arabic language metadata | Arabic is marked right-to-left |
+| OCR-004 | Validate uncertainty spans | Out-of-range spans are rejected |
+| OCR-005 | Validate word confidence | Values outside 0..1 are rejected |
+| OCR-006 | Validate word geometry | Partial, out-of-range or inverted boxes are rejected |
+| OCR-007 | Join multi-page text | Pages are returned in page-number order |
+| OCR-008 | Run fixed language text fixtures | English, Hausa, Arabic and French Unicode is preserved |
+
+These are authored unit tests and have not yet been executed. Real OCR accuracy tests require a permissioned scan corpus and selected provider adapters.
