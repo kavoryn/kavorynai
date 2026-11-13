@@ -111,8 +111,19 @@ if ($method === 'POST' && $path === '/v1/consents') {
         ]);
     }
 
+    $rawBody = file_get_contents('php://input');
+    if (!is_string($rawBody) || strlen($rawBody) > 8192) {
+        respond(413, [
+            'error' => [
+                'code' => 'request_too_large',
+                'message' => 'The consent request is too large.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
     try {
-        $input = json_decode(file_get_contents('php://input') ?: '', true, 16, JSON_THROW_ON_ERROR);
+        $input = json_decode($rawBody, true, 16, JSON_THROW_ON_ERROR);
     } catch (\JsonException) {
         respond(400, [
             'error' => [
