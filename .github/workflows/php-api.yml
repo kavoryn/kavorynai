@@ -88,6 +88,15 @@ jobs:
       - name: Secure cURL SSE transport policy tests
         run: php backend/tests/CurlSseStreamTransportTest.php
 
+      - name: Provider stream request factory tests
+        run: php backend/tests/ProviderStreamRequestFactoryTest.php
+
+      - name: Provider chat streamer tests
+        run: php backend/tests/ProviderChatStreamerTest.php
+
+      - name: Provider chat streamer server configuration tests
+        run: php backend/tests/ProviderChatStreamerFactoryTest.php
+
       - name: Grounded document Q&A policy tests
         run: php backend/tests/GroundedQuestionPolicyTest.php
 

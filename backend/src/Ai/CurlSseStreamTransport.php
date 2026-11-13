@@ -8,7 +8,7 @@ namespace Kavoryn\Ai;
  * HTTPS-only, bounded cURL transport for provider Server-Sent Events.
  * Provider URLs must be fixed application configuration, never user input.
  */
-final class CurlSseStreamTransport
+final class CurlSseStreamTransport implements ProviderStreamTransport
 {
     /** @var list<string> */
     private array $allowedHosts;
@@ -35,6 +35,18 @@ final class CurlSseStreamTransport
                 throw new \InvalidArgumentException('The provider host configuration is invalid.');
             }
         }
+    }
+
+    /**
+     * @param callable(array{type:'delta',text:string}|array{type:'completed'}):void $onEvent
+     * @param null|callable():bool $isCancelled
+     */
+    public function streamRequest(
+        ProviderStreamRequest $request,
+        callable $onEvent,
+        ?callable $isCancelled = null,
+    ): void {
+        $this->stream($request->url, $request->body, $request->headers, $request->mapper, $onEvent, $isCancelled);
     }
 
     /**
