@@ -23,6 +23,7 @@ final class SupabaseConsentStore implements ConsentStore
     public function create(ConsentRecord $record): void
     {
         $payload = [
+            'id' => $record->id,
             'user_id' => $record->userId,
             'feature' => 'document',
             'provider_name' => null,
