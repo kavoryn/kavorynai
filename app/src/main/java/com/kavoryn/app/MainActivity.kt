@@ -47,6 +47,10 @@ private fun DocumentFlow() {
     var pickerError by remember { mutableStateOf<String?>(null) }
     var pendingCamera by remember { mutableStateOf<CameraOutput?>(null) }
 
+    LaunchedEffect(Unit) {
+        cleanupStaleTemporaryScans(context)
+    }
+
     fun acceptUri(uri: android.net.Uri) {
         when (val result = readDocumentMetadata(context, uri)) {
             is DocumentMetadataResult.Valid -> {
@@ -63,6 +67,7 @@ private fun DocumentFlow() {
         val output = pendingCamera
         if (saved && output != null && output.file.exists() && output.file.length() > 0L) {
             acceptUri(output.uri)
+            if (selectedDocuments.none { it.uri == output.uri }) output.file.delete()
         } else {
             output?.file?.delete()
             pickerError = if (saved) {
@@ -89,6 +94,7 @@ private fun DocumentFlow() {
                     is DocumentMetadataResult.Invalid -> rejected.add(result.reason)
                 }
             }
+            cleanupTemporaryScans(context, selectedDocuments)
             selectedDocuments = accepted
             confirmed = false
             pickerError = rejected.firstOrNull()
@@ -119,6 +125,7 @@ private fun DocumentFlow() {
             onRotate = { document ->
                 val rotated = rotateDocumentImage(context, document)
                 if (rotated != null) {
+                    pickerError = null
                     selectedDocuments = selectedDocuments.map {
                         if (it.uri == document.uri) rotated else it
                     }
