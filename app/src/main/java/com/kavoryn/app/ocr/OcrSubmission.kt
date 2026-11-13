@@ -3,6 +3,7 @@ package com.kavoryn.app.ocr
 import java.io.InputStream
 import java.security.MessageDigest
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 
 data class OcrConsentRequest(
     val action: String = "document.process",
@@ -85,6 +86,13 @@ class OcrSubmissionCoordinator(
                 "Your processing permission could not be confirmed. Please review again."
             )
 
+            if (grant.token.isBlank()) {
+                return OcrSubmissionOutcome.Rejected(
+                    OcrFailureCode.CONSENT_REQUIRED,
+                    "Your processing permission could not be confirmed. Please review again."
+                )
+            }
+
             val receipt = input.openStream().use { stream ->
                 gateway.uploadDocument(
                     stream = stream,
@@ -95,6 +103,8 @@ class OcrSubmissionCoordinator(
                 )
             }
             OcrSubmissionOutcome.Submitted(receipt)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: UnsupportedDocumentException) {
             OcrSubmissionOutcome.Rejected(
                 OcrFailureCode.EMPTY_DOCUMENT,
@@ -133,5 +143,5 @@ internal fun sha256(openStream: () -> InputStream): String {
         }
     }
     if (bytesRead == 0L) throw UnsupportedDocumentException()
-    return digest.digest().joinToString("") { "%02x".format(it) }
+    return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
 }
