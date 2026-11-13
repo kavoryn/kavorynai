@@ -119,17 +119,20 @@ final class GeminiDocumentExplainer implements DocumentExplainer
         }
 
         if (!is_array($decoded) || ($decoded['status'] ?? null) !== 'completed' ||
-            !is_array($decoded['outputs'] ?? null)) {
+            !is_array($decoded['steps'] ?? null)) {
             throw new GeminiUnavailableException();
         }
 
         $outputText = '';
-        foreach ($decoded['outputs'] as $output) {
-            if (is_array($output) && ($output['type'] ?? null) === 'text' && is_string($output['text'] ?? null)) {
-                $outputText .= $output['text'];
-            }
-            if (is_array($output) && ($output['type'] ?? null) === 'refusal') {
-                throw new GeminiUnavailableException();
+        foreach ($decoded['steps'] as $step) {
+            if (!is_array($step) || ($step['type'] ?? null) !== 'model_output' || !is_array($step['content'] ?? null)) continue;
+            foreach ($step['content'] as $content) {
+                if (is_array($content) && ($content['type'] ?? null) === 'text' && is_string($content['text'] ?? null)) {
+                    $outputText .= $content['text'];
+                }
+                if (is_array($content) && ($content['type'] ?? null) === 'refusal') {
+                    throw new GeminiUnavailableException();
+                }
             }
         }
 
