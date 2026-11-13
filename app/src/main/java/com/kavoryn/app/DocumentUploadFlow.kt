@@ -24,6 +24,8 @@ import com.kavoryn.app.ocr.HttpOcrSubmissionGateway
 import com.kavoryn.app.ocr.OcrInput
 import com.kavoryn.app.ocr.OcrSubmissionCoordinator
 import com.kavoryn.app.ocr.OcrSubmissionOutcome
+import com.kavoryn.app.qa.DocumentQuestionApi
+import com.kavoryn.app.qa.DocumentQuestionScreen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -54,6 +56,7 @@ fun DocumentUploadFlow(
     var result by remember { mutableStateOf<DocumentOcrResult?>(null) }
     var explanation by remember { mutableStateOf<DocumentExplanation?>(null) }
     var showAiConsent by remember { mutableStateOf(false) }
+    var showQuestions by remember { mutableStateOf(false) }
     var activeJob by remember { mutableStateOf<Job?>(null) }
 
     fun startUpload() {
@@ -155,11 +158,29 @@ fun DocumentUploadFlow(
             }
         }
         result != null -> {
-            OcrResultScreen(
-                result = result!!,
-                onExplain = { showAiConsent = true }
-            )
-            if (showAiConsent) {
+            if (showQuestions) {
+                Column(Modifier.fillMaxSize()) {
+                    OutlinedButton(
+                        onClick = { showQuestions = false },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+                    ) {
+                        Text("Back to document")
+                    }
+                    DocumentQuestionScreen(
+                        api = DocumentQuestionApi(apiBaseUrl),
+                        documentId = result!!.documentId,
+                        accessToken = accessToken,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            } else {
+                OcrResultScreen(
+                    result = result!!,
+                    onExplain = { showAiConsent = true },
+                    onAskQuestion = { showQuestions = true }
+                )
+            }
+            if (showAiConsent && !showQuestions) {
                 AiProcessingConsentDialog(
                     onConsentGranted = { provider, outputLanguage ->
                         showAiConsent = false
