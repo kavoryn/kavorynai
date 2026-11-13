@@ -74,6 +74,7 @@ consentExpect($notConfirmed, 'Consent must not be issued without explicit confir
 
 $grant = $service->issue('user-1', 'document.process', $digest, 'ha', false, true);
 consentExpect(strlen($grant->token) === 43, 'Grant token must be a 32-byte URL-safe opaque token.');
+consentExpect((bool) preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $grant->id), 'Consent ID must be a version-4 UUID for PostgreSQL.');
 consentExpect(count($store->records) === 1, 'Store must receive a consent record.');
 $record = array_values($store->records)[0];
 consentExpect($record->tokenHash === hash('sha256', $grant->token), 'Only the token hash must be stored.');
