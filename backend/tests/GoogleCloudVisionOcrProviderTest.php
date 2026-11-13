@@ -45,7 +45,7 @@ $tokens = new GoogleServiceAccountTokenProvider($credentialsPath, $tokenHttp);
 $visionCalls = 0;
 $visionHttp = function (string $url, array $headers, string $body) use (&$visionCalls): array {
     $visionCalls++;
-    expectVision($url === 'https://vision.googleapis.com/v1/images:annotate', 'Unexpected Vision endpoint.');
+    expectVision($url === 'https://eu-vision.googleapis.com/v1/images:annotate', 'Unexpected Vision endpoint.');
     expectVision(($headers['Authorization'] ?? '') === 'Bearer test-access-token', 'Vision request must use server OAuth token.');
     $request = json_decode($body, true, 16, JSON_THROW_ON_ERROR);
     expectVision(($request['requests'][0]['features'][0]['type'] ?? null) === 'DOCUMENT_TEXT_DETECTION', 'Dense document OCR feature missing.');
