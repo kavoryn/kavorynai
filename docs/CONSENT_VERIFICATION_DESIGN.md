@@ -29,7 +29,7 @@ The endpoint requires server environment variables:
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only legacy JWT until the backend migrates to a suitable supported auth mechanism)
 - Optional `CONSENT_TTL_SECONDS` (default 300)
 
-Never commit or expose the secret key or service-role JWT to Android, public source, logs, or user documents.
+Never commit or expose the secret key or service-role JWT to Android, public source, logs, or user documents. The legacy `service_role` JWT is only a temporary compatibility bridge; Supabase has announced end-of-2026 support sunset for legacy `anon`/`service_role` keys. Replace it with a supported dedicated server-side database credential/connection before that deadline and verify PHP host support.
 
 ## Database migration applied
 
