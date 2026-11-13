@@ -132,6 +132,12 @@ private fun DocumentFlow() {
         Screen.REVIEW -> ReviewScreen(
             documents = selectedDocuments,
             error = pickerError,
+            onRemove = { document ->
+                cleanupTemporaryScans(context, listOf(document))
+                selectedDocuments = selectedDocuments.filterNot { it.uri == document.uri }
+                pickerError = null
+                if (selectedDocuments.isEmpty()) screen = Screen.HOME
+            },
             onRotate = { document ->
                 val rotated = rotateDocumentImage(context, document)
                 if (rotated != null) {
@@ -202,6 +208,7 @@ private fun ModeCard(title: String, subtitle: String) {
 private fun ReviewScreen(
     documents: List<SelectedDocument>,
     error: String?,
+    onRemove: (SelectedDocument) -> Unit,
     onRotate: (SelectedDocument) -> Unit,
     onCancel: () -> Unit,
     onConfirm: () -> Unit
@@ -238,6 +245,7 @@ private fun ReviewScreen(
                             }
                             is DocumentInspection.Problem -> Text(inspection.message, color = MaterialTheme.colorScheme.error)
                         }
+                        TextButton(onClick = { onRemove(document) }) { Text("Remove file") }
                     }
                 }
             }
