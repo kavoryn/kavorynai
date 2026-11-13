@@ -47,7 +47,10 @@ final class SupabaseAiProcessingConsentRecorder
             'p_user_id' => $userId,
             'p_document_id' => $documentId,
             'p_provider_name' => $provider,
-            'p_output_language' => $language,\n            'p_purpose' => $purpose === 'ask'\n                ? 'Answer a question using the selected external AI provider'\n                : 'Explain OCR text using the selected external AI provider',
+            'p_output_language' => $language,
+            'p_purpose' => $purpose === 'ask'
+                ? 'Answer a question using the selected external AI provider'
+                : 'Explain OCR text using the selected external AI provider',
         ], JSON_THROW_ON_ERROR);
 
         try {
