@@ -115,7 +115,9 @@ final class SupabaseDocumentRegistry implements DocumentRegistry
         $row = is_array($rows) ? ($rows[0] ?? null) : null;
         if (!is_array($row) ||
             !is_string($row['document_id'] ?? null) ||
+            !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $row['document_id']) ||
             !is_string($row['document_status'] ?? null) ||
+            !in_array($row['document_status'], ['uploaded', 'queued', 'processing', 'succeeded', 'failed', 'deleted'], true) ||
             !is_string($row['registered_at'] ?? null) ||
             !is_string($row['stored_key'] ?? null) ||
             !preg_match('/^[a-f0-9]{32}\.(pdf|jpg|png|webp)$/', $row['stored_key'])) {
