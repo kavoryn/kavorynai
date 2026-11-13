@@ -25,19 +25,16 @@ class HttpOcrSubmissionGatewayTest {
 
     @Test
     fun consentRejectsNonHttpsApiBeforeNetworkAccess() {
-        val gateway = HttpOcrSubmissionGateway(
-            baseUrl = "http://api.example.test",
-            accessToken = "user-access-token"
-        )
-        val request = OcrConsentRequest(
-            language = "ha",
-            payloadSha256 = "b".repeat(64)
-        )
-
         val error = assertThrows(IllegalArgumentException::class.java) {
             validatedHttpsApiRoot("http://api.example.test")
         }
         assertEquals("The Kavoryn API must use HTTPS.", error.message)
+    }
+
+
+    @Test
+    fun acceptsHttpsApiRootAndRemovesTrailingSlash() {
+        assertEquals("https://api.example.test", validatedHttpsApiRoot("https://api.example.test/"))
     }
 
     @Test
