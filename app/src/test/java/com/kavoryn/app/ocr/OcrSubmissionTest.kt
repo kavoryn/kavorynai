@@ -2,6 +2,7 @@ package com.kavoryn.app.ocr
 
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -103,6 +104,57 @@ class OcrSubmissionTest {
         assertEquals(OcrFailureCode.EMPTY_DOCUMENT, (result as OcrSubmissionOutcome.Rejected).code)
         assertEquals(0, gateway.consentCalls)
         assertFalse(gateway.uploadCalls > 0)
+    }
+
+
+    @Test
+    fun blankConsentTokenPreventsUpload() = runBlocking {
+        val gateway = FakeGateway(grant = OcrConsentGrant("  "))
+        val result = OcrSubmissionCoordinator(gateway).submit(
+            OcrInput("image/jpeg", OcrLanguage.ENGLISH) { ByteArrayInputStream(byteArrayOf(1)) },
+            userConfirmedExternalProcessing = true
+        )
+        assertTrue(result is OcrSubmissionOutcome.Rejected)
+        assertEquals(0, gateway.uploadCalls)
+    }
+
+    @Test
+    fun blankIdempotencyKeyIsRejectedBeforeNetworkCall() = runBlocking {
+        val gateway = FakeGateway()
+        val result = OcrSubmissionCoordinator(gateway).submit(
+            OcrInput("image/jpeg", OcrLanguage.ENGLISH) { ByteArrayInputStream(byteArrayOf(1)) },
+            userConfirmedExternalProcessing = true,
+            idempotencyKey = " "
+        )
+        assertTrue(result is OcrSubmissionOutcome.Rejected)
+        assertEquals(0, gateway.consentCalls)
+        assertEquals(0, gateway.uploadCalls)
+    }
+
+    @Test
+    fun coroutineCancellationIsPropagated() = runBlocking {
+        val gateway = object : OcrSubmissionGateway {
+            override suspend fun createConsent(request: OcrConsentRequest): OcrConsentGrant? {
+                throw CancellationException("cancelled")
+            }
+            override suspend fun uploadDocument(
+                stream: InputStream,
+                mimeType: String,
+                language: String,
+                consentToken: String,
+                idempotencyKey: String
+            ): OcrJobReceipt = error("Upload must not run after cancellation")
+        }
+        var cancellationPropagated = false
+        try {
+            OcrSubmissionCoordinator(gateway).submit(
+                OcrInput("image/png", OcrLanguage.ARABIC) { ByteArrayInputStream(byteArrayOf(1)) },
+                userConfirmedExternalProcessing = true
+            )
+        } catch (_: CancellationException) {
+            cancellationPropagated = true
+        }
+        assertTrue(cancellationPropagated)
     }
 
     @Test
