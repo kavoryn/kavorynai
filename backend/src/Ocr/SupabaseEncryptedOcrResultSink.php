@@ -66,7 +66,7 @@ final class SupabaseEncryptedOcrResultSink implements OcrResultSink
             'p_detected_language' => $result->detectedLanguage ?? 'und',
             'p_character_count' => $characterCount,
             'p_uncertain_span_count' => count($result->uncertainSpans),
-            'p_result_sha256' => hash('sha256', $plain),
+            'p_result_sha256' => hash_hmac('sha256', $plain, $this->encryptionKey),
             'p_plaintext_bytes' => $plainBytes,
         ];
 
