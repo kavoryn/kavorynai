@@ -94,3 +94,10 @@ PDF uploads require Poppler's `pdfinfo` utility on the PHP host. Install the Pop
 The database migrations `document_upload_rate_limit` and `cleanup_document_upload_rate_limits` create a private, RLS-protected counter store and service-role-only RPCs. The atomic limiter permits up to 5 document upload attempts per account per minute and 30 per account per hour. A blocked attempt receives HTTP 429 and a `Retry-After` header. The PHP endpoint calls this RPC after authentication and request-shape checks but before document inspection/storage. If the rate-limit service is unavailable, uploads fail closed with HTTP 503.
 
 These are abuse-protection limits, not subscription entitlements or advertised customer plan quotas. They should be reviewed against expected traffic before launch. The existing five-minute document cleanup cron also invokes the service-role-only rate-limit cleanup RPC and removes counter buckets older than two days.
+
+
+## OCR job queue foundation
+
+New document registrations with status `uploaded` are automatically added to the private `private.ocr_jobs` queue by a database trigger. Queue rows are not exposed to app clients. The worker-only claim RPC uses row locking with `SKIP LOCKED`, a bounded lease, and a maximum of three attempts; expired leases can be reclaimed. The worker can record a bounded error code and retry delay, or complete a job only while its worker lease is still valid.
+
+The queue currently provides job orchestration only. No OCR vendor is selected or called, no OCR text is stored, and the upload endpoint does not yet start a provider request. The PHP worker, authenticated job-status endpoint, provider adapter, and end-to-end OCR integration remain to be implemented. Keep the document upload feature flag disabled until the full flow is deployed and tested.
