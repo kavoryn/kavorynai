@@ -490,13 +490,13 @@ private fun ReviewScreen(
                 }
             }
         }
-        Text("No OCR, AI processing or upload happens here. The checks above only inspect file structure and image dimensions.")
+        Text("Only one document can be uploaded per processing run. Upload and external OCR start only after the separate consent dialog.")
         OutlinedButton(onClick = onCancel, Modifier.fillMaxWidth().height(52.dp)) { Text("Cancel") }
         Button(
             onClick = onConfirm,
-            enabled = inspections.isNotEmpty() && inspections.none { it.second is DocumentInspection.Problem },
+            enabled = inspections.size == 1 && inspections.none { it.second is DocumentInspection.Problem },
             modifier = Modifier.fillMaxWidth().height(56.dp)
-        ) { Text("Confirm local review") }
+        ) { Text("Continue to secure upload") }
     }
 }
 
