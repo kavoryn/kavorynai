@@ -24,7 +24,10 @@ final class PrivateDocumentStorage
         $output = @fopen($destination, 'x+b');
         if ($input === false || $output === false) {
             if (is_resource($input)) fclose($input);
-            if (is_resource($output)) fclose($output);
+            if (is_resource($output)) {
+                fclose($output);
+                @unlink($destination);
+            }
             throw new DocumentFileException('storage_unavailable', 'Private document storage is unavailable.');
         }
 
