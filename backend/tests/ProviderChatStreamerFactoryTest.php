@@ -25,7 +25,7 @@ $config = [
 ];
 
 $streamer = ProviderChatStreamerFactory::fromEnvironment($config);
-if (!$streamer instanceof \\Kavoryn\\Ai\\ProviderChatStreamer) {
+if (!$streamer instanceof \Kavoryn\Ai\ProviderChatStreamer) {
     throw new RuntimeException('The server configuration factory must return a provider chat streamer.');
 }
 
@@ -43,7 +43,7 @@ foreach (['OPENAI_API_KEY', 'OPENAI_CHAT_MODEL', 'GEMINI_API_KEY', 'GEMINI_CHAT_
 }
 
 $unsafe = $config;
-$unsafe['OPENAI_API_KEY'] = "bad-key\\r\\nX-Injected: true";
+$unsafe['OPENAI_API_KEY'] = "bad-key\r\nX-Injected: true";
 try {
     ProviderChatStreamerFactory::fromEnvironment($unsafe);
     throw new RuntimeException('Unsafe provider credentials must be rejected.');
