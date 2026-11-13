@@ -13,8 +13,6 @@ The identity endpoint calls Supabase Auth's `/auth/v1/user` endpoint. It does no
 
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
-- `PRIVATE_DOCUMENT_STORAGE_PATH` (absolute private directory outside `backend/public`)
-- `DOCUMENT_UPLOAD_ENABLED` (must remain `false` until release gates pass; default `false`)
 
 Set these in the server's secret/configuration manager. `SUPABASE_PUBLISHABLE_KEY` is for Auth identity verification. Consent persistence uses `SUPABASE_SECRET_KEY` as the `apikey` and the legacy `SUPABASE_SERVICE_ROLE_KEY` JWT as the Authorization bearer; the secret key cannot itself be used as a JWT bearer. Both elevated values are server-only and must never enter Android, Git, logs, or public documents. The legacy `service_role` JWT is a compatibility bridge only: Supabase plans to end support for legacy `anon`/`service_role` keys at the end of 2026. Before then, replace this bearer mechanism with a supported dedicated server-side database connection/credential approach and test it on the selected PHP host. PHP cURL with TLS verification is required.
 
@@ -53,7 +51,7 @@ Without server-side Supabase configuration, `/v1/me` must fail closed with HTTP 
 - The health route is liveness only; it must not expose database or provider status.
 - Do not accept user IDs supplied by clients as proof of identity.
 - The identity endpoint verifies the current user session only. Role authorization, account recovery, phone/email ownership policy, rate limiting, session revocation checks, and account creation UX remain outstanding.
-- Upload is implemented behind `DOCUMENT_UPLOAD_ENABLED=false` and remains disabled by default. The database sets an expiry of one hour for unprocessed uploads. `backend/bin/cleanup_expired_documents.php` deletes expired private files and marks their rows deleted; schedule it every five minutes using the host cron service. Do not enable upload until server secrets and private storage are configured, host upload limits are raised appropriately, rate limits/quotas and the cleanup cron are configured and tested.
+- Upload requires `PRIVATE_DOCUMENT_STORAGE_PATH` (an absolute private directory outside `backend/public`) and `DOCUMENT_UPLOAD_ENABLED=false` by default. It remains disabled until release gates pass. The database sets an expiry of one hour for unprocessed uploads. `backend/bin/cleanup_expired_documents.php` deletes expired private files and marks their rows deleted; schedule it every five minutes using the host cron service. Do not enable upload until server secrets and private storage are configured, host upload limits are raised appropriately, rate limits/quotas and the cleanup cron are configured and tested.
 
 ## Current status
 
