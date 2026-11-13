@@ -113,3 +113,45 @@ The backend now contains a provider-independent worker core under `backend/src/O
 - `OcrWorkerTest.php` covers successful processing, persistence-before-completion, missing private files, and empty queues. It is included in the PHP API workflow.
 
 This is orchestration code, not a runnable production worker yet. A concrete OCR provider adapter and an approved result sink/retention policy must be selected and configured through a server-only bootstrap before the worker can claim jobs. Do not mark jobs successful or enable uploads without durable result storage. No document text is logged by this worker core.
+
+
+## Google Cloud Vision OCR and encrypted result delivery
+
+The first provider adapter is Google Cloud Vision `DOCUMENT_TEXT_DETECTION`. Its published OCR language list identifies Arabic, English, and French as supported languages; Hausa (`ha`) is listed as a mapped language using the Latin character model, not as a regularly evaluated supported language. The app must therefore show uncertain words and Hausa accuracy must be measured against a manually verified fixture set before production release.
+
+The adapter omits language hints so Vision can auto-detect mixed-language content. For PDFs, the worker uses local Poppler `pdfinfo` and `pdftoppm` to render up to 50 pages into temporary JPEG images and submits bounded synchronous image batches (maximum 16 images per request and a conservative JSON payload cap). This avoids uploading user PDFs to a second cloud bucket. Temporary page images are removed after processing.
+
+The worker uses a Google service-account JSON file whose permissions must not be broader than owner-only. OAuth JWTs are signed server-side with OpenSSL; access tokens are cached only for the life of the worker process. No Google credential or Supabase service credential is sent to Android.
+
+### Server-only configuration
+
+Set these variables in the backend host environment (never in Android, the web client, or a committed file):
+
+- `GOOGLE_SERVICE_ACCOUNT_JSON_PATH`: absolute path to the Google service-account JSON file outside the public web root; file mode `0600`.
+- `OCR_RESULT_ENCRYPTION_KEY`: base64 encoding of exactly 32 cryptographically random bytes (generate with `openssl rand -base64 32`).
+- `OCR_RESULT_ENCRYPTION_KEY_VERSION=1`.
+- `OCR_WORKER_ENABLED=true` only after all provider and storage settings have been verified.
+- `OCR_WORKER_MAX_JOBS`: optional 1–10 jobs per CLI invocation (default 3).
+- Existing `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `PRIVATE_DOCUMENT_STORAGE_PATH` values are also required.
+
+The host needs PHP cURL, OpenSSL, sodium, Poppler `pdfinfo` and `pdftoppm`, plus network access to Google OAuth, Cloud Vision, and the Supabase HTTPS API.
+
+Run the worker from the CLI only:
+
+```bash
+php backend/bin/ocr_worker.php
+```
+
+Schedule the command using the hosting provider's cron facility after staging tests. The worker is disabled unless `OCR_WORKER_ENABLED=true`. Keep `DOCUMENT_UPLOAD_ENABLED=false` until the full upload → queue → OCR → encrypted result → authenticated result-read flow passes staging tests.
+
+### Result privacy and retrieval
+
+OCR JSON (text, uncertainty spans, and detected language) is encrypted in PHP using libsodium `crypto_secretbox` with a fresh 24-byte nonce for every result. Supabase stores only ciphertext, nonce, a keyed HMAC, counts, provider/version metadata, and expiry in `private.ocr_results`. The encryption key stays in the backend environment. The database table has RLS enabled, no client policies, and no `anon` or `authenticated` grants.
+
+Worker and result RPCs are exposed through `public` only as narrowly granted wrappers: execution is revoked from `PUBLIC`, `anon`, and `authenticated`, and granted to `service_role` only. The authenticated API endpoint `GET /v1/documents/{document_id}/result` passes the verified user ID to the owner-checking RPC, decrypts on the server, verifies the keyed HMAC and result metadata, and returns `Cache-Control: no-store` JSON.
+
+Results are temporary, not a saved document library. Their expiry is copied from the source document's one-hour processing expiry. The document cleanup CLI purges expired OCR results as well as expired document files and rate-limit buckets. A separate long-term “Save” feature must require a separate user opt-in and retention policy.
+
+### Current integration boundary
+
+The provider adapter, service-account token exchange, worker CLI, encrypted result sink/reader, and queue wrappers are implemented. Automated tests mock Google and Supabase HTTP responses; they do not prove live Google OCR accuracy or production credentials. Hausa benchmark accuracy, staging end-to-end verification, provider billing/quotas, and the final upload/worker enablement gate remain outstanding.
