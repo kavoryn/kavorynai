@@ -7,7 +7,7 @@ This directory contains the PHP API entry point for the Android document workflo
 - `GET /v1/health`: liveness response with request ID.
 - `GET /v1/me`: verifies a Supabase Auth user access token and returns the verified user ID.
 - `POST /v1/consents`: requires an authenticated user and explicit confirmation, then creates a short-lived, one-time consent token bound to the document SHA-256 digest, action, output language, and translation setting. Only the token hash is persisted.
-- `POST /v1/documents`: accepts an authenticated multipart upload, inspects actual file type/signature, validates size and image dimensions, computes SHA-256 on the server, stores the file outside the public web root, and atomically consumes matching consent while registering the document in Supabase. Returns `201` with status `uploaded`; OCR/job processing is not yet connected.
+- `POST /v1/documents`: accepts an authenticated multipart upload, inspects actual file type/signature, validates size and image dimensions, uses Poppler `pdfinfo` to reject damaged/encrypted PDFs and enforce a 50-page maximum, computes SHA-256 on the server, applies atomic per-user upload limits (5 per minute and 30 per hour), stores the file outside the public web root, and atomically consumes matching consent while registering the document in Supabase. Returns `201` with status `uploaded`; OCR/job processing is not yet connected.
 
 The identity endpoint calls Supabase Auth's `/auth/v1/user` endpoint. It does not trust a user ID from request data or decode unverified JWT claims. It requires:
 
@@ -57,7 +57,7 @@ curl -X POST "$API_BASE_URL/v1/documents" \
   -F "translate=false"
 ```
 
-The endpoint returns `201` and status `uploaded`; it does not yet enqueue OCR. A definite consent or idempotency conflict returns `409`. A transient registry failure returns `503`; retry using the same idempotency key. The feature flag remains off until the host release gates are complete.
+The endpoint returns `201` and status `uploaded`; it does not yet enqueue OCR. A definite consent or idempotency conflict returns `409`. A transient registry failure returns `503`; retry using the same idempotency key. The feature flag remains off until the host release gates are complete. The Supabase-backed rate limiter fails closed if its RPC is unavailable and returns HTTP 429 with `Retry-After` when an account reaches either limit.
 
 ## Security and deployment boundaries
 
@@ -67,13 +67,13 @@ The endpoint returns `201` and status `uploaded`; it does not yet enqueue OCR. A
 - The health route is liveness only; it must not expose database or provider status.
 - Do not accept user IDs supplied by clients as proof of identity.
 - The identity endpoint verifies the current user session only. Role authorization, account recovery, phone/email ownership policy, rate limiting, session revocation checks, and account creation UX remain outstanding.
-- Upload requires `PRIVATE_DOCUMENT_STORAGE_PATH` (an absolute private directory outside `backend/public`) and `DOCUMENT_UPLOAD_ENABLED=false` by default. It remains disabled until release gates pass. The database sets an expiry of one hour for unprocessed uploads. `backend/bin/cleanup_expired_documents.php` deletes expired private files and marks their rows deleted; schedule it every five minutes using the host cron service. Do not enable upload until server secrets and private storage are configured, host upload limits are raised appropriately, rate limits/quotas and the cleanup cron are configured and tested.
+- Upload requires `PRIVATE_DOCUMENT_STORAGE_PATH` (an absolute private directory outside `backend/public`) and `DOCUMENT_UPLOAD_ENABLED=false` by default. It remains disabled until release gates pass. The database sets an expiry of one hour for unprocessed uploads. `backend/bin/cleanup_expired_documents.php` deletes expired private files and marks their rows deleted; schedule it every five minutes using the host cron service. Do not enable upload until server secrets and private storage are configured, host upload limits are raised appropriately, the Poppler `pdfinfo` binary is installed and reachable through `PDFINFO_BINARY` (or `PATH`), the Supabase upload-rate-limit migrations are applied, and the cleanup cron is configured and tested.
 
 ## Current status
 
 Supabase-backed user identity verification is wired into `GET /v1/me`. The `POST /v1/consents` endpoint now issues consent grants through the server-only Supabase adapter. The database stores only a token hash and the one-time consume RPC atomically matches and marks a grant as consumed. Production readiness still depends on configuring server secrets, testing with a real session and real database, HTTPS, rate limiting, and a documented session revocation policy. PHP hosting suitability, queue/background-job support, request-size limits, temporary storage, and deletion behavior also require proof on the selected host.
 
-Secure upload foundations and `POST /v1/documents` are implemented in code. The Supabase `documents` table is private to the service role, and `register_uploaded_document` atomically consumes consent and registers the file with per-user idempotency. The endpoint is deliberately disabled by default. Do not set `DOCUMENT_UPLOAD_ENABLED=true` until the PHP host has an absolute private storage path, HTTPS, PHP `fileinfo`/cURL support, `upload_max_filesize` of at least 20M and `post_max_size` of at least 22M, plus rate limits, quota enforcement, page-count/PDF parsing, the five-minute cleanup cron, and a real authenticated integration test. The endpoint currently returns `uploaded`; it does not enqueue OCR yet. See `docs/CONSENT_VERIFICATION_DESIGN.md` and `docs/STAGE_A_API_CONTRACT.md`.
+Secure upload foundations and `POST /v1/documents` are implemented in code. The Supabase `documents` table is private to the service role, and `register_uploaded_document` atomically consumes consent and registers the file with per-user idempotency. The endpoint is deliberately disabled by default. Do not set `DOCUMENT_UPLOAD_ENABLED=true` until the PHP host has an absolute private storage path, HTTPS, PHP `fileinfo`/cURL support, `upload_max_filesize` of at least 20M and `post_max_size` of at least 22M, plus rate limits, quota enforcement, the `pdfinfo` PDF page-count validation, the five-minute cleanup cron, and a real authenticated integration test. The endpoint currently returns `uploaded`; it does not enqueue OCR yet. See `docs/CONSENT_VERIFICATION_DESIGN.md` and `docs/STAGE_A_API_CONTRACT.md`.
 
 
 ## Expired upload cleanup
@@ -85,3 +85,12 @@ Unprocessed uploads receive a one-hour expiry in Postgres. Configure the PHP hos
 ```
 
 Replace `/home/ACCOUNT` and the PHP binary path with the actual hosting paths. The cleanup script removes the private file first and then marks the database row deleted. It also scans for old staged files that have no matching database row, which covers interrupted registration requests. If the database update fails, the next run safely retries because deleting a missing file is treated as success. The script never reads or logs document contents.
+
+
+## PDF validation and upload throttling
+
+PDF uploads require Poppler's `pdfinfo` utility on the PHP host. Install the Poppler utilities package using the host's supported package manager, or set `PDFINFO_BINARY` to the absolute path of the trusted `pdfinfo` executable. The API invokes it without a shell, with an eight-second timeout, and fails closed when it is missing or cannot inspect the file. Password-protected, damaged, zero-page, and over-50-page PDFs are rejected. Images do not require Poppler.
+
+The database migrations `document_upload_rate_limit` and `cleanup_document_upload_rate_limits` create a private, RLS-protected counter store and service-role-only RPCs. The atomic limiter permits up to 5 document upload attempts per account per minute and 30 per account per hour. A blocked attempt receives HTTP 429 and a `Retry-After` header. The PHP endpoint calls this RPC after authentication and request-shape checks but before document inspection/storage. If the rate-limit service is unavailable, uploads fail closed with HTTP 503.
+
+These are abuse-protection limits, not subscription entitlements or advertised customer plan quotas. They should be reviewed against expected traffic before launch. Schedule the rate-limit cleanup RPC (or equivalent server-side maintenance) periodically; it removes counter buckets older than two days.
