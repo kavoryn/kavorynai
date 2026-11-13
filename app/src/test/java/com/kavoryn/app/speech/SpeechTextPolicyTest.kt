@@ -8,6 +8,8 @@ import org.junit.Test
 class SpeechTextPolicyTest {
     @Test fun mapsSupportedLanguageTags() {
         assertEquals(SpeechLanguage.HAUSA, SpeechLanguage.fromContentLanguage("ha"))
+        assertEquals(SpeechLanguage.HAUSA, SpeechLanguage.fromContentLanguage("ha-NG"))
+        assertEquals(SpeechLanguage.ARABIC, SpeechLanguage.fromContentLanguage("ar-SA"))
         assertEquals(SpeechLanguage.ARABIC, SpeechLanguage.fromContentLanguage("AR"))
         assertEquals(SpeechLanguage.FRENCH, SpeechLanguage.fromContentLanguage("fr"))
         assertNull(SpeechLanguage.fromContentLanguage("sw"))
@@ -20,7 +22,7 @@ class SpeechTextPolicyTest {
     @Test fun acceptsHausaArabicAndFrenchTextWithoutRewriting() {
         val source = "ɓ ɗ ƙ ƴ — مرحباً — Bonjour"
         assertNull(SpeechTextPolicy.validate(source))
-        assertEquals(source, source)
+        assertEquals(source, SpeechTextPolicy.chunks(source).joinToString(""))
     }
 
     @Test fun longTextIsChunkedWithoutLosingCharacters() {
