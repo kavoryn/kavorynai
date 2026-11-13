@@ -117,8 +117,6 @@ jobs:
           '
 
           explain_status=$(curl --silent --output /tmp/kavoryn-explain.json --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"confirmed":true,"provider":"gemini","language":"ha"}' http://127.0.0.1:8080/v1/documents/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12/explain)
-          echo "AI explain smoke HTTP status: $explain_status"
-          cat /tmp/kavoryn-explain.json
           test "$explain_status" = "503"
           php -r '
             $data = json_decode(file_get_contents("/tmp/kavoryn-explain.json"), true, 512, JSON_THROW_ON_ERROR);
