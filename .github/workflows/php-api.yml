@@ -23,6 +23,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Poppler PDF utilities
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes poppler-utils
+
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
