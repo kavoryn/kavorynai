@@ -64,7 +64,7 @@ A third migration, `20261113142706_lock_down_signup_trigger_function`, revokes d
 
 The fourth and fifth migrations, `20261113142849_create_processing_consent_with_db_clock` and `20261113142952_validate_all_consent_creation_parameters`, add and harden the database-clock creation RPC. The database returns the authoritative creation and expiry timestamps, and all required arguments are validated before insertion.
 
-All five consent migrations are recorded in `supabase/migrations/` in this repository. The document registry, idempotency serialization, one-hour expiry, and consent foreign-key index migrations are also recorded there. The table had zero rows before the migration, so the new required binding columns were added without migrating existing consent records.
+All five consent/auth migrations are recorded in `supabase/migrations/` in this repository. The document registry, idempotency serialization, one-hour expiry, and consent foreign-key index migrations are also recorded there: `20261113143440_secure_document_upload_registry`, `20261113143617_serialize_document_upload_idempotency`, `20261113143907_expire_unprocessed_document_uploads`, and `20261113143947_index_document_consent_foreign_key`. The table had zero rows before the migration, so the new required binding columns were added without migrating existing consent records.
 
 At the time of this implementation, `auth.users` contains zero accounts in this project. The SQL migration and invalid-parameter rejection were verified, but a successful live sign-in and positive one-time-consumption test must wait until the Android sign-up flow creates a test account and the PHP host has its server-only credentials configured.
 
@@ -78,4 +78,4 @@ At the time of this implementation, `auth.users` contains zero accounts in this 
 - Configure private storage, HTTPS, PHP upload limits, server secrets and the five-minute cleanup cron on the selected host.
 - Complete PDF parser/page-count validation, rate limits and quotas before enabling the upload feature flag.
 - Add live authenticated upload tests and verify retry/idempotency behavior with a real Supabase user.
-- Keep document upload disabled until MIME/signature validation, size/page limits, temporary storage, deletion, and privacy tests are implemented.
+- Keep document upload disabled until the host's private storage, HTTPS, PHP upload limits, five-minute expiry/orphan cleanup cron, PDF page-count validation, rate limits, quotas, and real authenticated integration tests are verified.
