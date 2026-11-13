@@ -567,6 +567,12 @@ if ($method === 'POST' && preg_match(
     require_once dirname(__DIR__) . '/src/Ocr/SupabaseEncryptedOcrResultReader.php';
 
     try {
+        $question = \Kavoryn\Ai\GroundedQuestionPolicy::validateQuestion($input['question']);
+    } catch (\InvalidArgumentException) {
+        respond(422, ['error' => ['code' => 'invalid_question', 'message' => 'The question must contain between 1 and 1,000 valid characters.', 'request_id' => $requestId]]);
+    }
+
+    try {
         $limiter = new \Kavoryn\Ai\SupabaseAiQuestionRateLimiter($supabaseUrl, $secretKey, $serviceRoleJwt);
         if (!$limiter->allow($user->id)) {
             header('Retry-After: 60');
@@ -586,7 +592,7 @@ if ($method === 'POST' && preg_match(
             'GEMINI_API_KEY' => getenv('GEMINI_API_KEY') ?: '',
             'GEMINI_MODEL' => getenv('GEMINI_MODEL') ?: 'gemini-3.6-flash',
         ]);
-        $answer = $answerer->answer($ocrResult, $input['question'], $input['language']);
+        $answer = $answerer->answer($ocrResult, $question, $input['language']);
     } catch (\Kavoryn\Ocr\OcrResultNotFoundException) {
         respond(404, ['error' => ['code' => 'document_result_not_found', 'message' => 'A completed document result is not available or has expired.', 'request_id' => $requestId]]);
     } catch (\Kavoryn\Ai\AiConsentStorageUnavailableException) {
