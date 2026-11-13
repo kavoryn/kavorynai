@@ -16,7 +16,7 @@ enum class OcrLanguage(
 
     companion object {
         fun fromCode(code: String): OcrLanguage? =
-            entries.firstOrNull { it.code == code.trim().lowercase() }
+            entries.firstOrNull { it.code == code.trim().lowercase(Locale.ROOT) }
     }
 }
 
