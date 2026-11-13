@@ -139,3 +139,102 @@ final class SupabaseDocumentRegistry implements DocumentRegistry
         );
     }
 }
+
+
+final class DocumentRateLimitExceededException extends \\RuntimeException
+{
+    public function __construct(public readonly int $retryAfterSeconds)
+    {
+        parent::__construct('Document upload rate limit exceeded.');
+    }
+}
+
+final class DocumentRateLimiterUnavailableException extends \\RuntimeException {}
+
+final class SupabaseDocumentRateLimiter
+{
+    /** @param callable(string, array<string, string>, string): array{status:int,body:string}|null $http */
+    public function __construct(
+        private readonly string $supabaseUrl,
+        private readonly string $secretKey,
+        private readonly string $serviceRoleJwt,
+        private readonly mixed $http = null,
+    ) {
+        if ($supabaseUrl === '' || parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
+            $secretKey === '' || $serviceRoleJwt === '') {
+            throw new DocumentRateLimiterUnavailableException('Rate limiter is not configured.');
+        }
+    }
+
+    public function consume(string $userId): void
+    {
+        if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $userId)) {
+            throw new DocumentRateLimiterUnavailableException('Invalid authenticated user identifier.');
+        }
+
+        $url = rtrim($this->supabaseUrl, '/') . '/rest/v1/rpc/consume_document_upload_rate_limit';
+        $headers = [
+            'apikey' => $this->secretKey,
+            'Authorization' => 'Bearer ' . $this->serviceRoleJwt,
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+        ];
+
+        try {
+            $json = json_encode(['p_user_id' => $userId], JSON_THROW_ON_ERROR);
+            if ($this->http !== null) {
+                $response = ($this->http)($url, $headers, $json);
+            } else {
+                if (!function_exists('curl_init')) {
+                    throw new DocumentRateLimiterUnavailableException('PHP cURL is required.');
+                }
+                $curl = curl_init($url);
+                if ($curl === false) throw new DocumentRateLimiterUnavailableException();
+                $headerLines = [];
+                foreach ($headers as $name => $value) $headerLines[] = $name . ': ' . $value;
+                curl_setopt_array($curl, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => $json,
+                    CURLOPT_HTTPHEADER => $headerLines,
+                    CURLOPT_CONNECTTIMEOUT => 3,
+                    CURLOPT_TIMEOUT => 5,
+                    CURLOPT_FOLLOWLOCATION => false,
+                    CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_SSL_VERIFYHOST => 2,
+                ]);
+                $body = curl_exec($curl);
+                $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+                $error = curl_errno($curl);
+                curl_close($curl);
+                if ($body === false || $error !== 0) throw new DocumentRateLimiterUnavailableException();
+                $response = ['status' => $status, 'body' => (string) $body];
+            }
+        } catch (DocumentRateLimitExceededException | DocumentRateLimiterUnavailableException $error) {
+            throw $error;
+        } catch (\\Throwable) {
+            throw new DocumentRateLimiterUnavailableException();
+        }
+
+        if (!is_array($response) ||
+            !is_int($response['status'] ?? null) ||
+            !is_string($response['body'] ?? null) ||
+            $response['status'] < 200 || $response['status'] >= 300) {
+            throw new DocumentRateLimiterUnavailableException();
+        }
+
+        try {
+            $rows = json_decode($response['body'], true, 16, JSON_THROW_ON_ERROR);
+        } catch (\\JsonException) {
+            throw new DocumentRateLimiterUnavailableException();
+        }
+        $row = is_array($rows) ? ($rows[0] ?? null) : null;
+        if (!is_array($row) || !is_bool($row['allowed'] ?? null) ||
+            !is_numeric($row['retry_after_seconds'] ?? null)) {
+            throw new DocumentRateLimiterUnavailableException();
+        }
+        if (!$row['allowed']) {
+            throw new DocumentRateLimitExceededException(max(1, (int) $row['retry_after_seconds']));
+        }
+    }
+}
