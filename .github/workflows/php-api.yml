@@ -85,6 +85,9 @@ jobs:
       - name: Provider SSE event mapper tests
         run: php backend/tests/ProviderSseEventMapperTest.php
 
+      - name: Secure cURL SSE transport policy tests
+        run: php backend/tests/CurlSseStreamTransportTest.php
+
       - name: Grounded document Q&A policy tests
         run: php backend/tests/GroundedQuestionPolicyTest.php
 
