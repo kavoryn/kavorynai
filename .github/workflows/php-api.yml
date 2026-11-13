@@ -76,6 +76,12 @@ jobs:
       - name: Gemini document explainer tests
         run: php backend/tests/GeminiDocumentExplainerTest.php
 
+      - name: AI processing consent recorder tests
+        run: php backend/tests/AiProcessingConsentRecorderTest.php
+
+      - name: Gemini document explainer tests
+        run: php backend/tests/GeminiDocumentExplainerTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
@@ -108,6 +114,16 @@ jobs:
             $data = json_decode(file_get_contents("/tmp/kavoryn-me.json"), true, 512, JSON_THROW_ON_ERROR);
             if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
                 fwrite(STDERR, "Auth endpoint must fail closed when configuration is absent.\\n");
+                exit(1);
+            }
+          '
+
+          explain_status=$(curl --silent --output /tmp/kavoryn-explain.json --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"confirmed":true,"provider":"gemini","language":"ha"}' http://127.0.0.1:8080/v1/documents/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12/explain)
+          test "$explain_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-explain.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "AI explanation endpoint must authenticate before processing consent or documents.\\n");
                 exit(1);
             }
           '
