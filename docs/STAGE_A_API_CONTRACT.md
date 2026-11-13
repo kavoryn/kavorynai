@@ -26,7 +26,7 @@ A consent grant is short-lived and bound to:
 - selected language and optional translation flag,
 - expiry and one-time nonce.
 
-The server rejects absent, expired, reused, or mismatched consent. A cancellation before confirmation sends no document data. Session-level remembered confirmation is OFF by default, resets when app closes, and never covers saving/sharing.
+The server rejects absent, expired, reused, or mismatched consent. The client computes SHA-256 by streaming the selected document, binds the consent request to that digest and language, then reopens the stream for upload; the server MUST independently hash the received bytes and compare them to the consent grant before queuing work. A cancellation before confirmation sends no document data. Session-level remembered confirmation is OFF by default, resets when app closes, and never covers saving/sharing.
 
 ## Endpoints (proposed)
 
@@ -62,13 +62,13 @@ The API must record consent metadata without recording document content. Consent
 
 ### POST /v1/documents
 Multipart upload. Required parts:
-- file: image or PDF
+- file: image or PDF (streamed from the selected content URI; client must not buffer the whole file in memory)
 - consent_token: one-time token
 - idempotency_key: opaque client-generated key
 - output_language: supported language code
 - translate: boolean
 
-Server checks actual MIME signature, extension consistency, size, page count, decompression limits, PDF safety, user quota, consent binding and rate limit. Store temporary uploads outside public web root with random names. Never trust filename or MIME header alone.
+Server checks actual MIME signature, extension consistency, size, page count, decompression limits, PDF safety, user quota, consent binding (including language and server-computed SHA-256 digest) and rate limit. Store temporary uploads outside public web root with random names. Never trust filename or MIME header alone.
 
 202:
 {
