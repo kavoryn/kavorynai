@@ -183,9 +183,9 @@ Gemini uses the current stateless Interactions API with `store=false` and struct
 Example cURL request (use a real user's access token and a completed document ID):
 
 ```bash
-curl --fail-with-body -X POST "https://YOUR_API_HOST/v1/documents/DOCUMENT_UUID/explain" \\
-  -H "Authorization: Bearer USER_ACCESS_TOKEN" \\
-  -H "Content-Type: application/json" \\
+curl --fail-with-body -X POST "https://YOUR_API_HOST/v1/documents/DOCUMENT_UUID/explain" \
+  -H "Authorization: Bearer USER_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"confirmed":true,"provider":"gemini","language":"ha"}'
 ```
 
