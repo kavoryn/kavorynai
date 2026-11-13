@@ -684,6 +684,113 @@ if ($method === 'GET' && preg_match(
     ]);
 }
 
+// General-purpose chat API. Disabled by default until staging validation and release gates pass.
+if (str_starts_with($path, '/v1/chat/')) {
+    if (strtolower(getenv('CHAT_ENABLED') ?: 'false') !== 'true') {
+        respond(503, ['error'=>['code'=>'chat_disabled','message'=>'Kavoryn Chat is not enabled on this server yet.','request_id'=>$requestId]]);
+    }
+
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    if ($secretKey === '' || $serviceRoleJwt === '' || $supabaseUrl === '') {
+        respond(503, ['error'=>['code'=>'chat_storage_not_configured','message'=>'Chat is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Ai/SupabaseChatStore.php';
+    try {
+        $store = new \Kavoryn\Ai\SupabaseChatStore($supabaseUrl, $secretKey, $serviceRoleJwt);
+    } catch (\InvalidArgumentException) {
+        respond(503, ['error'=>['code'=>'chat_storage_not_configured','message'=>'Chat is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    $readJson = static function (int $maxBytes = 8192) use ($requestId): array {
+        if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxBytes) {
+            respond(413, ['error'=>['code'=>'request_too_large','message'=>'The chat request is too large.','request_id'=>$requestId]]);
+        }
+        $contentType = strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '')[0]));
+        if ($contentType !== 'application/json') {
+            respond(415, ['error'=>['code'=>'unsupported_content_type','message'=>'Send chat data as JSON.','request_id'=>$requestId]]);
+        }
+        $raw = file_get_contents('php://input');
+        if (!is_string($raw) || strlen($raw) > $maxBytes) {
+            respond(413, ['error'=>['code'=>'request_too_large','message'=>'The chat request is too large.','request_id'=>$requestId]]);
+        }
+        try { $data = json_decode($raw, true, 16, JSON_THROW_ON_ERROR); }
+        catch (\JsonException) {
+            respond(400, ['error'=>['code'=>'invalid_json','message'=>'The chat request is not valid JSON.','request_id'=>$requestId]]);
+        }
+        if (!is_array($data) || array_is_list($data)) {
+            respond(422, ['error'=>['code'=>'invalid_chat_request','message'=>'The chat request is invalid.','request_id'=>$requestId]]);
+        }
+        return $data;
+    };
+
+    try {
+        if ($path === '/v1/chat/consents' && $method === 'POST') {
+            $input = $readJson();
+            if (($input['confirmed'] ?? null) !== true ||
+                !is_string($input['provider'] ?? null) ||
+                !in_array($input['provider'], ['openai','gemini'], true)) {
+                respond(422, ['error'=>['code'=>'chat_provider_consent_required','message'=>'Explicitly confirm the selected AI provider before continuing.','request_id'=>$requestId]]);
+            }
+            $id = $store->recordConsent($user->id, $input['provider'], 'chat-policy-v1');
+            respond(201, ['consent_id'=>$id,'provider'=>$input['provider'],'purpose'=>'chat.message','request_id'=>$requestId]);
+        }
+
+        if (preg_match('#^/v1/chat/consents/(openai|gemini)$#', $path, $consentMatch) === 1 && $method === 'DELETE') {
+            $count = $store->revokeConsent($user->id, $consentMatch[1]);
+            respond(200, ['revoked'=>$count > 0,'provider'=>$consentMatch[1],'request_id'=>$requestId]);
+        }
+
+        if ($path === '/v1/chat/conversations' && $method === 'POST') {
+            $input = $readJson();
+            if (!is_string($input['provider'] ?? null) ||
+                !is_string($input['language'] ?? null) ||
+                !in_array($input['provider'], ['openai','gemini'], true) ||
+                !in_array($input['language'], ['en','ha','ar','fr'], true) ||
+                (isset($input['title']) && !is_string($input['title']))) {
+                respond(422, ['error'=>['code'=>'invalid_conversation','message'=>'Choose a supported provider and language.','request_id'=>$requestId]]);
+            }
+            if (!$store->hasConsent($user->id, $input['provider'])) {
+                respond(409, ['error'=>['code'=>'chat_provider_consent_required','message'=>'Confirm provider data processing before creating a chat.','request_id'=>$requestId]]);
+            }
+            $conversation = $store->createConversation($user->id, $input['provider'], $input['language'], $input['title'] ?? null);
+            respond(201, ['conversation'=>$conversation,'request_id'=>$requestId]);
+        }
+
+        if ($path === '/v1/chat/conversations' && $method === 'GET') {
+            $limit = filter_var($_GET['limit'] ?? 30, FILTER_VALIDATE_INT);
+            if ($limit === false) $limit = 30;
+            respond(200, ['conversations'=>$store->listConversations($user->id, $limit),'request_id'=>$requestId]);
+        }
+
+        if (preg_match('#^/v1/chat/conversations/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$#i', $path, $conversationMatch) === 1) {
+            $conversationId = $conversationMatch[1];
+            if ($method === 'GET') {
+                $conversation = $store->getConversation($user->id, $conversationId);
+                if ($conversation === null) respond(404, ['error'=>['code'=>'conversation_not_found','message'=>'The conversation was not found.','request_id'=>$requestId]]);
+                respond(200, ['conversation'=>$conversation,'request_id'=>$requestId]);
+            }
+            if ($method === 'DELETE') {
+                $deleted = $store->deleteConversation($user->id, $conversationId);
+                if (!$deleted) respond(404, ['error'=>['code'=>'conversation_not_found','message'=>'The conversation was not found.','request_id'=>$requestId]]);
+                respond(200, ['deleted'=>true,'conversation_id'=>$conversationId,'request_id'=>$requestId]);
+            }
+        }
+    } catch (\Kavoryn\Ai\ChatStorageUnavailableException) {
+        respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
+    } catch (\InvalidArgumentException) {
+        respond(422, ['error'=>['code'=>'invalid_chat_request','message'=>'The chat request is invalid.','request_id'=>$requestId]]);
+    }
+}
+
 respond(404, [
     'error' => [
         'code' => 'not_found',
