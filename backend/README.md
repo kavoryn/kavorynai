@@ -66,7 +66,7 @@ The endpoint returns `201` and status `uploaded`; it does not yet enqueue OCR. A
 - Require HTTPS before accepting credentials or document data.
 - The health route is liveness only; it must not expose database or provider status.
 - Do not accept user IDs supplied by clients as proof of identity.
-- The identity endpoint verifies the current user session only. Role authorization, account recovery, phone/email ownership policy, rate limiting, session revocation checks, and account creation UX remain outstanding.
+- The identity endpoint verifies the current user session only. Role authorization, account recovery, phone/email ownership policy, general API-wide rate limiting (the document upload route has its own limiter), session revocation checks, and account creation UX remain outstanding.
 - Upload requires `PRIVATE_DOCUMENT_STORAGE_PATH` (an absolute private directory outside `backend/public`) and `DOCUMENT_UPLOAD_ENABLED=false` by default. It remains disabled until release gates pass. The database sets an expiry of one hour for unprocessed uploads. `backend/bin/cleanup_expired_documents.php` deletes expired private files and marks their rows deleted; schedule it every five minutes using the host cron service. Do not enable upload until server secrets and private storage are configured, host upload limits are raised appropriately, the Poppler `pdfinfo` binary is installed and reachable through `PDFINFO_BINARY` (or `PATH`), the Supabase upload-rate-limit migrations are applied, and the cleanup cron is configured and tested.
 
 ## Current status
