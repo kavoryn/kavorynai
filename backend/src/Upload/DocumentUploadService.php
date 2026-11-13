@@ -36,16 +36,21 @@ final class DocumentUploadService
         // Registration atomically consumes the matching consent and inserts the
         // document row. Keep the private file if the network result is ambiguous:
         // the database may have committed before the connection was interrupted.
-        $registration = $this->registry->register(
-            self::newUuid(),
-            $userId,
-            hash('sha256', $consentToken),
-            $document,
-            $language,
-            $translate,
-            $storageKey,
-            $idempotencyKey,
-        );
+        try {
+            $registration = $this->registry->register(
+                self::newUuid(),
+                $userId,
+                hash('sha256', $consentToken),
+                $document,
+                $language,
+                $translate,
+                $storageKey,
+                $idempotencyKey,
+            );
+        } catch (DocumentConsentRejectedException | DocumentIdempotencyConflictException $error) {
+            $this->storage->delete($storageKey);
+            throw $error;
+        }
 
         // A retry with the same idempotency key may resolve to an earlier
         // successful upload. Remove this retry's newly staged duplicate.
