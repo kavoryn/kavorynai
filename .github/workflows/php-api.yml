@@ -110,6 +110,9 @@ jobs:
       - name: Chat storage adapter tests
         run: php backend/tests/SupabaseChatStoreTest.php
 
+      - name: Paystack transaction client tests
+        run: php backend/tests/PaystackClientTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
