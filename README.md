@@ -13,7 +13,8 @@ Kavoryn is an accessibility-first application that helps people read, understand
 - Android document intake, local PDF/image inspection, camera capture, image rotation and bounded local preview are in progress; device/build verification remains outstanding.
 - A provider-neutral OCR contract now models English, Hausa, Arabic and French, per-page text, uncertain spans, word confidence and normalized geometry.
 - OCR provider selection is intentionally open. See `docs/OCR_PROVIDER_EVALUATION.md` for the multilingual corpus and comparison gate.
-- No OCR vendor SDK or external OCR processing is connected yet.
+- A consent-gated OCR submission coordinator now streams SHA-256, requests a short-lived consent grant, and only then streams the document to an injected API gateway. No concrete network gateway/provider is connected yet.
+- The Android home/review flow now includes a selectable output language for English, Hausa, Arabic and French.
 
 ## Non-negotiable requirements
 
