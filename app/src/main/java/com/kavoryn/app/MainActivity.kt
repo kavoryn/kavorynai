@@ -30,9 +30,7 @@ class MainActivity : ComponentActivity() {
                 background = KavorynBlue, surface = Color(0xFFF4F9FE),
                 onSurface = KavorynInk
             )) {
-                Surface(Modifier.fillMaxSize(), color = KavorynBlue) {
-                    DocumentFlow()
-                }
+                Surface(Modifier.fillMaxSize(), color = KavorynBlue) { DocumentFlow() }
             }
         }
     }
@@ -47,10 +45,31 @@ private fun DocumentFlow() {
     var confirmed by remember { mutableStateOf(false) }
     var selectedDocuments by remember { mutableStateOf<List<SelectedDocument>>(emptyList()) }
     var pickerError by remember { mutableStateOf<String?>(null) }
+    var pendingCamera by remember { mutableStateOf<CameraOutput?>(null) }
 
-    val picker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
+    fun acceptUri(uri: android.net.Uri) {
+        when (val result = readDocumentMetadata(context, uri)) {
+            is DocumentMetadataResult.Valid -> {
+                selectedDocuments = selectedDocuments + result.document
+                confirmed = false
+                pickerError = null
+                screen = Screen.REVIEW
+            }
+            is DocumentMetadataResult.Invalid -> pickerError = result.reason
+        }
+    }
+
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val output = pendingCamera
+        if (saved && output != null && output.file.exists() && output.file.length() > 0L) {
+            acceptUri(output.uri)
+        } else if (!saved) {
+            pickerError = "Camera capture was cancelled or did not complete."
+        }
+        pendingCamera = null
+    }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
             val accepted = mutableListOf<SelectedDocument>()
             val rejected = mutableListOf<String>()
@@ -59,9 +78,7 @@ private fun DocumentFlow() {
                     context.contentResolver.takePersistableUriPermission(
                         uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
-                } catch (_: SecurityException) {
-                    // The temporary picker grant remains usable for this session.
-                }
+                } catch (_: SecurityException) { /* Temporary picker grant remains usable. */ }
                 when (val result = readDocumentMetadata(context, uri)) {
                     is DocumentMetadataResult.Valid -> accepted.add(result.document)
                     is DocumentMetadataResult.Invalid -> rejected.add(result.reason)
@@ -80,6 +97,15 @@ private fun DocumentFlow() {
             onChoose = {
                 pickerError = null
                 picker.launch(arrayOf("application/pdf", "image/jpeg", "image/png", "image/webp"))
+            },
+            onCamera = {
+                try {
+                    val output = createCameraOutput(context)
+                    pendingCamera = output
+                    camera.launch(output.uri)
+                } catch (_: Exception) {
+                    pickerError = "Camera could not be started. Please try choosing an image instead."
+                }
             }
         )
         Screen.REVIEW -> ReviewScreen(
@@ -100,34 +126,30 @@ private fun DocumentFlow() {
 }
 
 @Composable
-private fun HomeScreen(error: String?, onChoose: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
+private fun HomeScreen(error: String?, onChoose: () -> Unit, onCamera: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text("Kavoryn", style = MaterialTheme.typography.headlineLarge)
-        Text("Read, understand and listen to documents in your language.",
-            style = MaterialTheme.typography.bodyLarge)
+        Text("Read, understand and listen to documents in your language.", style = MaterialTheme.typography.bodyLarge)
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Read a document", style = MaterialTheme.typography.titleLarge)
-                Text("Choose a PDF or document image. Your selection stays on this device in this build.")
+                Text("Scan a paper document with your camera or choose an existing PDF or image.")
                 Button(
-                    onClick = onChoose,
+                    onClick = onCamera,
                     modifier = Modifier.fillMaxWidth().height(56.dp)
-                        .semantics { contentDescription = "Choose a PDF or document images" }
-                ) { Text("Choose document") }
-                if (error != null) {
-                    Text(error, color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium)
+                        .semantics { contentDescription = "Take a document photo with the camera" }
+                ) { Text("Scan with camera") }
+                OutlinedButton(onClick = onChoose, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                    Text("Choose PDF or image")
                 }
+                if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
             }
         }
         ModeCard("Describe what I see", "Coming in Stage C")
         ModeCard("Read money", "Coming in Stage C")
         ModeCard("Voice dictation and Chat", "Coming in Stage B")
         Spacer(Modifier.weight(1f))
-        Text("Privacy first: nothing is uploaded or sent to an external service in this build.")
+        Text("Privacy first: camera scans are saved temporarily in app cache. Nothing is uploaded in this build.")
     }
 }
 
@@ -142,43 +164,38 @@ private fun ModeCard(title: String, subtitle: String) {
 }
 
 @Composable
-private fun ReviewScreen(
-    documents: List<SelectedDocument>,
-    onCancel: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    var includeTranslation by remember { mutableStateOf(false) }
-    var saveResult by remember { mutableStateOf(false) }
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text("Review before processing", style = MaterialTheme.typography.headlineMedium)
-        Text("${documents.size} file(s) selected.")
+private fun ReviewScreen(documents: List<SelectedDocument>, onCancel: () -> Unit, onConfirm: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val inspections = remember(documents) {
+        documents.map { it to inspectDocument(context, it.uri, it.mimeType) }
+    }
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Review and validate", style = MaterialTheme.typography.headlineMedium)
+        Text("${documents.size} file(s) selected. Checks run locally on this device.")
         LazyColumn(
             modifier = Modifier.weight(1f, fill = false),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(documents, key = { it.uri.toString() }) { document ->
+            items(inspections, key = { it.first.uri.toString() }) { (document, inspection) ->
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp)) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(document.displayName, style = MaterialTheme.typography.titleSmall)
-                        Text("${document.mimeType} • ${document.sizeLabel}",
-                            style = MaterialTheme.typography.bodySmall)
+                        Text("${document.mimeType} • ${document.sizeLabel}", style = MaterialTheme.typography.bodySmall)
+                        when (inspection) {
+                            is DocumentInspection.Pdf -> Text("PDF • ${inspection.pageCount} page(s) detected")
+                            is DocumentInspection.Image -> {
+                                Text("Image • ${inspection.width} × ${inspection.height} pixels")
+                                if (inspection.qualityNote != null) {
+                                    Text(inspection.qualityNote, color = MaterialTheme.colorScheme.error)
+                                } else Text("Image dimensions look suitable for a scan.")
+                            }
+                            is DocumentInspection.Problem -> Text(inspection.message, color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }
         }
-        Text("If you continue in a future connected release, the file will be processed to extract text and prepare a plain-language explanation. Any external processing must be disclosed before confirmation.")
-        Text("This build does not upload files or contact an AI/OCR service.")
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(includeTranslation, { includeTranslation = it })
-            Text("Also translate the result")
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(saveResult, { saveResult = it })
-            Text("Save this result (optional)")
-        }
+        Text("No OCR, AI processing or upload happens here. The checks above only inspect file structure and image dimensions.")
         OutlinedButton(onClick = onCancel, Modifier.fillMaxWidth().height(52.dp)) { Text("Cancel") }
         Button(onClick = onConfirm, Modifier.fillMaxWidth().height(56.dp)) { Text("Confirm local review") }
     }
@@ -186,10 +203,7 @@ private fun ReviewScreen(
 
 @Composable
 private fun LocalReadyScreen(confirmed: Boolean, onBack: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Review confirmed", style = MaterialTheme.typography.headlineMedium)
         Text(if (confirmed) "Your selection is ready for the next development step. No file has left this device." else "No confirmation was recorded.")
         Text("OCR, explanation, result playback and secure deletion are not connected yet.")
