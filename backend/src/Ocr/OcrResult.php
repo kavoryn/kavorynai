@@ -15,27 +15,30 @@ final readonly class OcrResult
         public ?string $detectedLanguage = null,
     ) {
         if (preg_match('//u', $text) !== 1) {
-            throw new \\InvalidArgumentException('OCR text must be valid UTF-8.');
+            throw new \InvalidArgumentException('OCR text must be valid UTF-8.');
         }
 
         if ($detectedLanguage !== null &&
             !in_array($detectedLanguage, ['en', 'ha', 'ar', 'fr', 'und'], true)) {
-            throw new \\InvalidArgumentException('The detected language code is invalid.');
+            throw new \InvalidArgumentException('The detected language code is invalid.');
         }
+
+        preg_match_all('/./us', $text, $characters);
+        $characterCount = count($characters[0]);
 
         foreach ($uncertainSpans as $span) {
             if (!is_array($span) ||
                 !is_int($span['start'] ?? null) ||
                 !is_int($span['end'] ?? null) ||
-                !is_float($span['confidence'] ?? null) && !is_int($span['confidence'] ?? null) ||
+                (!is_float($span['confidence'] ?? null) && !is_int($span['confidence'] ?? null)) ||
                 !is_string($span['reason'] ?? null) ||
                 $span['start'] < 0 ||
                 $span['end'] <= $span['start'] ||
-                $span['end'] > mb_strlen($text, 'UTF-8') ||
+                $span['end'] > $characterCount ||
                 $span['confidence'] < 0.0 ||
                 $span['confidence'] > 1.0 ||
                 $span['reason'] === '') {
-                throw new \\InvalidArgumentException('An OCR uncertainty span is invalid.');
+                throw new \InvalidArgumentException('An OCR uncertainty span is invalid.');
             }
         }
     }
