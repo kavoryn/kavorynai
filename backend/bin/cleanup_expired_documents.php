@@ -162,9 +162,24 @@ try {
             $deletedCount++;
         }
     }
+    // Prune old rate-limit buckets in the same trusted maintenance job.
+    $rateLimitCleanup = cleanupRequest(
+        'POST',
+        rtrim($supabaseUrl, '/') . '/rest/v1/rpc/cleanup_document_upload_rate_limits',
+        $headers + ['Content-Type' => 'application/json'],
+        '{}',
+    );
+    if ($rateLimitCleanup['status'] < 200 || $rateLimitCleanup['status'] >= 300) {
+        throw new RuntimeException('Could not clean expired upload rate-limit counters.');
+    }
+    $rateLimitDeleted = json_decode($rateLimitCleanup['body'], true, 16, JSON_THROW_ON_ERROR);
+    if (!is_int($rateLimitDeleted)) {
+        throw new RuntimeException('Invalid rate-limit cleanup response.');
+    }
 } catch (Throwable $error) {
     fwrite(STDERR, "Document cleanup failed: " . $error->getMessage() . PHP_EOL);
     exit(1);
 }
 
-echo 'Expired documents deleted: ' . $deletedCount . PHP_EOL;
+echo 'Expired documents deleted: ' . $deletedCount .
+    '; expired rate-limit buckets deleted: ' . $rateLimitDeleted . PHP_EOL;
