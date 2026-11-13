@@ -1,6 +1,7 @@
 # API authentication boundary
 
-The API accepts only a Supabase Auth **user access token** in
+The API exposes `GET /v1/me` as its first protected identity-verification
+route. It accepts only a Supabase Auth **user access token** in
 `Authorization: Bearer <access-token>`.
 
 `SupabaseUserVerifier` validates the token by calling the project's
@@ -16,12 +17,15 @@ Configuration (server environment only):
   key for this identity check and never put a server secret in the Android app.
 - PHP cURL extension with TLS certificate verification enabled.
 
-The verifier uses short connect/total timeouts and fails closed if Auth is
-unavailable. Do not log the bearer token or raw Auth response.
+The verifier uses short connect/total timeouts, disables redirects, and fails
+closed. Invalid or expired sessions return HTTP 401. Auth service outages or
+malformed upstream responses return HTTP 503. Do not log the bearer token or
+raw Auth response.
 
 ## Important boundary
 
-This is a reusable verifier, not yet wired to protected routes. It does not
-create accounts or sessions; Android must sign users in through Supabase Auth
-and send the resulting access token. Route authorization, session revocation
-policy, rate limiting and integration tests remain required before production.
+This verifies a current user session; it does not create accounts or sessions.
+Android must sign users in through Supabase Auth and send the resulting access
+token. Role authorization, session revocation policy, rate limiting, account
+recovery, phone/email ownership policy, and production integration tests remain
+required before production.
