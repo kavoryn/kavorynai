@@ -1,0 +1,4 @@
+-- Historical reconciliation checkpoint.
+-- The live database briefly created a parallel document_ocr_results table here.
+-- Migration 20261113152207 removes that duplicate and uses private.ocr_results.
+-- The no-op keeps the hosted migration history reproducible from the repository.
