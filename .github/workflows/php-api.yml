@@ -35,11 +35,11 @@ jobs:
             php -l "$file"
           done < <(find backend -type f -name '*.php' -print0)
 
-      - name: Health endpoint smoke test
+      - name: API smoke tests
         shell: bash
         run: |
           set -euo pipefail
-          php -S 127.0.0.1:8080 -t backend/public > /tmp/kavoryn-php-server.log 2>&1 &
+          env -u SUPABASE_URL -u SUPABASE_PUBLISHABLE_KEY php -S 127.0.0.1:8080 -t backend/public > /tmp/kavoryn-php-server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
@@ -56,7 +56,17 @@ jobs:
                 ($data["service"] ?? null) !== "kavoryn-api" ||
                 !is_string($data["request_id"] ?? null) ||
                 $data["request_id"] === "") {
-                fwrite(STDERR, "Health response contract failed.\n");
+                fwrite(STDERR, "Health response contract failed.\\n");
+                exit(1);
+            }
+          '
+
+          auth_status=$(curl --silent --output /tmp/kavoryn-me.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/me)
+          test "$auth_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-me.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "Auth endpoint must fail closed when configuration is absent.\\n");
                 exit(1);
             }
           '
