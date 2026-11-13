@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.kavoryn.app.ocr.OcrLanguage
 
 private val KavorynBlue = Color(0xFFE8F1FB)
 private val KavorynGold = Color(0xFFC9A24B)
@@ -45,6 +46,7 @@ private fun DocumentFlow() {
     var confirmed by remember { mutableStateOf(false) }
     var selectedDocuments by remember { mutableStateOf<List<SelectedDocument>>(emptyList()) }
     var pickerError by remember { mutableStateOf<String?>(null) }
+    var selectedLanguage by remember { mutableStateOf(OcrLanguage.ENGLISH) }
     var pendingCamera by remember { mutableStateOf<CameraOutput?>(null) }
 
     LaunchedEffect(Unit) {
@@ -115,6 +117,8 @@ private fun DocumentFlow() {
     when (screen) {
         Screen.HOME -> HomeScreen(
             error = pickerError,
+            selectedLanguage = selectedLanguage,
+            onLanguageChange = { selectedLanguage = it },
             onChoose = {
                 pickerError = null
                 picker.launch(arrayOf("application/pdf", "image/jpeg", "image/png", "image/webp"))
@@ -132,6 +136,7 @@ private fun DocumentFlow() {
         Screen.REVIEW -> ReviewScreen(
             documents = selectedDocuments,
             error = pickerError,
+            selectedLanguage = selectedLanguage,
             onRemove = { document ->
                 cleanupTemporaryScans(context, listOf(document))
                 selectedDocuments = selectedDocuments.filterNot { it.uri == document.uri }
@@ -167,7 +172,14 @@ private fun DocumentFlow() {
 }
 
 @Composable
-private fun HomeScreen(error: String?, onChoose: () -> Unit, onCamera: () -> Unit) {
+private fun HomeScreen(
+    error: String?,
+    selectedLanguage: OcrLanguage,
+    onLanguageChange: (OcrLanguage) -> Unit,
+    onChoose: () -> Unit,
+    onCamera: () -> Unit
+) {
+    var languageMenuExpanded by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text("Kavoryn", style = MaterialTheme.typography.headlineLarge)
         Text("Read, understand and listen to documents in your language.", style = MaterialTheme.typography.bodyLarge)
@@ -175,6 +187,27 @@ private fun HomeScreen(error: String?, onChoose: () -> Unit, onCamera: () -> Uni
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Read a document", style = MaterialTheme.typography.titleLarge)
                 Text("Scan a paper document with your camera or choose an existing PDF or image.")
+                Text("Output language", style = MaterialTheme.typography.labelLarge)
+                Box {
+                    OutlinedButton(
+                        onClick = { languageMenuExpanded = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(selectedLanguage.displayName) }
+                    DropdownMenu(
+                        expanded = languageMenuExpanded,
+                        onDismissRequest = { languageMenuExpanded = false }
+                    ) {
+                        OcrLanguage.entries.forEach { language ->
+                            DropdownMenuItem(
+                                text = { Text(language.displayName) },
+                                onClick = {
+                                    onLanguageChange(language)
+                                    languageMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
                 Button(
                     onClick = onCamera,
                     modifier = Modifier.fillMaxWidth().height(56.dp)
@@ -208,6 +241,7 @@ private fun ModeCard(title: String, subtitle: String) {
 private fun ReviewScreen(
     documents: List<SelectedDocument>,
     error: String?,
+    selectedLanguage: OcrLanguage,
     onRemove: (SelectedDocument) -> Unit,
     onRotate: (SelectedDocument) -> Unit,
     onCancel: () -> Unit,
@@ -220,6 +254,7 @@ private fun ReviewScreen(
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Review and validate", style = MaterialTheme.typography.headlineMedium)
         Text("${documents.size} file(s) selected. Checks run locally on this device.")
+        Text("Output language: ${selectedLanguage.displayName}")
         if (error != null) {
             Text(error, color = MaterialTheme.colorScheme.error)
         }
