@@ -11,6 +11,7 @@ require_once dirname(__DIR__) . '/src/Upload/DocumentRegistry.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentRegistryUnavailableException.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentConsentRejectedException.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentIdempotencyConflictException.php';
+require_once dirname(__DIR__) . '/src/Upload/SupabaseDocumentRegistry.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentUploadService.php';
 
 use Kavoryn\Upload\DocumentFileException;
