@@ -125,4 +125,4 @@ fun validateOcrResult(result: OcrDocumentResult): List<String> {
 
 /** Keep original OCR characters intact; normalization is only for matching/search. */
 fun normalizeForSearch(text: String): String =
-    text.trim().lowercase().replace(Regex("\\s+"), " ")
+    text.trim().lowercase(Locale.ROOT).replace(Regex("\\s+"), " ")
