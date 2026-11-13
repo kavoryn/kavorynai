@@ -7,6 +7,8 @@ require_once dirname(__DIR__) . '/src/Upload/InspectedDocument.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentRegistration.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentRegistry.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentRegistryUnavailableException.php';
+require_once dirname(__DIR__) . '/src/Upload/DocumentConsentRejectedException.php';
+require_once dirname(__DIR__) . '/src/Upload/DocumentIdempotencyConflictException.php';
 require_once dirname(__DIR__) . '/src/Upload/SupabaseDocumentRegistry.php';
 
 use Kavoryn\Upload\InspectedDocument;
@@ -69,5 +71,57 @@ registryExpect(($input['p_payload_sha256'] ?? null) === $document->sha256, 'Regi
 registryExpect(($input['p_idempotency_key'] ?? null) === 'test-idempotency-key-0001', 'Registry must pass the retry key.');
 registryExpect($registration->status === 'uploaded', 'Registry must return the registered status.');
 registryExpect($registration->storageKey === $input['p_storage_key'], 'Registry must return the private storage key for internal cleanup only.');
+
+$rejectedRegistry = new SupabaseDocumentRegistry(
+    'https://example.supabase.co',
+    'sb_secret_test',
+    'service-role-jwt-test',
+    static fn (): array => [
+        'status' => 400,
+        'body' => '{"message":"Consent is invalid, expired, mismatched, or already used"}',
+    ],
+);
+$consentRejected = false;
+try {
+    $rejectedRegistry->register(
+        'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+        $tokenHash,
+        $document,
+        'ha',
+        false,
+        '0123456789abcdef0123456789abcdef.pdf',
+        'test-idempotency-key-0002',
+    );
+} catch (\Kavoryn\Upload\DocumentConsentRejectedException) {
+    $consentRejected = true;
+}
+registryExpect($consentRejected, 'Database consent rejection must map to a safe client conflict.');
+
+$conflictRegistry = new SupabaseDocumentRegistry(
+    'https://example.supabase.co',
+    'sb_secret_test',
+    'service-role-jwt-test',
+    static fn (): array => [
+        'status' => 400,
+        'body' => '{"message":"Idempotency key conflict"}',
+    ],
+);
+$idempotencyRejected = false;
+try {
+    $conflictRegistry->register(
+        'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+        $tokenHash,
+        $document,
+        'ha',
+        false,
+        '0123456789abcdef0123456789abcdef.pdf',
+        'test-idempotency-key-0003',
+    );
+} catch (\Kavoryn\Upload\DocumentIdempotencyConflictException) {
+    $idempotencyRejected = true;
+}
+registryExpect($idempotencyRejected, 'Idempotency conflict must map to a safe client conflict.');
 
 echo "Supabase document registry tests passed (HTTP contract stub)." . PHP_EOL;
