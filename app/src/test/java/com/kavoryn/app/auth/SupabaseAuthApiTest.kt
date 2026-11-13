@@ -3,6 +3,8 @@ package com.kavoryn.app.auth
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class SupabaseAuthApiTest {
@@ -62,6 +64,25 @@ class SupabaseAuthApiTest {
 
         assertEquals(1120L, session.expiresAtEpochSeconds)
         assertNull(session.email)
+    }
+
+    @Test
+    fun onlyRejectedRefreshCredentialsClearTheSavedSession() {
+        assertTrue(shouldClearStoredSessionAfterRefreshFailure(
+            SupabaseAuthException(400, "invalid_grant", "Rejected")
+        ))
+        assertTrue(shouldClearStoredSessionAfterRefreshFailure(
+            SupabaseAuthException(401, "unauthorized", "Rejected")
+        ))
+        assertFalse(shouldClearStoredSessionAfterRefreshFailure(
+            SupabaseAuthException(429, null, "Rate limited")
+        ))
+        assertFalse(shouldClearStoredSessionAfterRefreshFailure(
+            SupabaseAuthException(503, null, "Unavailable")
+        ))
+        assertFalse(shouldClearStoredSessionAfterRefreshFailure(
+            SupabaseAuthException(null, null, "Network error")
+        ))
     }
 
     @Test
