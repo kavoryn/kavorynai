@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Kavoryn\\Consent;
 
 use DateTimeImmutable;
-use RuntimeException;
 
 final class SupabaseConsentStore implements ConsentStore
 {
@@ -16,7 +15,7 @@ final class SupabaseConsentStore implements ConsentStore
         private readonly mixed $http = null,
     ) {
         if ($supabaseUrl === '' || $secretKey === '') {
-            throw new RuntimeException('Consent storage is not configured.');
+            throw new ConsentStorageUnavailableException('Consent storage is not configured.');
         }
     }
 
@@ -52,7 +51,7 @@ final class SupabaseConsentStore implements ConsentStore
         ]);
         if ($body === 'true') return true;
         if ($body === 'false') return false;
-        throw new RuntimeException('Invalid consent-consumption response.');
+        throw new ConsentStorageUnavailableException('Invalid consent-consumption response.');
     }
 
     /** @param array<string, mixed> $payload @param list<string> $extraHeaders */
@@ -70,9 +69,9 @@ final class SupabaseConsentStore implements ConsentStore
             if ($this->http !== null) {
                 $response = ($this->http)($url, $headers, $json);
             } else {
-                if (!function_exists('curl_init')) throw new RuntimeException('PHP cURL is required.');
+                if (!function_exists('curl_init')) throw new ConsentStorageUnavailableException('PHP cURL is required.');
                 $curl = curl_init($url);
-                if ($curl === false) throw new RuntimeException('Could not initialize database client.');
+                if ($curl === false) throw new ConsentStorageUnavailableException('Could not initialize database client.');
                 $lines = [];
                 foreach ($headers as $name => $value) $lines[] = $name . ': ' . $value;
                 curl_setopt_array($curl, [
@@ -90,14 +89,14 @@ final class SupabaseConsentStore implements ConsentStore
                 $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
                 $error = curl_errno($curl);
                 curl_close($curl);
-                if ($body === false || $error !== 0) throw new RuntimeException('Database service unavailable.');
+                if ($body === false || $error !== 0) throw new ConsentStorageUnavailableException('Database service unavailable.');
                 $response = ['status' => $status, 'body' => (string) $body];
             }
         } catch (\\Throwable) {
-            throw new RuntimeException('Consent storage is temporarily unavailable.');
+            throw new ConsentStorageUnavailableException('Consent storage is temporarily unavailable.');
         }
         if (!is_array($response) || !is_int($response['status'] ?? null) || !is_string($response['body'] ?? null) || $response['status'] < 200 || $response['status'] >= 300) {
-            throw new RuntimeException('Consent storage rejected the operation.');
+            throw new ConsentStorageUnavailableException('Consent storage rejected the operation.');
         }
         return trim($response['body']);
     }
