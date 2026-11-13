@@ -136,6 +136,16 @@ jobs:
             }
           '
 
+          chat_status=$(curl --silent --output /tmp/kavoryn-chat.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/chat/conversations)
+          test "$chat_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-chat.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "chat_disabled") {
+                fwrite(STDERR, "General-purpose chat must remain disabled until release gates pass.\\n");
+                exit(1);
+            }
+          '
+
           auth_status=$(curl --silent --output /tmp/kavoryn-me.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/me)
           test "$auth_status" = "503"
           php -r '
