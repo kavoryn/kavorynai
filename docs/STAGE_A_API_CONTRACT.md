@@ -64,7 +64,7 @@ The API must record consent metadata without recording document content. Consent
 Multipart upload. Required parts:
 - file: image or PDF (streamed from the selected content URI; client must not buffer the whole file in memory)
 - consent_token: one-time token
-- idempotency_key: opaque client-generated key
+- `Idempotency-Key` request header: opaque client-generated key (16–128 URL-safe characters)
 - output_language: supported language code
 - translate: boolean
 
@@ -138,7 +138,7 @@ Immediately deletes temporary file, OCR/explanation artifacts and any provider-s
 
 ## Data and retention
 
-- Delete-after-use is default. Until OCR processing is connected, unprocessed `uploaded`/`failed` files expire after one hour and are removed by `backend/bin/cleanup_expired_documents.php` on a five-minute host cron.
+- Delete-after-use is default. Until OCR processing is connected, unprocessed `uploaded`/`failed` files expire after one hour and are removed by `backend/bin/cleanup_expired_documents.php` on a five-minute host cron. The same script removes unreferenced staged files older than one hour after interrupted upload registration.
 - No document/image content in analytics, usage events, audit events or ordinary application logs.
 - Saving is opt-in and must have a separate explicit action and retention notice.
 - Temporary data must be deleted on success, failure, timeout, cancellation and expiry.
