@@ -145,3 +145,14 @@ These are authored unit tests and have not yet been executed. Real OCR accuracy 
 | OCR-SUB-007 | Coroutine is cancelled | Cancellation propagates and is not converted into a retryable network error |
 
 Coordinator tests are authored but have not been executed. A concrete authenticated HTTPS gateway and server-side digest verification are still required before any upload can occur.
+
+
+## Output language selection UI tests
+
+| ID | Scenario | Expected |
+|---|---|---|
+| LANG-001 | Open language selector on Home | English, Hausa, Arabic and French are available |
+| LANG-002 | Choose Hausa then select a document | Review screen shows Hausa as the output language |
+| LANG-003 | Choose Arabic | Arabic language code and RTL metadata are selected |
+| LANG-004 | Change selection before processing | The latest selected language is used for the consent request |
+| LANG-005 | Use TalkBack on language selector | Control announces its label, current value and selectable options |
