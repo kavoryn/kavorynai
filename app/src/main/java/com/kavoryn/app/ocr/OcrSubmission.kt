@@ -19,7 +19,8 @@ data class OcrConsentGrant(
 
 data class OcrJobReceipt(
     val documentId: String,
-    val jobId: String,
+    /** Internal queue IDs are intentionally not exposed by the API. */
+    val jobId: String?,
     val status: String
 )
 
