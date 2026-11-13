@@ -21,6 +21,7 @@ $mock = function (string $url, array $headers, string $body) use ($userId, $docu
     aiConsentExpect(($payload['p_document_id'] ?? null) === $documentId, 'Consent must bind the exact document.');
     aiConsentExpect(($payload['p_provider_name'] ?? null) === 'gemini', 'Consent must bind selected AI provider.');
     aiConsentExpect(($payload['p_output_language'] ?? null) === 'ha', 'Consent must bind output language.');
+    aiConsentExpect(($payload['p_purpose'] ?? null) === 'Explain OCR text using the selected external AI provider', 'Explanation consent purpose must be explicit.');
     return ['status' => 200, 'body' => json_encode([[
         'consent_id' => $payload['p_id'],
         'document_sha256' => hash('sha256', 'document'),
@@ -35,6 +36,22 @@ $recorder = new \Kavoryn\Ai\SupabaseAiProcessingConsentRecorder(
     $mock,
 );
 $recorder->record($userId, $documentId, 'gemini', 'ha');
+
+$askRecorder = new SupabaseAiProcessingConsentRecorder(
+    'https://example.supabase.co',
+    'secret-test',
+    'service-role-test',
+    function (string $url, array $headers, string $body): array {
+        $payload = json_decode($body, true, 16, JSON_THROW_ON_ERROR);
+        aiConsentExpect(($payload['p_purpose'] ?? null) === 'Answer a question using the selected external AI provider', 'Q&A consent must have a distinct audit purpose.');
+        return ['status' => 200, 'body' => json_encode([[
+            'consent_id' => $payload['p_id'],
+            'document_sha256' => hash('sha256', 'document'),
+            'consented_at' => '2026-11-13T17:00:00Z',
+        ]], JSON_THROW_ON_ERROR)];
+    },
+);
+$askRecorder->record($userId, $documentId, 'gemini', 'ha', 'ask');
 
 $failed = new SupabaseAiProcessingConsentRecorder(
     'https://example.supabase.co',

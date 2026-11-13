@@ -108,7 +108,7 @@ Implemented for the authenticated owner. It returns the temporary original OCR t
   "request_id": "<opaque-id>"
 }
 
-The backend checks the authenticated owner, decrypts the stored payload, verifies its keyed HMAC and metadata, and returns `Cache-Control: no-store`. Results expire with the source document after one hour. The separate explanation endpoint below consumes the OCR result only after provider-specific AI consent. Document-grounded Q&A and TTS remain future work. Never present inferred or missing details as facts.
+The backend checks the authenticated owner, decrypts the stored payload, verifies its keyed HMAC and metadata, and returns `Cache-Control: no-store`. Results expire with the source document after one hour. The separate explanation endpoint below consumes the OCR result only after provider-specific AI consent. Document-grounded Q&A is described in the separate /ask endpoint; TTS is implemented locally in Android. Never present inferred or missing details as facts.
 
 
 ### POST /v1/documents/{document_id}/explain
@@ -145,8 +145,40 @@ The backend:
 
 The explanation is AI-generated and must be checked against the original OCR text. Critical names, dates and amounts must not be invented. The Android consent dialog and authenticated API client exist, but they are not yet wired into the signed-in document flow. Provider accuracy and staging verification remain release blockers.
 
-### POST /v1/documents/{document_id}/ask (planned)
-Document-grounded Q&A only. The server reads only the owner-checked completed OCR result; the client never supplies authoritative document text. The selected AI provider requires explicit provider-specific consent before any OCR text is sent externally. Questions are limited to 1,000 Unicode characters. Answers must include up to five exact OCR source excerpts (each no longer than 500 characters); unsupported answers must set `insufficient_information: true` and return no source excerpts. The backend rejects fabricated or non-matching excerpts. The question-answer provider adapter and authenticated endpoint are not yet implemented; this remains design/foundation work.
+### POST /v1/documents/{document_id}/ask
+
+Implemented in the PHP API but disabled by default (DOCUMENT_QA_ENABLED=false). Requires a valid user access token, a completed unexpired OCR result owned by that user, explicit confirmation, a selected provider, and a supported output language. The client must not submit OCR text.
+
+Request:
+{
+  "question": "What is the payment deadline?",
+  "confirmed": true,
+  "provider": "openai|gemini",
+  "language": "en|ha|ar|fr"
+}
+
+The backend:
+- validates a maximum 1,000 Unicode-character question and 30,000-character OCR context;
+- reads and decrypts only the authenticated user's completed OCR result;
+- applies an atomic per-user limit of 10 questions per 60-second window using a private Supabase RPC; rate-limit storage failures fail closed;
+- records a distinct Q&A consent purpose in the private audit table before sending OCR text externally;
+- uses only the explicitly selected OpenAI or Gemini adapter, with no silent fallback;
+- treats OCR and question content as untrusted data and validates all returned excerpts as exact substrings of OCR;
+- returns no source excerpts when the model reports insufficient information;
+- does not persist questions or answers.
+
+200:
+{
+  "document_id": "<uuid>",
+  "provider": "openai|gemini",
+  "language": "en|ha|ar|fr",
+  "answer": "...",
+  "source_excerpts": ["..."],
+  "insufficient_information": false,
+  "request_id": "<opaque-id>"
+}
+
+The endpoint remains disabled until migration, provider mock tests, staging integration, Android Q&A UI, and accessibility/security acceptance checks pass.
 
 ### POST /v1/documents/{document_id}/delete
 Immediately deletes temporary file, OCR/explanation artifacts and any provider-side temporary resource where provider supports deletion. Return deletion status and a request ID. The operation must be safe to retry.

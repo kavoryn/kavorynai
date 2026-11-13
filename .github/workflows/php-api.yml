@@ -82,6 +82,12 @@ jobs:
       - name: Grounded document Q&A policy tests
         run: php backend/tests/GroundedQuestionPolicyTest.php
 
+      - name: Grounded document Q&A provider adapter tests
+        run: php backend/tests/DocumentQuestionAnswererTest.php
+
+      - name: Supabase document Q&A rate limiter tests
+        run: php backend/tests/SupabaseAiQuestionRateLimiterTest.php
+
 
       - name: API smoke tests
         shell: bash
@@ -125,6 +131,16 @@ jobs:
             $data = json_decode(file_get_contents("/tmp/kavoryn-explain.json"), true, 512, JSON_THROW_ON_ERROR);
             if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
                 fwrite(STDERR, "AI explanation endpoint must authenticate before processing consent or documents.\\n");
+                exit(1);
+            }
+          '
+
+          ask_status=$(curl --silent --output /tmp/kavoryn-ask.json --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"confirmed":true,"provider":"gemini","language":"ha","question":"Wace ce ranar biya?"}' http://127.0.0.1:8080/v1/documents/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12/ask)
+          test "$ask_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-ask.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "document_qa_disabled") {
+                fwrite(STDERR, "Document Q&A must remain disabled until staging and release gates pass.\\n");
                 exit(1);
             }
           '
