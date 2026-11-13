@@ -30,6 +30,47 @@ if ($method === 'GET' && ($path === '/health' || $path === '/v1/health')) {
     ]);
 }
 
+if ($method === 'GET' && $path === '/v1/me') {
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $publishableKey = getenv('SUPABASE_PUBLISHABLE_KEY') ?: '';
+
+    if ($supabaseUrl === '' || $publishableKey === '') {
+        respond(503, [
+            'error' => [
+                'code' => 'authentication_not_configured',
+                'message' => 'User verification is temporarily unavailable.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Auth/AuthenticatedUser.php';
+    require_once dirname(__DIR__) . '/src/Auth/AuthenticationException.php';
+    require_once dirname(__DIR__) . '/src/Auth/SupabaseUserVerifier.php';
+
+    try {
+        $verifier = new Kavoryn\Auth\SupabaseUserVerifier(
+            $supabaseUrl,
+            $publishableKey,
+        );
+        $user = $verifier->verifyBearerToken($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+    } catch (\Kavoryn\Auth\AuthenticationException) {
+        respond(401, [
+            'error' => [
+                'code' => 'unauthorized',
+                'message' => 'A valid sign-in session is required.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    respond(200, [
+        'authenticated' => true,
+        'user_id' => $user->id,
+        'request_id' => $requestId,
+    ]);
+}
+
 respond(404, [
     'error' => [
         'code' => 'not_found',
