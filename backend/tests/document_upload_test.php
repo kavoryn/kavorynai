@@ -101,6 +101,7 @@ uploadExpect($rejected, 'Storage must reject a source that does not match the in
 $remaining = array_values(array_diff(scandir($private) ?: [], ['.', '..']));
 uploadExpect(count($remaining) === 0, 'Failed storage must remove its partial file.');
 
+$publicModeBefore = fileperms($public) & 0777;
 $insidePublic = false;
 try {
     (new PrivateDocumentStorage($public . '/uploads', $public))->store($pdfPath, $document);
@@ -108,6 +109,7 @@ try {
     $insidePublic = $error->errorCode === 'unsafe_storage_path';
 }
 uploadExpect($insidePublic, 'Storage under the public web root must be rejected.');
+uploadExpect((fileperms($public) & 0777) === $publicModeBefore, 'Rejected public paths must not have their permissions changed.');
 
 $textPath = $base . '/not-a-pdf.pdf';
 file_put_contents($textPath, 'plain text masquerading as PDF');
