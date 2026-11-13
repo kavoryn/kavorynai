@@ -3,7 +3,6 @@ package com.kavoryn.app
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.webkit.MimeTypeMap
 import java.util.Locale
 
 data class SelectedDocument(
