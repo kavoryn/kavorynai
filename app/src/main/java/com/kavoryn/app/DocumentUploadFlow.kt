@@ -29,7 +29,6 @@ import com.kavoryn.app.qa.DocumentQuestionScreen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -89,29 +88,17 @@ fun DocumentUploadFlow(
                     }
                     is OcrSubmissionOutcome.Submitted -> {
                         status = "Document uploaded. Waiting for OCR to finish…"
-                        var completed: DocumentOcrResult? = null
-                        var lastNotReady: DocumentOcrResultApiException? = null
-                        repeat(MAX_POLL_ATTEMPTS) { attempt ->
-                            if (completed != null) return@repeat
-                            try {
-                                completed = withContext(Dispatchers.IO) {
+                        result = awaitOcrResult(
+                            maxAttempts = DEFAULT_OCR_POLL_ATTEMPTS,
+                            intervalMs = DEFAULT_OCR_POLL_INTERVAL_MS,
+                            fetch = {
+                                withContext(Dispatchers.IO) {
                                     DocumentOcrResultApi(apiBaseUrl).getResult(
                                         outcome.receipt.documentId, accessToken
                                     )
                                 }
-                            } catch (pollError: DocumentOcrResultApiException) {
-                                if (pollError.httpStatus == 404) {
-                                    lastNotReady = pollError
-                                    if (attempt < MAX_POLL_ATTEMPTS - 1) delay(POLL_INTERVAL_MS)
-                                } else {
-                                    throw pollError
-                                }
                             }
-                        }
-                        if (completed == null) {
-                            throw lastNotReady ?: IllegalStateException("OCR is still processing.")
-                        }
-                        result = completed
+                        )
                         status = null
                         running = false
                     }
@@ -292,5 +279,3 @@ fun DocumentUploadFlow(
     }
 }
 
-private const val MAX_POLL_ATTEMPTS = 30
-private const val POLL_INTERVAL_MS = 2_000L
