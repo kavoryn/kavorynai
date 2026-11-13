@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Ai;
+namespace Kavoryn\Ai;
 
-use Kavoryn\\Ocr\\OcrResult;
+use Kavoryn\Ocr\OcrResult;
 
 final class OpenAiDocumentExplainer
 {
@@ -15,7 +15,7 @@ final class OpenAiDocumentExplainer
         private readonly mixed $http = null,
     ) {
         if ($apiKey === '' || trim($model) === '') {
-            throw new \\InvalidArgumentException('OpenAI document explanation is not configured.');
+            throw new \InvalidArgumentException('OpenAI document explanation is not configured.');
         }
     }
 
@@ -25,10 +25,11 @@ final class OpenAiDocumentExplainer
     public function explain(OcrResult $ocr, string $language): array
     {
         if (!in_array($language, ['en', 'ha', 'ar', 'fr'], true)) {
-            throw new \\InvalidArgumentException('The explanation language is not supported.');
+            throw new \InvalidArgumentException('The explanation language is not supported.');
         }
-        if ($ocr->text === '' || mb_strlen($ocr->text, 'UTF-8') > 30000) {
-            throw new \\InvalidArgumentException('OCR text must contain between 1 and 30000 characters.');
+        preg_match_all('/./us', $ocr->text, $characters);
+        if ($ocr->text === '' || count($characters[0]) > 30000) {
+            throw new \InvalidArgumentException('OCR text must contain between 1 and 30000 characters.');
         }
 
         $schema = [
@@ -115,7 +116,7 @@ final class OpenAiDocumentExplainer
             }
         } catch (OpenAiUnavailableException $error) {
             throw $error;
-        } catch (\\Throwable) {
+        } catch (\Throwable) {
             throw new OpenAiUnavailableException();
         }
 
@@ -126,7 +127,7 @@ final class OpenAiDocumentExplainer
 
         try {
             $decoded = json_decode($response['body'], true, 32, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException) {
+        } catch (\JsonException) {
             throw new OpenAiUnavailableException();
         }
 
@@ -149,7 +150,7 @@ final class OpenAiDocumentExplainer
 
         try {
             $result = json_decode($outputText, true, 16, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException) {
+        } catch (\JsonException) {
             throw new OpenAiUnavailableException();
         }
 
@@ -178,4 +179,4 @@ final class OpenAiDocumentExplainer
     }
 }
 
-final class OpenAiUnavailableException extends \\RuntimeException {}
+final class OpenAiUnavailableException extends \RuntimeException {}
