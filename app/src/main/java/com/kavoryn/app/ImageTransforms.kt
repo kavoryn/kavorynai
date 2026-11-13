@@ -35,6 +35,7 @@ fun rotateDocumentImage(context: Context, document: SelectedDocument): SelectedD
         val uri = androidx.core.content.FileProvider.getUriForFile(
             context, "${context.packageName}.fileprovider", output
         )
+        deleteOwnedTemporaryScan(context, document.uri)
         SelectedDocument(uri, "Rotated - ${document.displayName}", "image/jpeg", output.length())
     } catch (_: Exception) {
         null
@@ -42,14 +43,17 @@ fun rotateDocumentImage(context: Context, document: SelectedDocument): SelectedD
 }
 
 /** Deletes only Kavoryn's own temporary camera/rotation files, never picker originals. */
+private fun deleteOwnedTemporaryScan(context: Context, uri: Uri) {
+    if (uri.authority != "${context.packageName}.fileprovider") return
+    try {
+        val directory = File(context.cacheDir, "camera-scans").canonicalFile
+        val filename = File(uri.path ?: return).name
+        val candidate = File(directory, filename).canonicalFile
+        if (candidate.parentFile == directory) candidate.delete()
+    } catch (_: Exception) { /* Best-effort cleanup; never touch picker originals. */ }
+}
+
+/** Deletes only Kavoryn's own temporary camera/rotation files, never picker originals. */
 fun cleanupTemporaryScans(context: Context, documents: List<SelectedDocument>) {
-    val cacheDirectory = File(context.cacheDir, "camera-scans").canonicalFile
-    documents.forEach { document ->
-        if (document.uri.authority == "${context.packageName}.fileprovider") {
-            try {
-                val candidate = File(document.uri.path ?: return@forEach).canonicalFile
-                if (candidate.path.startsWith(cacheDirectory.path + File.separator)) candidate.delete()
-            } catch (_: Exception) { /* Best-effort cleanup; do not affect user flow. */ }
-        }
-    }
+    documents.forEach { deleteOwnedTemporaryScan(context, it.uri) }
 }
