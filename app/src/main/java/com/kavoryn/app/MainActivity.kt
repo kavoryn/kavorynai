@@ -23,7 +23,9 @@ import com.kavoryn.app.auth.shouldClearStoredSessionAfterRefreshFailure
 import com.kavoryn.app.auth.SupabaseAuthSession
 import com.kavoryn.app.auth.SupabaseSessionStore
 import com.kavoryn.app.auth.SupabaseSignInScreen
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -60,6 +62,7 @@ private fun DocumentFlow() {
     var authSession by remember { mutableStateOf<SupabaseAuthSession?>(null) }
     var authLoading by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
+    var authNotice by remember { mutableStateOf<String?>(null) }
     val authConfigured = BuildConfig.SUPABASE_URL.isNotBlank() &&
         BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()
     val authStore = remember(context) { SupabaseSessionStore(context) }
@@ -92,6 +95,40 @@ private fun DocumentFlow() {
                 } catch (_: Exception) {
                     authError = "Kavoryn couldn't reconnect. Your encrypted session is kept; try again when you're online."
                 }
+            }
+        }
+    }
+
+    // Refresh the encrypted Supabase session shortly before expiry. Transient
+    // network/server failures retain the session and retry without blocking the UI.
+    LaunchedEffect(authSession?.refreshToken, authSession?.expiresAtEpochSeconds) {
+        val session = authSession ?: return@LaunchedEffect
+        while (true) {
+            val now = System.currentTimeMillis() / 1000
+            val secondsUntilRefresh =
+                (session.expiresAtEpochSeconds - now - 60).coerceAtLeast(0)
+            delay(secondsUntilRefresh * 1000)
+            try {
+                val refreshed = withContext(Dispatchers.IO) {
+                    authApi.refreshSession(session.refreshToken).also(authStore::save)
+                }
+                authSession = refreshed
+                authError = null
+                break
+            } catch (error: SupabaseAuthException) {
+                if (shouldClearStoredSessionAfterRefreshFailure(error)) {
+                    withContext(Dispatchers.IO) { authStore.clear() }
+                    authSession = null
+                    authError = "Your saved sign-in has expired. Please sign in again."
+                    break
+                }
+                authError = "Kavoryn couldn't refresh your session. Your encrypted session is kept; retrying when possible."
+                delay(30_000)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                authError = "Kavoryn couldn't refresh your session. Your encrypted session is kept; retrying when possible."
+                delay(30_000)
             }
         }
     }
@@ -164,7 +201,7 @@ private fun DocumentFlow() {
             authConfigured = authConfigured,
             accountError = authError,
             authLoading = authLoading,
-            onOpenSignIn = { authError = null; screen = Screen.AUTH },
+            onOpenSignIn = { authError = null; authNotice = null; screen = Screen.AUTH },
             onSignOut = {
                 val session = authSession
                 authLoading = true
@@ -199,10 +236,12 @@ private fun DocumentFlow() {
             configured = authConfigured,
             loading = authLoading,
             errorMessage = authError,
-            onCancel = { authError = null; screen = Screen.HOME },
+            statusMessage = authNotice,
+            onCancel = { authError = null; authNotice = null; screen = Screen.HOME },
             onSignIn = { email, password ->
                 authLoading = true
                 authError = null
+                authNotice = null
                 scope.launch {
                     try {
                         val session = withContext(Dispatchers.IO) {
@@ -212,6 +251,30 @@ private fun DocumentFlow() {
                         screen = Screen.HOME
                     } catch (error: Exception) {
                         authError = error.message ?: "Sign-in failed. Please try again."
+                    } finally {
+                        authLoading = false
+                    }
+                }
+            },
+            onSignUp = { email, password ->
+                authLoading = true
+                authError = null
+                authNotice = null
+                scope.launch {
+                    try {
+                        val result = withContext(Dispatchers.IO) {
+                            authApi.signUpWithPassword(email, password).also { signup ->
+                                signup.session?.let(authStore::save)
+                            }
+                        }
+                        if (result.session != null) {
+                            authSession = result.session
+                            screen = Screen.HOME
+                        } else {
+                            authNotice = "Account created. Check your email to confirm it, then sign in."
+                        }
+                    } catch (error: Exception) {
+                        authError = error.message ?: "Registration failed. Please try again."
                     } finally {
                         authLoading = false
                     }

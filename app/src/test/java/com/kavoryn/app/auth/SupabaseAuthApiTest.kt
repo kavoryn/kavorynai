@@ -93,4 +93,39 @@ class SupabaseAuthApiTest {
             )
         }
     }
+
+    @Test
+    fun registrationWithEmailConfirmationReturnsUserWithoutSession() {
+        val result = parseSupabaseSignUpResult(
+            """{"user":{"id":"new-user","email":"reader@example.com"},"session":null}""",
+            "reader@example.com"
+        )
+        assertEquals("new-user", result.userId)
+        assertEquals("reader@example.com", result.email)
+        assertNull(result.session)
+    }
+
+    @Test
+    fun registrationWithImmediateSessionReturnsEncryptedStoreReadySessionData() {
+        val result = parseSupabaseSignUpResult(
+            """{
+                "access_token":"access",
+                "refresh_token":"refresh",
+                "expires_in":3600,
+                "user":{"id":"new-user","email":"reader@example.com"}
+            }""",
+            "reader@example.com"
+        )
+        assertEquals("new-user", result.userId)
+        assertEquals("access", result.session?.accessToken)
+        assertEquals("refresh", result.session?.refreshToken)
+    }
+
+    @Test
+    fun registrationRejectsResponseWithoutUserId() {
+        assertThrows(IllegalArgumentException::class.java) {
+            parseSupabaseSignUpResult("""{"user":{"email":"reader@example.com"}}""", "reader@example.com")
+        }
+    }
+
 }

@@ -14,6 +14,13 @@ data class SupabaseAuthSession(
     val email: String?
 )
 
+data class SupabaseSignUpResult(
+    val userId: String,
+    val email: String?,
+    /** Null when the Supabase project requires email confirmation before a session is issued. */
+    val session: SupabaseAuthSession?
+)
+
 class SupabaseAuthException(
     val httpStatus: Int?,
     val errorCode: String?,
@@ -22,11 +29,8 @@ class SupabaseAuthException(
 
 /**
  * Minimal Supabase Auth REST client for the Android public client.
- *
- * The publishable key is a client identifier, not a user credential. User passwords
- * are sent only over HTTPS to Supabase Auth. Never pass a service-role/secret key here.
- * Returned tokens are held by the caller; persistence and refresh scheduling are
- * deliberately separate responsibilities.
+ * The publishable key is a client identifier, not a user credential. Never pass
+ * a service-role/secret key here. Returned tokens are held by the caller.
  */
 class SupabaseAuthApi(
     private val projectUrl: String,
@@ -41,6 +45,39 @@ class SupabaseAuthApi(
             grantType = "password",
             body = JSONObject().put("email", email.trim()).put("password", password)
         )
+    }
+
+    fun signUpWithPassword(email: String, password: String): SupabaseSignUpResult {
+        require(email.trim().isNotEmpty()) { "Email is required." }
+        require(password.isNotEmpty()) { "Password is required." }
+        val root = validatedSupabaseAuthRoot(projectUrl)
+        val connection = openConnection("$root/auth/v1/signup").apply {
+            requestMethod = "POST"
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+        }
+        try {
+            connection.outputStream.use {
+                it.write(
+                    JSONObject().put("email", email.trim()).put("password", password)
+                        .toString().toByteArray(Charsets.UTF_8)
+                )
+            }
+            val status = connection.responseCode
+            val bytes = readBoundedResponse(connection, status)
+            if (status !in 200..299) throw authError(status, bytes, "Sign-up")
+            return parseSupabaseSignUpResult(bytes.toString(Charsets.UTF_8), email.trim())
+        } catch (error: SupabaseAuthException) {
+            throw error
+        } catch (error: IllegalArgumentException) {
+            throw error
+        } catch (_: Exception) {
+            throw SupabaseAuthException(
+                null, null, "Registration failed. Check your connection and try again."
+            )
+        } finally {
+            connection.disconnect()
+        }
     }
 
     fun refreshSession(refreshToken: String): SupabaseAuthSession {
@@ -86,38 +123,8 @@ class SupabaseAuthApi(
         try {
             connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            if (stream == null) {
-                throw SupabaseAuthException(status, null, "Supabase Auth returned no response.")
-            }
-            val bytes = stream.use { input ->
-                val output = ByteArrayOutputStream()
-                val buffer = ByteArray(4096)
-                var total = 0
-                while (true) {
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    total += count
-                    if (total > MAX_RESPONSE_BYTES) {
-                        throw SupabaseAuthException(
-                            status, null, "The authentication response was too large."
-                        )
-                    }
-                    output.write(buffer, 0, count)
-                }
-                output.toByteArray()
-            }
-            if (status !in 200..299) {
-                val code = try {
-                    JSONObject(bytes.toString(Charsets.UTF_8))
-                        .optString("code").takeIf { it.isNotBlank() }
-                        ?: JSONObject(bytes.toString(Charsets.UTF_8))
-                            .optString("error_code").takeIf { it.isNotBlank() }
-                } catch (_: Exception) { null }
-                throw SupabaseAuthException(
-                    status, code, "Sign-in could not be completed. Check your details and try again."
-                )
-            }
+            val bytes = readBoundedResponse(connection, status)
+            if (status !in 200..299) throw authError(status, bytes, "Sign-in")
             return parseSupabaseAuthSession(bytes.toString(Charsets.UTF_8))
         } catch (error: SupabaseAuthException) {
             throw error
@@ -128,6 +135,37 @@ class SupabaseAuthApi(
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun readBoundedResponse(connection: HttpURLConnection, status: Int): ByteArray {
+        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            ?: throw SupabaseAuthException(status, null, "Supabase Auth returned no response.")
+        return stream.use { input ->
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(4096)
+            var total = 0
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                total += count
+                if (total > MAX_RESPONSE_BYTES) {
+                    throw SupabaseAuthException(status, null, "The authentication response was too large.")
+                }
+                output.write(buffer, 0, count)
+            }
+            output.toByteArray()
+        }
+    }
+
+    private fun authError(status: Int, bytes: ByteArray, action: String): SupabaseAuthException {
+        val code = try {
+            val json = JSONObject(bytes.toString(Charsets.UTF_8))
+            json.optString("code").takeIf { it.isNotBlank() }
+                ?: json.optString("error_code").takeIf { it.isNotBlank() }
+        } catch (_: Exception) { null }
+        return SupabaseAuthException(
+            status, code, "$action could not be completed. Check your details and try again."
+        )
     }
 
     private fun openConnection(url: String): HttpURLConnection {
@@ -188,3 +226,24 @@ internal fun parseSupabaseAuthSession(
 /** Clear persisted credentials only when Supabase explicitly rejects the refresh token. */
 internal fun shouldClearStoredSessionAfterRefreshFailure(error: SupabaseAuthException): Boolean =
     error.httpStatus == 400 || error.httpStatus == 401
+
+
+internal fun parseSupabaseSignUpResult(
+    responseBody: String,
+    requestedEmail: String
+): SupabaseSignUpResult {
+    val json = JSONObject(responseBody)
+    val user = json.optJSONObject("user") ?: json
+    val userId = user.optString("id")
+    require(userId.isNotBlank()) {
+        "Supabase Auth returned an incomplete registration response."
+    }
+    val session = if (json.has("access_token") && json.has("refresh_token")) {
+        parseSupabaseAuthSession(json.toString())
+    } else null
+    return SupabaseSignUpResult(
+        userId = userId,
+        email = user.optString("email").takeIf { it.isNotBlank() } ?: requestedEmail,
+        session = session
+    )
+}
