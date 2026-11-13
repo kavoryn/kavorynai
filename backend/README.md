@@ -99,7 +99,7 @@ These are abuse-protection limits, not subscription entitlements or advertised c
 
 ## OCR job queue foundation
 
-New document registrations with status `uploaded` are automatically added to the private `private.ocr_jobs` queue by a database trigger. Queue rows are not exposed to app clients. The worker-only claim RPC uses row locking with `SKIP LOCKED`, a bounded lease, and a maximum of three attempts; expired leases can be reclaimed. The worker can record a bounded error code and retry delay, or complete a job only while its worker lease is still valid. Service-only public RPC wrappers are used because the `private` schema is not exposed through the Supabase Data API.
+New document registrations with status `uploaded` are automatically added to the private `private.ocr_jobs` queue by a database trigger. Queue rows are not exposed to app clients. The worker-only claim RPC uses row locking with `SKIP LOCKED`, a bounded lease, and a maximum of three attempts; expired leases can be reclaimed. The worker renews its bounded lease during multi-page rendering and between provider batches, records bounded error codes with retry delays, and completes a job only while its lease is valid. Service-only public RPC wrappers are used because the `private` schema is not exposed through the Supabase Data API.
 
 
 ## PHP OCR worker orchestration
