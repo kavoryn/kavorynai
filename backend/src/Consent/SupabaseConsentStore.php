@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Consent;
+namespace Kavoryn\Consent;
 
 use DateTimeImmutable;
 
@@ -92,7 +92,7 @@ final class SupabaseConsentStore implements ConsentStore
                 if ($body === false || $error !== 0) throw new ConsentStorageUnavailableException('Database service unavailable.');
                 $response = ['status' => $status, 'body' => (string) $body];
             }
-        } catch (\\Throwable) {
+        } catch (\Throwable) {
             throw new ConsentStorageUnavailableException('Consent storage is temporarily unavailable.');
         }
         if (!is_array($response) || !is_int($response['status'] ?? null) || !is_string($response['body'] ?? null) || $response['status'] < 200 || $response['status'] >= 300) {
