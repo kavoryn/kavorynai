@@ -15,7 +15,8 @@ final class SupabaseDocumentRegistry implements DocumentRegistry
         private readonly string $serviceRoleJwt,
         private readonly mixed $http = null,
     ) {
-        if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '') {
+        if ($supabaseUrl === '' || parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
+            $secretKey === '' || $serviceRoleJwt === '') {
             throw new DocumentRegistryUnavailableException('Document registry is not configured.');
         }
     }
