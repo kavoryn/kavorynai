@@ -134,6 +134,10 @@ Set these variables in the backend host environment (never in Android, the web c
 - `OCR_WORKER_MAX_JOBS`: optional 1–10 jobs per CLI invocation (default 3).
 - Existing `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `PRIVATE_DOCUMENT_STORAGE_PATH` values are also required.
 
+
+- `GOOGLE_VISION_ENDPOINT`: optional; defaults to the EU regional OCR endpoint `https://eu-vision.googleapis.com/v1/images:annotate`. The provider permits only Google's global, EU, or US HTTPS endpoints.
+- `PDFINFO_BINARY` and `PDFTOPPM_BINARY`: optional Poppler executable paths (default `pdfinfo` and `pdftoppm`).
+
 The host needs PHP cURL, OpenSSL, sodium, Poppler `pdfinfo` and `pdftoppm`, plus network access to Google OAuth, Cloud Vision, and the Supabase HTTPS API.
 
 Run the worker from the CLI only:
