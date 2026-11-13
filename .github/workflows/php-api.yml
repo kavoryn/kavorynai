@@ -116,6 +116,9 @@ jobs:
       - name: Paystack webhook verifier tests
         run: php backend/tests/PaystackWebhookVerifierTest.php
 
+      - name: Paystack webhook receipt store tests
+        run: php backend/tests/SupabasePaystackWebhookStoreTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
