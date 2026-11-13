@@ -58,6 +58,9 @@ jobs:
       - name: Supabase document registry tests
         run: php backend/tests/supabase_document_registry_test.php
 
+      - name: OCR worker tests
+        run: php backend/tests/OcrWorkerTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
