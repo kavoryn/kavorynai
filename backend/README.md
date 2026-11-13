@@ -101,3 +101,15 @@ These are abuse-protection limits, not subscription entitlements or advertised c
 New document registrations with status `uploaded` are automatically added to the private `private.ocr_jobs` queue by a database trigger. Queue rows are not exposed to app clients. The worker-only claim RPC uses row locking with `SKIP LOCKED`, a bounded lease, and a maximum of three attempts; expired leases can be reclaimed. The worker can record a bounded error code and retry delay, or complete a job only while its worker lease is still valid.
 
 The queue currently provides job orchestration only. No OCR vendor is selected or called, no OCR text is stored, and the upload endpoint does not yet start a provider request. The PHP worker, authenticated job-status endpoint, provider adapter, and end-to-end OCR integration remain to be implemented. Keep the document upload feature flag disabled until the full flow is deployed and tested.
+
+
+## PHP OCR worker orchestration
+
+The backend now contains a provider-independent worker core under `backend/src/Ocr/`:
+
+- `OcrJob` validates queue metadata and storage keys before processing.
+- `SupabaseOcrJobStore` calls the existing private queue claim, fail, and completion RPCs using server-only credentials over verified HTTPS.
+- `OcrWorker` resolves only generated storage keys inside the configured private storage root, invokes the injected OCR provider, persists results through an injected result sink, and completes the lease only after persistence succeeds. Failures are reduced to bounded error codes with exponential retry delay.
+- `OcrWorkerTest.php` covers successful processing, persistence-before-completion, missing private files, and empty queues. It is included in the PHP API workflow.
+
+This is orchestration code, not a runnable production worker yet. A concrete OCR provider adapter and an approved result sink/retention policy must be selected and configured through a server-only bootstrap before the worker can claim jobs. Do not mark jobs successful or enable uploads without durable result storage. No document text is logged by this worker core.
