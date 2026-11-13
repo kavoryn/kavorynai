@@ -40,7 +40,8 @@ sseExpect($unfinished->finish() === [[
 ]], 'finish() should dispatch a final unterminated event.');
 
 $invalidId = new SseEventDecoder();
-$invalidId->push("id: bad\0id\ndata: safe\n\n");
+$invalidEvents = $invalidId->push("id: bad\0id\ndata: safe\n\n");
+sseExpect(($invalidEvents[0]['id'] ?? null) === null, 'An ID containing NUL must be ignored.');
 sseExpect($invalidId->finish() === [], 'A dispatched event should not be repeated by finish().');
 
 try {
