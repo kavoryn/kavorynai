@@ -82,6 +82,9 @@ jobs:
       - name: Grounded document Q&A policy tests
         run: php backend/tests/GroundedQuestionPolicyTest.php
 
+      - name: Grounded document Q&A provider adapter tests
+        run: php backend/tests/DocumentQuestionAnswererTest.php
+
 
       - name: API smoke tests
         shell: bash
