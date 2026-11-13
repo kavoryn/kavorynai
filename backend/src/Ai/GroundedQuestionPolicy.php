@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Ai;
+namespace Kavoryn\Ai;
 
 /** Validates model output before it can be returned to a document owner. */
 final class GroundedQuestionPolicy
@@ -27,7 +27,7 @@ final class GroundedQuestionPolicy
             self::length($answer) > self::MAX_ANSWER_CHARACTERS ||
             !is_array($excerpts) || !array_is_list($excerpts) ||
             count($excerpts) > self::MAX_EXCERPTS || !is_bool($insufficient)) {
-            throw new \\InvalidArgumentException('The answer format is invalid.');
+            throw new \InvalidArgumentException('The answer format is invalid.');
         }
 
         $verified = [];
@@ -35,16 +35,16 @@ final class GroundedQuestionPolicy
             if (!is_string($excerpt) || trim($excerpt) === '' ||
                 self::length($excerpt) > self::MAX_EXCERPT_CHARACTERS ||
                 !str_contains($ocrText, $excerpt)) {
-                throw new \\InvalidArgumentException('An answer source excerpt is not present in the OCR text.');
+                throw new \InvalidArgumentException('An answer source excerpt is not present in the OCR text.');
             }
             $verified[] = $excerpt;
         }
 
         if ($insufficient && $verified !== []) {
-            throw new \\InvalidArgumentException('An insufficient answer cannot claim supporting excerpts.');
+            throw new \InvalidArgumentException('An insufficient answer cannot claim supporting excerpts.');
         }
         if (!$insufficient && $verified === []) {
-            throw new \\InvalidArgumentException('A supported answer must include an exact source excerpt.');
+            throw new \InvalidArgumentException('A supported answer must include an exact source excerpt.');
         }
 
         return [
@@ -64,7 +64,7 @@ final class GroundedQuestionPolicy
     private static function requireText(string $text, int $max, string $label): void
     {
         if (trim($text) === '' || preg_match('//u', $text) !== 1 || self::length($text) > $max) {
-            throw new \\InvalidArgumentException($label . ' is empty, invalid, or too long.');
+            throw new \InvalidArgumentException($label . ' is empty, invalid, or too long.');
         }
     }
 
