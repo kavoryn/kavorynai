@@ -28,7 +28,12 @@ final class PrivateDocumentStorage
             throw new DocumentFileException('storage_unavailable', 'Private document storage is unavailable.');
         }
 
-        @chmod($destination, 0600);
+        if (!@chmod($destination, 0600)) {
+            fclose($input);
+            fclose($output);
+            @unlink($destination);
+            throw new DocumentFileException('storage_permissions_failed', 'Private document permissions could not be secured.');
+        }
         $hash = hash_init('sha256');
         $written = 0;
         try {
@@ -92,7 +97,9 @@ final class PrivateDocumentStorage
         if (!is_dir($this->storagePath) && !@mkdir($this->storagePath, 0700, true) && !is_dir($this->storagePath)) {
             throw new DocumentFileException('storage_unavailable', 'Private document storage is unavailable.');
         }
-        @chmod($this->storagePath, 0700);
+        if (!@chmod($this->storagePath, 0700)) {
+            throw new DocumentFileException('storage_permissions_failed', 'Private storage permissions could not be secured.');
+        }
         $root = realpath($this->storagePath);
         if ($root === false) {
             throw new DocumentFileException('storage_unavailable', 'Private document storage is unavailable.');
