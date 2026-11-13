@@ -47,15 +47,15 @@ fun DocumentQuestionScreen(
     accessToken: String,
     modifier: Modifier = Modifier
 ) {
-    var question by remember { mutableStateOf("") }
+    var question by remember(documentId) { mutableStateOf("") }
     var provider by remember { mutableStateOf(AiQuestionProvider.OPENAI) }
     var language by remember { mutableStateOf("en") }
     var languageExpanded by remember { mutableStateOf(false) }
     var providerExpanded by remember { mutableStateOf(false) }
-    var confirmed by remember { mutableStateOf(false) }
+    var confirmed by remember(documentId) { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var result by remember { mutableStateOf<DocumentQuestionAnswer?>(null) }
+    var error by remember(documentId) { mutableStateOf<String?>(null) }
+    var result by remember(documentId) { mutableStateOf<DocumentQuestionAnswer?>(null) }
     val scope = rememberCoroutineScope()
 
     Column(
