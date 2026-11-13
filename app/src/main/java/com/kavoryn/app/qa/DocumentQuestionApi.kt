@@ -126,7 +126,12 @@ internal fun validatedApiRoot(apiBaseUrl: String): String {
 
 internal fun parseDocumentQuestionAnswer(responseBody: String, expectedDocumentId: String? = null): DocumentQuestionAnswer {
     val json = JSONObject(responseBody)
-    if (expectedDocumentId != null) {\n        require(json.optString("document_id") == expectedDocumentId) { "The answer belongs to a different document." }\n    }\n    val answer = json.getString("answer").trim()
+    if (expectedDocumentId != null) {
+        require(json.optString("document_id") == expectedDocumentId) {
+            "The answer belongs to a different document."
+        }
+    }
+    val answer = json.getString("answer").trim()
     require(answer.isNotEmpty() && answer.length <= 8_000) { "The answer is empty or too large." }
     val excerptsJson = json.optJSONArray("source_excerpts") ?: JSONArray()
     require(excerptsJson.length() <= 5) { "The response contains too many source excerpts." }
