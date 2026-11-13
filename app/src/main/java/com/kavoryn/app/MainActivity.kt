@@ -81,7 +81,7 @@ private fun DocumentFlow() {
                 } catch (error: SupabaseAuthException) {
                     // Only a rejected refresh credential proves the saved session is unusable.
                     // Network errors, rate limits and server failures must not erase it.
-                    if (error.httpStatus == 400 || error.httpStatus == 401) {
+                    if (shouldClearStoredSessionAfterRefreshFailure(error)) {
                         withContext(Dispatchers.IO) { authStore.clear() }
                         authError = "Your saved sign-in has expired. Please sign in again."
                     } else {
