@@ -29,7 +29,18 @@ $store = new SupabaseConsentStore(
         if (str_ends_with($url, '/rpc/consume_processing_consent')) {
             return ['status' => 200, 'body' => 'true'];
         }
-        return ['status' => 201, 'body' => ''];
+        if (str_ends_with($url, '/rpc/create_processing_consent')) {
+            $input = json_decode($body ?? '', true, 16, JSON_THROW_ON_ERROR);
+            return [
+                'status' => 200,
+                'body' => json_encode([[
+                    'consent_id' => $input['p_id'],
+                    'consented_at' => '2026-11-13T12:00:00+00:00',
+                    'expires_at' => '2026-11-13T12:05:00+00:00',
+                ]], JSON_THROW_ON_ERROR),
+            ];
+        }
+        return ['status' => 404, 'body' => ''];
     },
 );
 
@@ -46,15 +57,17 @@ $record = new ConsentRecord(
     $now->modify('+5 minutes'),
 );
 
-$store->create($record);
+$storedRecord = $store->create($record);
 storeExpect(count($requests) === 1, 'Create must issue exactly one database request.');
 $insert = json_decode($requests[0]['body'] ?? '', true, 16, JSON_THROW_ON_ERROR);
-storeExpect(($requests[0]['url'] ?? '') === 'https://example.supabase.co/rest/v1/processing_consents', 'Create must use the consent table endpoint.');
+storeExpect(($requests[0]['url'] ?? '') === 'https://example.supabase.co/rest/v1/rpc/create_processing_consent', 'Create must use the database-clock consent RPC.');
+storeExpect(($insert['p_id'] ?? null) === $record->id, 'Create RPC must persist the generated consent ID.');
+storeExpect(($insert['p_ttl_seconds'] ?? null) === 300, 'Create RPC must receive the configured grant lifetime.');
+storeExpect($storedRecord->expiresAt->getTimestamp() - $storedRecord->createdAt->getTimestamp() === 300, 'Store must return database-confirmed expiry.');
 storeExpect(($requests[0]['headers']['apikey'] ?? '') === 'sb_secret_test', 'New secret API key must be sent in apikey.');
 storeExpect(($requests[0]['headers']['Authorization'] ?? '') === 'Bearer service-role-jwt-test', 'Legacy service-role JWT must be used as bearer.');
-storeExpect(($insert['id'] ?? null) === $record->id, 'Persisted consent ID must match the API grant ID.');
-storeExpect(($insert['confirmation_token_hash'] ?? null) === $record->tokenHash, 'Only the token hash must be persisted.');
-storeExpect(($insert['provider_name'] ?? 'missing') === null, 'Provider selection can remain unset at consent time.');
+storeExpect(($insert['p_token_hash'] ?? null) === $record->tokenHash, 'Only the token hash must be sent to the database.');
+storeExpect(($requests[0]['headers']['Authorization'] ?? '') === 'Bearer service-role-jwt-test', 'Legacy service-role JWT must be used as bearer.');
 
 $consumed = $store->consumeOnce(
     $record->tokenHash,
