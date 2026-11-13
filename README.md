@@ -8,6 +8,13 @@ Kavoryn is an accessibility-first application that helps people read, understand
 - Stage B: advanced voice dictation, voice input in Chat, and document preparation helper.
 - Stage C: scene/object description, money/currency reading, and colour/light utilities. This stage must pass its accuracy and TalkBack gates before release.
 
+## Current implementation status
+
+- Android document intake, local PDF/image inspection, camera capture, image rotation and bounded local preview are in progress; device/build verification remains outstanding.
+- A provider-neutral OCR contract now models English, Hausa, Arabic and French, per-page text, uncertain spans, word confidence and normalized geometry.
+- OCR provider selection is intentionally open. See `docs/OCR_PROVIDER_EVALUATION.md` for the multilingual corpus and comparison gate.
+- No OCR vendor SDK or external OCR processing is connected yet.
+
 ## Non-negotiable requirements
 
 - Explicit confirmation before sending user content to external AI/OCR services.
