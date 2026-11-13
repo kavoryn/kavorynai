@@ -18,6 +18,7 @@ class AndroidDocumentSpeech(
     private var closed = false
     private var rate = 1.0f
     private var pending: Pair<String, SpeechLanguage>? = null
+    private var finalUtteranceId: String? = null
 
     init {
         engine = TextToSpeech(context.applicationContext) { status ->
@@ -32,7 +33,9 @@ class AndroidDocumentSpeech(
                     onState(SpeechState.Speaking)
                 }
                 override fun onDone(utteranceId: String?) {
-                    onState(SpeechState.Finished)
+                    if (utteranceId != null && utteranceId == finalUtteranceId) {
+                        onState(SpeechState.Finished)
+                    }
                 }
                 @Deprecated("Deprecated by Android")
                 override fun onError(utteranceId: String?) {
@@ -69,7 +72,17 @@ class AndroidDocumentSpeech(
         }
         pending = null
         tts.setSpeechRate(rate)
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, UUID.randomUUID().toString())
+        val chunks = SpeechTextPolicy.chunks(text)
+        val ids = chunks.map { UUID.randomUUID().toString() }
+        finalUtteranceId = ids.last()
+        chunks.forEachIndexed { index, chunk ->
+            tts.speak(
+                chunk,
+                if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD,
+                null,
+                ids[index]
+            )
+        }
         onState(SpeechState.Speaking)
     }
 
@@ -82,6 +95,7 @@ class AndroidDocumentSpeech(
 
     fun stop() {
         pending = null
+        finalUtteranceId = null
         engine?.stop()
         onState(SpeechState.Stopped)
     }
