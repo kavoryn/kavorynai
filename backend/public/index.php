@@ -438,7 +438,7 @@ if ($method === 'POST' && preg_match(
     }
     try {
         $input = json_decode($rawBody, true, 16, JSON_THROW_ON_ERROR);
-    } catch (\\JsonException) {
+    } catch (\JsonException) {
         respond(400, ['error' => ['code' => 'invalid_json', 'message' => 'The explanation request is not valid JSON.', 'request_id' => $requestId]]);
     }
 
@@ -473,22 +473,22 @@ if ($method === 'POST' && preg_match(
     require_once dirname(__DIR__) . '/src/Ai/SupabaseAiProcessingConsentRecorder.php';
 
     try {
-        $reader = new \\Kavoryn\\Ocr\\SupabaseEncryptedOcrResultReader(
+        $reader = new \Kavoryn\Ocr\SupabaseEncryptedOcrResultReader(
             $supabaseUrl,
             $secretKey,
             $serviceRoleJwt,
-            \\Kavoryn\\Ocr\\SupabaseEncryptedOcrResultReader::decodeKey($encryptionKey),
+            \Kavoryn\Ocr\SupabaseEncryptedOcrResultReader::decodeKey($encryptionKey),
         );
         $ocrResult = $reader->read($matches[1], $user->id);
 
-        $explainer = \\Kavoryn\\Ai\\DocumentExplainerFactory::create($input['provider'], [
+        $explainer = \Kavoryn\Ai\DocumentExplainerFactory::create($input['provider'], [
             'OPENAI_API_KEY' => getenv('OPENAI_API_KEY') ?: '',
             'OPENAI_MODEL' => getenv('OPENAI_MODEL') ?: 'gpt-5-mini',
             'GEMINI_API_KEY' => getenv('GEMINI_API_KEY') ?: '',
             'GEMINI_MODEL' => getenv('GEMINI_MODEL') ?: 'gemini-3.6-flash',
         ]);
 
-        $consentRecorder = new \\Kavoryn\\Ai\\SupabaseAiProcessingConsentRecorder(
+        $consentRecorder = new \Kavoryn\Ai\SupabaseAiProcessingConsentRecorder(
             $supabaseUrl,
             $secretKey,
             $serviceRoleJwt,
@@ -497,13 +497,13 @@ if ($method === 'POST' && preg_match(
         $consentRecorder->record($user->id, $matches[1], $input['provider'], $input['language']);
 
         $explanation = $explainer->explain($ocrResult, $input['language']);
-    } catch (\\Kavoryn\\Ocr\\OcrResultNotFoundException) {
+    } catch (\Kavoryn\Ocr\OcrResultNotFoundException) {
         respond(404, ['error' => ['code' => 'document_result_not_found', 'message' => 'A completed document result is not available or has expired.', 'request_id' => $requestId]]);
-    } catch (\\Kavoryn\\Ai\\AiConsentStorageUnavailableException) {
+    } catch (\Kavoryn\Ai\AiConsentStorageUnavailableException) {
         respond(503, ['error' => ['code' => 'ai_consent_storage_unavailable', 'message' => 'AI processing consent could not be recorded. No document text was sent to the AI provider.', 'request_id' => $requestId]]);
-    } catch (\\Kavoryn\\Ai\\OpenAiUnavailableException | \\Kavoryn\\Ai\\GeminiUnavailableException) {
+    } catch (\Kavoryn\Ai\OpenAiUnavailableException | \Kavoryn\Ai\GeminiUnavailableException) {
         respond(503, ['error' => ['code' => 'ai_provider_unavailable', 'message' => 'The selected AI provider is temporarily unavailable. Your document text was not stored by Kavoryn.', 'request_id' => $requestId]]);
-    } catch (\\InvalidArgumentException | \\Kavoryn\\Ocr\\OcrResultReaderUnavailableException) {
+    } catch (\InvalidArgumentException | \Kavoryn\Ocr\OcrResultReaderUnavailableException) {
         respond(503, ['error' => ['code' => 'document_explanation_unavailable', 'message' => 'Document explanation is temporarily unavailable.', 'request_id' => $requestId]]);
     }
 
