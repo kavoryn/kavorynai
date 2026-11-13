@@ -9,12 +9,12 @@ import java.util.UUID
 data class DocumentOcrResult(
     val documentId: String,
     val text: String,
-    val uncertainSpans: List<OcrUncertainSpan>,
+    val uncertainSpans: List<DocumentOcrUncertainSpan>,
     val detectedLanguage: String,
     val requestId: String?
 )
 
-data class OcrUncertainSpan(
+data class DocumentOcrUncertainSpan(
     /** UTF-16 offsets suitable for Android TextRange and Kotlin String indexing. */
     val start: Int,
     val endExclusive: Int,
@@ -103,7 +103,7 @@ class DocumentOcrResultApi(
                     "The OCR result contains an invalid uncertainty range."
                 }
                 val range = codePointRangeToUtf16(text, startCodePoint, endCodePoint)
-                OcrUncertainSpan(
+                DocumentOcrUncertainSpan(
                     start = range.first,
                     endExclusive = range.second,
                     confidence = item.getDouble("confidence").toFloat().also {
