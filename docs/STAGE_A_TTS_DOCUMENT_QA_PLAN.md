@@ -35,9 +35,11 @@ Deliver two Stage A capabilities:
 - [x] Define a provider-neutral `DocumentQuestionAnswerer` contract.
 - [x] Add fail-closed validation for bounded questions, bounded answers, and exact source excerpts.
 - [x] Add tests for valid evidence, fabricated excerpts, missing evidence, contradictory insufficient-information responses, and oversized questions.
-- [ ] Implement OpenAI and Gemini question-answer adapters with document text treated as untrusted data.
-- [ ] Add authenticated owner-checked `/v1/documents/{document_id}/ask` endpoint and document-specific provider consent audit before external processing.
-- [ ] Add rate limiting, API contract tests, and Android Q&A screen/client.
+- [x] Implement OpenAI and Gemini question-answer adapters with document text treated as untrusted data and strict exact-excerpt validation.
+- [x] Add authenticated owner-checked `/v1/documents/{document_id}/ask` endpoint and distinct Q&A consent audit before external processing.
+- [x] Add atomic per-user rate limiting (10 requests per 60 seconds) and provider mock tests.
+- [ ] Add Android Q&A screen/client and consent UX integration.
+- [ ] Apply Supabase migrations and validate the endpoint in staging; keep DOCUMENT_QA_ENABLED=false until these gates pass.
 
 ## Proposed API contract (design only)
 
