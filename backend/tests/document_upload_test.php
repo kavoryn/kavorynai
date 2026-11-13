@@ -60,6 +60,36 @@ final class FakeDocumentRegistry implements DocumentRegistry
     }
 }
 
+
+$rateLimitHttp = static function (string $url, array $headers, string $body): array {
+    uploadExpect(str_ends_with($url, '/rpc/consume_document_upload_rate_limit'), 'Rate limiter must call the atomic Supabase RPC.');
+    $payload = json_decode($body, true, 8, JSON_THROW_ON_ERROR);
+    uploadExpect(($payload['p_user_id'] ?? null) === 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12', 'Rate limiter must use the authenticated user id.');
+    uploadExpect(($headers['Authorization'] ?? '') === 'Bearer service-role-test-jwt', 'Rate limiter must authenticate server-side only.');
+    return ['status' => 200, 'body' => '[{"allowed":true,"retry_after_seconds":0}]'];
+};
+$rateLimiter = new \\Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
+    'https://example.supabase.co',
+    'test-publishable-key',
+    'service-role-test-jwt',
+    $rateLimitHttp,
+);
+$rateLimiter->consume('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12');
+
+$blockedLimiter = new \\Kavoryn\\Upload\\SupabaseDocumentRateLimiter(
+    'https://example.supabase.co',
+    'test-publishable-key',
+    'service-role-test-jwt',
+    static fn (): array => ['status' => 200, 'body' => '[{"allowed":false,"retry_after_seconds":42}]'],
+);
+$rateLimited = false;
+try {
+    $blockedLimiter->consume('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12');
+} catch (\\Kavoryn\\Upload\\DocumentRateLimitExceededException $error) {
+    $rateLimited = $error->retryAfterSeconds === 42;
+}
+uploadExpect($rateLimited, 'Rate limiter must reject blocked uploads with a retry delay.');
+
 $base = sys_get_temp_dir() . '/kavoryn-upload-test-' . bin2hex(random_bytes(6));
 $public = $base . '/public';
 $private = $base . '/private';
