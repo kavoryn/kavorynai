@@ -9,6 +9,8 @@ require_once dirname(__DIR__) . '/src/Upload/PrivateDocumentStorage.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentRegistration.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentRegistry.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentRegistryUnavailableException.php';
+require_once dirname(__DIR__) . '/src/Upload/DocumentConsentRejectedException.php';
+require_once dirname(__DIR__) . '/src/Upload/DocumentIdempotencyConflictException.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentUploadService.php';
 
 use Kavoryn\Upload\DocumentFileException;
@@ -30,6 +32,7 @@ function uploadExpect(bool $condition, string $message): void
 final class FakeDocumentRegistry implements DocumentRegistry
 {
     public array $received = [];
+    public bool $rejectConsent = false;
 
     public function register(
         string $documentId,
@@ -45,6 +48,9 @@ final class FakeDocumentRegistry implements DocumentRegistry
             'documentId', 'userId', 'consentTokenHash', 'document',
             'language', 'translate', 'storageKey', 'idempotencyKey',
         );
+        if ($this->rejectConsent) {
+            throw new \Kavoryn\Upload\DocumentConsentRejectedException();
+        }
         return new DocumentRegistration(
             $documentId,
             'uploaded',
@@ -135,6 +141,26 @@ uploadExpect($registry->received['consentTokenHash'] === hash('sha256', $token),
 uploadExpect($registry->received['language'] === 'ha', 'Registry must receive the selected output language.');
 uploadExpect($registry->received['document']->sha256 === hash('sha256', $pdf), 'Registry must receive the verified server-side digest.');
 $storage->delete($registration->storageKey);
+
+$registry->rejectConsent = true;
+$rejectedToken = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+$rejected = false;
+try {
+    $service->upload(
+        'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+        $pdfPath,
+        'sample.pdf',
+        $rejectedToken,
+        'ha',
+        false,
+        'test-idempotency-key-0002',
+    );
+} catch (\Kavoryn\Upload\DocumentConsentRejectedException) {
+    $rejected = true;
+}
+uploadExpect($rejected, 'Upload service must surface definite consent rejection.');
+$remaining = array_values(array_diff(scandir($private) ?: [], ['.', '..']));
+uploadExpect(count($remaining) === 0, 'Definite consent rejection must remove the staged private file.');
 
 unlink($pdfPath);
 unlink($textPath);
