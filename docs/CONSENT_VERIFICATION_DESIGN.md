@@ -8,8 +8,8 @@ Status: Supabase consent and document registry schema applied; PHP consent issua
 2. Android calculates SHA-256 over the selected document by streaming it locally. It displays the processing purpose, output language, translation setting, external processing disclosure, and delete-after-use default. The user must actively confirm.
 3. Android calls authenticated `POST /v1/consents` with `action`, `payload_sha256`, `language`, `translate`, and `confirmed: true`.
 4. PHP creates a cryptographically random 256-bit opaque token with a five-minute default lifetime. The database stores only its SHA-256 hash, bound to the authenticated user, action, document digest, output language, translation flag, expiry, and timestamps.
-5. The app uploads the file and token only after confirmation. The future upload handler must independently hash the received bytes and compare the digest with the grant.
-6. The future upload handler must consume consent using the atomic database RPC. A read-then-update sequence is not acceptable because concurrent requests could replay a grant.
+5. The app uploads the file and token only after confirmation. The upload handler independently hashes the received bytes and compares the digest with the grant.
+6. The upload handler consumes consent using the atomic database RPC as part of the document registration transaction. A read-then-update sequence is not acceptable because concurrent requests could replay a grant.
 7. Expired, revoked, reused, wrong-user, wrong-action, wrong-language, wrong-translation-setting, or wrong-document grants are rejected.
 
 The consent endpoint does not accept a user ID from the client. Consent does not grant access to another user's documents and does not replace normal authorization.
@@ -64,7 +64,7 @@ A third migration, `20261113142706_lock_down_signup_trigger_function`, revokes d
 
 The fourth and fifth migrations, `20261113142849_create_processing_consent_with_db_clock` and `20261113142952_validate_all_consent_creation_parameters`, add and harden the database-clock creation RPC. The database returns the authoritative creation and expiry timestamps, and all required arguments are validated before insertion.
 
-All five consent/auth migrations are recorded in `supabase/migrations/` in this repository. The document registry, idempotency serialization, one-hour expiry, and consent foreign-key index migrations are also recorded there: `20261113143440_secure_document_upload_registry`, `20261113143617_serialize_document_upload_idempotency`, `20261113143907_expire_unprocessed_document_uploads`, and `20261113143947_index_document_consent_foreign_key`, and `20261113144156_reject_retries_for_deleted_uploads`, and `20261113144343_reject_expired_upload_retries`. The table had zero rows before the migration, so the new required binding columns were added without migrating existing consent records.
+All five consent/auth migrations are recorded in `supabase/migrations/` in this repository. The document registry, idempotency serialization, one-hour expiry, and consent foreign-key index migrations are also recorded there: `20261113143440_secure_document_upload_registry`, `20261113143617_serialize_document_upload_idempotency`, `20261113143907_expire_unprocessed_document_uploads`, and `20261113143947_index_document_consent_foreign_key`, `20261113144156_reject_retries_for_deleted_uploads`, and `20261113144343_reject_expired_upload_retries`. The table had zero rows before the migration, so the new required binding columns were added without migrating existing consent records.
 
 At the time of this implementation, `auth.users` contains zero accounts in this project. The SQL migration and invalid-parameter rejection were verified, but a successful live sign-in and positive one-time-consumption test must wait until the Android sign-up flow creates a test account and the PHP host has its server-only credentials configured.
 
