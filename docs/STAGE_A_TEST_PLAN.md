@@ -130,3 +130,18 @@ Stage A is not approved until all critical security/privacy/accessibility cases 
 | OCR-008 | Run fixed language text fixtures | English, Hausa, Arabic and French Unicode is preserved |
 
 These are authored unit tests and have not yet been executed. Real OCR accuracy tests require a permissioned scan corpus and selected provider adapters.
+
+
+## OCR submission coordinator tests
+
+| ID | Scenario | Expected |
+|---|---|---|
+| OCR-SUB-001 | User declines external processing | No consent request or upload occurs |
+| OCR-SUB-002 | User confirms valid PDF/image | Stream digest is bound to selected language and one-time consent grant before upload |
+| OCR-SUB-003 | Unsupported MIME | Rejected before any network call |
+| OCR-SUB-004 | Empty/unreadable input stream | Rejected before consent request |
+| OCR-SUB-005 | Consent endpoint returns no grant or blank token | Upload is not attempted |
+| OCR-SUB-006 | Retry with same idempotency key | API must return the same job outcome without duplicate processing |
+| OCR-SUB-007 | Coroutine is cancelled | Cancellation propagates and is not converted into a retryable network error |
+
+Coordinator tests are authored but have not been executed. A concrete authenticated HTTPS gateway and server-side digest verification are still required before any upload can occur.
