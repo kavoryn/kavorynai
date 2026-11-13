@@ -23,6 +23,7 @@ $mock = function (string $url, array $headers, string $body) use ($text): array 
     geminiExpect(($request['response_format']['mime_type'] ?? null) === 'application/json', 'JSON output format is required.');
     geminiExpect(str_contains($request['system_instruction'] ?? '', 'Hausa'), 'Requested language must be explicit.');
     geminiExpect(str_contains($request['input'] ?? '', $text), 'OCR source text is missing.');
+    geminiExpect(str_contains($request['input'] ?? '', 'low_confidence'), 'OCR uncertainty metadata was not included.');
     $result = [
         'summary' => 'Wannan wasiƙa ce.',
         'detailed_explanation' => 'Adadin da aka rubuta shi ne NGN 42,500.',
@@ -43,7 +44,12 @@ $mock = function (string $url, array $headers, string $body) use ($text): array 
 };
 
 $result = (new GeminiDocumentExplainer('test-gemini-key', 'gemini-3.6-flash', $mock))
-    ->explain(new OcrResult($text, [], 'en'), 'ha');
+    ->explain(new OcrResult($text, [[
+        'start' => strpos($text, '42,500'),
+        'end' => strpos($text, '42,500') + strlen('42,500'),
+        'confidence' => 0.45,
+        'reason' => 'low_confidence',
+    ]], 'en'), 'ha');
 geminiExpect($result['key_facts'][0]['source_quote'] === 'Amount: NGN 42,500', 'Exact source quote was not retained.');
 
 $badQuote = function (string $url, array $headers, string $body): array {
