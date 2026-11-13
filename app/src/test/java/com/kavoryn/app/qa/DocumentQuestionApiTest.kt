@@ -25,6 +25,18 @@ class DocumentQuestionApiTest {
         assertTrue(parsed.sourceExcerpts.isEmpty())
     }
 
+    @Test
+    fun rejectsAnswerForAnotherDocument() {
+        val documentId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12"
+        val body = """{"document_id":"b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12","answer":"Answer","source_excerpts":[]}"""
+        try {
+            parseDocumentQuestionAnswer(body, documentId)
+            throw AssertionError("A response for another document must be rejected.")
+        } catch (_: IllegalArgumentException) {
+            // Expected: response document ID must match the requested document.
+        }
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun rejectsEmptyAnswer() {
         parseDocumentQuestionAnswer("""{"answer":" ","source_excerpts":[]}""")
