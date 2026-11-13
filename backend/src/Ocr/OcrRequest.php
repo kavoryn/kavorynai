@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Kavoryn\Ocr;
 
+use Closure;
+
 final readonly class OcrRequest
 {
     public function __construct(
         public string $filePath,
         public string $mimeType,
         public string $language,
+        public ?Closure $heartbeat = null,
     ) {
         if ($filePath === '' || !is_file($filePath) || !is_readable($filePath)) {
             throw new \InvalidArgumentException('The OCR input file must exist and be readable.');
