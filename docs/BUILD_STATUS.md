@@ -4,39 +4,59 @@ Last updated: 2026-11-13
 
 ## Repository baseline
 
-- Product requirements from Project Plan v3.1 transcribed into `docs/PRODUCT_REQUIREMENTS_V3.1.md`.
-- Stage A architecture proposal recorded in `docs/ARCHITECTURE_DECISIONS.md`.
-- Draft API contract recorded in `docs/STAGE_A_API_CONTRACT.md`.
-- Stage A verification plan recorded in `docs/STAGE_A_TEST_PLAN.md`.
-- Native Android Compose project skeleton added under `android/`.
-- PHP 8.2 API skeleton and minimal liveness endpoint added under `backend/`.
+- Product requirements from Kavoryn Project Plan v3.1 are transcribed into `docs/PRODUCT_REQUIREMENTS_V3.1.md`.
+- Stage A architecture, API contract, local intake design and test plan are recorded under `docs/`.
+- Native Android Kotlin + Jetpack Compose app lives in `app/`.
+- PHP API foundation and provider adapters live under `backend/`.
+- Supabase project is used for private OCR jobs, encrypted OCR results and consent audit records.
 
-## What is implemented
+## Implemented foundations
 
-- Repository and documentation baseline.
-- Android app module configuration and first Home screen shell.
-- PHP API entry point with a minimal health route and safe generic 404 response.
-- No external providers or privileged credentials are configured.
+### Android
 
-## What is not implemented
+- Camera capture to app-private cache, document picker for PDF/JPEG/PNG/WebP, local metadata and structure checks, image rotation, bounded preview, and stale temporary scan cleanup.
+- Local review-before-process screen. Confirming this screen is still local-only; it does not itself upload a document.
+- Provider-neutral OCR contracts for English, Hausa, Arabic and French, including per-page text, uncertainty spans, confidence and geometry validation.
+- Consent-before-upload coordinator and authenticated HTTPS gateway for `POST /v1/consents` and multipart `POST /v1/documents`. Upload streams data and uses idempotency keys.
+- Authenticated HTTPS client for completed OCR results, Unicode code-point to UTF-16 uncertainty range conversion, and an accessible OCR text review screen.
+- AI processing consent dialog with OpenAI/Gemini and language selection, plus authenticated explanation API client.
+- Android CI runs unit tests before assembling the debug APK.
 
-- No document picker, camera capture, upload, OCR, AI explanation, TTS, document Q&A, or delete workflow.
-- No authentication or consent token implementation.
-- No PHP database integration, queue, temporary file lifecycle, provider adapters, or rate limiting.
-- No Android Gradle wrapper or CI build evidence yet.
-- No automated tests have been run in this workspace.
-- No deployment has been made.
+### Backend
+
+- PHP authentication/consent, secure upload and OCR processing foundations.
+- Google Cloud Vision adapter supports English, Arabic, French and Hausa; uncertainty metadata is retained.
+- OCR results are encrypted at rest and read only through an owner-authenticated endpoint.
+- Private OCR queue, bounded worker leases/retries, cleanup schedule and short-lived result retention are implemented.
+- OpenAI and Gemini explanation adapters are selected explicitly; no silent provider fallback.
+- `POST /v1/documents/{document_id}/explain` requires authenticated, document-specific AI processing consent and records the consent audit before external processing.
+- Feature flags for document upload and OCR worker remain disabled pending staging verification.
+
+## Verified build evidence
+
+- Android workflow run [43475701090](https://github.com/kavoryn/kavorynai/actions/runs/43475701090) completed successfully on commit `8b9bdaf96e58d8fdfefd8acff8835ba07b8035d1`; unit tests and debug APK assembly passed.
+- Latest workflow [43475751689](https://github.com/kavoryn/kavorynai/actions/runs/43475751689), commit `7279de5f9b5fd4967166beea079838c37ab5c5c2`: unit tests and debug APK assembly steps both reported success; workflow finalization was still in progress at the last status check.
+
+A successful CI build is not a staging or device acceptance test.
+
+## Not yet complete / release blockers
+
+- Android sign-in/session lifecycle is not wired into the app. Supabase client configuration (publishable key) must be supplied through safe build configuration; never place a service-role key in Android.
+- Staging API base URL and staging credentials have not been supplied, so authenticated end-to-end staging tests have not run.
+- The local review screen is not yet connected to authenticated upload, OCR completion polling, OCR result display, AI explanation consent/API, and result actions.
+- Text-to-speech, document-grounded Q&A, Share and Delete controls are not yet connected end-to-end in the Android result flow.
+- OCR quality, Hausa special-character accuracy, multi-page provider behavior, and key-detail grounding still require a fixed permissioned/synthetic corpus and measured results.
+- TalkBack, low-vision, large-text, contrast, reduced-motion and low-RAM real-device acceptance tests remain outstanding.
+- No production deployment is authorized or claimed. Do not modify the separate Kavorynai website/domain as part of this app work.
 
 ## Next engineering milestones
 
-1. Add Android Gradle wrapper and establish a reproducible build; compile and run the app on emulator/device.
-2. Implement accessible document intake and local review UI; verify cancel-before-send.
-3. Implement backend auth and one-time consent grants, with unit/security tests.
-4. Prove PHP hosting supports secure temporary upload, background processing, cleanup and required limits.
-5. Select database and OCR/AI/TTS providers only after documented comparisons on the fixed Hausa/Arabic corpus.
-6. Implement upload/job/result/delete APIs and provider adapters.
-7. Connect Android to the API and pass the Stage A acceptance gates.
+1. Finish CI verification on the latest commit.
+2. Add secure Supabase sign-in/session handling using only client-safe configuration.
+3. Connect Android review → consent → upload → OCR result → AI explanation, with cancel/delete and explicit consent behavior.
+4. Configure and test a staging environment, then verify ownership isolation, expiry/deletion, retries, provider consent, OpenAI and Gemini.
+5. Complete accessibility and multilingual corpus testing before enabling upload/worker flags or any public release.
 
 ## Release discipline
 
-Do not mark a feature complete based on a scaffold or mock. Do not connect production domain or credentials until preview builds and tests pass. Keep the existing unrelated Vercel project and production domain unchanged.
+A feature is complete only after implementation and its relevant security, privacy, accuracy and accessibility tests pass. Keep upload and OCR worker flags disabled until staging gates pass. Never expose provider keys or privileged database credentials in Android or source control. Keep the existing unrelated production website unchanged.
