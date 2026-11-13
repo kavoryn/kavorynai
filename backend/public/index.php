@@ -333,7 +333,7 @@ if ($method === 'POST' && $path === '/v1/documents') {
         );
     } catch (\Kavoryn\Upload\DocumentFileException $error) {
         $status = in_array($error->errorCode, ['file_too_large'], true) ? 413 : 422;
-        if (in_array($error->errorCode, ['storage_unavailable', 'storage_not_configured', 'server_configuration_error'], true)) {
+        if (in_array($error->errorCode, ['storage_unavailable', 'storage_not_configured', 'storage_permissions_failed', 'storage_write_failed', 'unsafe_storage_path', 'server_configuration_error'], true)) {
             $status = 503;
         }
         respond($status, [
