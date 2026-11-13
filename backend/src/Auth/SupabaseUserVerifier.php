@@ -40,25 +40,32 @@ final class SupabaseUserVerifier
                 ? ($this->http)($url, $headers)
                 : $this->sendRequest($url, $headers);
         } catch (\Throwable) {
-            throw new AuthenticationException();
+            throw new AuthenticationServiceUnavailableException();
         }
 
-        if (!is_array($response) ||
-            ($response['status'] ?? 0) !== 200 ||
+        if (!is_array($response) || !is_int($response['status'] ?? null) ||
             !is_string($response['body'] ?? null)) {
+            throw new AuthenticationServiceUnavailableException();
+        }
+
+        if ($response['status'] >= 500 || $response['status'] === 0) {
+            throw new AuthenticationServiceUnavailableException();
+        }
+
+        if ($response['status'] !== 200) {
             throw new AuthenticationException();
         }
 
         try {
             $user = json_decode($response['body'], true, 16, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
-            throw new AuthenticationException();
+            throw new AuthenticationServiceUnavailableException();
         }
 
         $id = is_array($user) ? ($user['id'] ?? null) : null;
         if (!is_string($id) ||
             !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $id)) {
-            throw new AuthenticationException();
+            throw new AuthenticationServiceUnavailableException();
         }
 
         $email = is_array($user) && is_string($user['email'] ?? null)
