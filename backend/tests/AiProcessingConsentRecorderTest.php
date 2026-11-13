@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/Ai/SupabaseAiProcessingConsentRecorder.php';
 
-use Kavoryn\\Ai\\AiConsentStorageUnavailableException;
-use Kavoryn\\Ai\\SupabaseAiProcessingConsentRecorder;
+use Kavoryn\Ai\AiConsentStorageUnavailableException;
+use Kavoryn\Ai\SupabaseAiProcessingConsentRecorder;
 
 function aiConsentExpect(bool $ok, string $message): void {
     if (!$ok) { fwrite(STDERR, $message . PHP_EOL); exit(1); }
