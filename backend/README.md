@@ -43,6 +43,22 @@ curl -i http://127.0.0.1:8080/v1/me
 
 Without server-side Supabase configuration, `/v1/me` must fail closed with HTTP 503. To test a real signed-in user, configure the Auth variables and send a current Supabase user access token. `POST /v1/consents` additionally requires the server-only database keys and an authenticated JSON request containing `action`, `payload_sha256`, `language`, `translate`, and `confirmed: true`.
 
+## Secure upload request
+
+The route expects `multipart/form-data` with a `file`, `consent_token`, `output_language` (`en`, `ha`, `ar`, or `fr`), and `translate` (`true` or `false`). Send the retry key as an `Idempotency-Key` header:
+
+```sh
+curl -X POST "$API_BASE_URL/v1/documents" \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  -H "Idempotency-Key: $UPLOAD_IDEMPOTENCY_KEY" \
+  -F "file=@document.pdf" \
+  -F "consent_token=$CONSENT_TOKEN" \
+  -F "output_language=ha" \
+  -F "translate=false"
+```
+
+The endpoint returns `201` and status `uploaded`; it does not yet enqueue OCR. A definite consent or idempotency conflict returns `409`. A transient registry failure returns `503`; retry using the same idempotency key. The feature flag remains off until the host release gates are complete.
+
 ## Security and deployment boundaries
 
 - Point the web server document root to `backend/public`, never the repository root.
