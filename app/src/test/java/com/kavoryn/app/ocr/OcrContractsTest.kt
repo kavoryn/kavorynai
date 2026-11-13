@@ -90,6 +90,25 @@ class OcrContractsTest {
         assertEquals("First\n\nSecond", result.fullText)
     }
 
+
+    @Test
+    fun phaseOneLanguageSamplesKeepTheirOriginalUnicodeText() {
+        val samples = mapOf(
+            OcrLanguage.ENGLISH to "Please read this document carefully.",
+            OcrLanguage.HAUSA to "Ƙarɓi: ɗalibi ya sayi ƙwai da ɓawon lemu.",
+            OcrLanguage.ARABIC to "يرجى قراءة هذه الوثيقة بعناية",
+            OcrLanguage.FRENCH to "Veuillez lire attentivement ce document."
+        )
+        samples.forEach { (language, text) ->
+            val result = OcrDocumentResult(
+                language,
+                listOf(OcrPageResult(1, text)),
+                "fixture"
+            )
+            assertEquals(text, result.fullText)
+        }
+    }
+
     @Test
     fun emptyDocumentResultIsRejected() {
         val result = OcrDocumentResult(OcrLanguage.ENGLISH, emptyList(), "test")
