@@ -20,7 +20,7 @@ The consent endpoint does not accept a user ID from the client. Consent does not
 - `SupabaseConsentStore`: server-only persistence adapter. It sends the new Supabase secret API key in `apikey` and the legacy `service_role` JWT in the Authorization bearer. The new `sb_secret` API key is not a JWT and must not be used as a bearer token.
 - `POST /v1/consents`: authenticated JSON endpoint. It derives the user ID from verified Supabase Auth, requires explicit boolean confirmation, validates request shape, and returns the opaque token once.
 - `ConsentStore`: persistence contract. Consumption is delegated to a single atomic database function.
-- Tests: service unit tests, Supabase adapter HTTP-contract tests, and CI syntax/smoke checks.
+- Tests: service unit tests, Supabase adapter HTTP-contract tests, database invalid-parameter rejection check, and CI syntax/smoke checks.
 
 The endpoint requires server environment variables:
 - `SUPABASE_URL`
@@ -33,7 +33,7 @@ Never commit or expose the secret key or service-role JWT to Android, public sou
 
 ## Database migration applied
 
-Supabase project `nncrkjvldpeisyquulic` now has migration `20261113142411_secure_single_use_document_consents` applied.
+Supabase project `nncrkjvldpeisyquulic` now has the consent schema and RPC migrations applied: `20261113142411_secure_single_use_document_consents`, `20261113142434_allow_provider_selection_before_consent`, `20261113142706_lock_down_signup_trigger_function`, `20261113142849_create_processing_consent_with_db_clock`, and `20261113142952_validate_all_consent_creation_parameters`.
 
 The `public.processing_consents` table now includes:
 - `action` (restricted to `document.process`)
@@ -44,7 +44,7 @@ The `public.processing_consents` table now includes:
 
 A unique index protects `confirmation_token_hash`. The old client SELECT policy was removed; RLS remains enabled. Table privileges were revoked from `public`, `anon`, and `authenticated`, and granted to `service_role` only.
 
-The migration adds `public.consume_processing_consent(...)`, a SECURITY INVOKER SQL function that atomically updates a matching row only if owner, action, digest, language, translation setting, expiry, revocation state, and unused state all match. Execute is revoked from `public`, `anon`, and `authenticated`, and granted to `service_role` only. The function uses the database clock as the source of truth.
+The migrations add `public.create_processing_consent(...)` and `public.consume_processing_consent(...)`, both SECURITY INVOKER functions. Creation validates all required parameters and calculates consent/expiry timestamps using the database clock. Consumption atomically updates a matching row only if owner, action, digest, language, translation setting, expiry, revocation state, and unused state all match. Execute is revoked from `public`, `anon`, and `authenticated`, and granted to `service_role` only. The database clock is authoritative for expiry.
 
 A second migration, `20261113142434_allow_provider_selection_before_consent`, makes `provider_name` nullable because provider selection may happen after the user gives processing consent.
 
