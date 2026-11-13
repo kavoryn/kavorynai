@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Ai;
+namespace Kavoryn\Ai;
 
 /**
  * Incremental decoder for server-sent events.
@@ -22,7 +22,7 @@ final class SseEventDecoder
     public function __construct(private readonly int $maxEventBytes = 65536)
     {
         if ($maxEventBytes < 1 || $maxEventBytes > 1048576) {
-            throw new \\InvalidArgumentException('The SSE event size limit is invalid.');
+            throw new \InvalidArgumentException('The SSE event size limit is invalid.');
         }
     }
 
@@ -35,20 +35,20 @@ final class SseEventDecoder
         $events = [];
 
         while (true) {
-            $lineLength = strcspn($this->buffer, "\\r\\n");
+            $lineLength = strcspn($this->buffer, "\r\n");
             if ($lineLength === strlen($this->buffer)) {
                 break;
             }
 
             $delimiter = $this->buffer[$lineLength];
             // A CR at the end of a chunk may be the first half of CRLF.
-            if ($delimiter === "\\r" && $lineLength === strlen($this->buffer) - 1) {
+            if ($delimiter === "\r" && $lineLength === strlen($this->buffer) - 1) {
                 break;
             }
 
             $line = substr($this->buffer, 0, $lineLength);
             $consumed = $lineLength + 1;
-            if ($delimiter === "\\r" && ($this->buffer[$consumed] ?? null) === "\\n") {
+            if ($delimiter === "\r" && ($this->buffer[$consumed] ?? null) === "\n") {
                 $consumed++;
             }
             $this->buffer = substr($this->buffer, $consumed);
@@ -60,7 +60,7 @@ final class SseEventDecoder
         }
 
         if (strlen($this->buffer) > $this->maxEventBytes) {
-            throw new \\LengthException('The SSE line exceeds the configured size limit.');
+            throw new \LengthException('The SSE line exceeds the configured size limit.');
         }
 
         return $events;
@@ -104,7 +104,7 @@ final class SseEventDecoder
 
             $event = [
                 'event' => $this->eventType !== '' ? $this->eventType : 'message',
-                'data' => implode("\\n", $this->dataLines),
+                'data' => implode("\n", $this->dataLines),
                 'id' => $this->lastEventId,
             ];
             $this->dataLines = [];
@@ -119,7 +119,7 @@ final class SseEventDecoder
 
         $this->eventBytes += strlen($line) + 1;
         if ($this->eventBytes > $this->maxEventBytes) {
-            throw new \\LengthException('The SSE event exceeds the configured size limit.');
+            throw new \LengthException('The SSE event exceeds the configured size limit.');
         }
 
         $separator = strpos($line, ':');
@@ -142,7 +142,7 @@ final class SseEventDecoder
                 $this->eventType = $value;
                 break;
             case 'id':
-                if (!str_contains($value, "\\0")) {
+                if (!str_contains($value, "\0")) {
                     $this->lastEventId = $value;
                 }
                 break;
