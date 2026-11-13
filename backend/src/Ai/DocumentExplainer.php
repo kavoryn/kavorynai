@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Ai;
+namespace Kavoryn\Ai;
 
-use Kavoryn\\Ocr\\OcrResult;
+use Kavoryn\Ocr\OcrResult;
 
 interface DocumentExplainer
 {
