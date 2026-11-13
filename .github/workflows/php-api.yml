@@ -70,6 +70,9 @@ jobs:
       - name: Google Cloud Vision OCR provider tests
         run: php backend/tests/GoogleCloudVisionOcrProviderTest.php
 
+      - name: OpenAI document explainer tests
+        run: php backend/tests/OpenAiDocumentExplainerTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
