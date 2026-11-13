@@ -1,27 +1,16 @@
 # Android review-to-OCR upload flow
 
-## Current boundary
+## Implemented interaction sequence
 
-The repository contains these building blocks:
-- a local-only document review screen;
-- an authenticated, HTTPS-only consent and multipart upload gateway;
-- a coordinator that computes a streaming SHA-256 fingerprint, obtains a short-lived consent grant, and uploads only after explicit confirmation;
-- an authenticated OCR result reader and accessible result screen.
-
-The `DocumentProcessingConsentDialog` provides a separate, explicit user decision for OCR upload. It is intentionally distinct from `AiProcessingConsentDialog`, which authorizes sending extracted OCR text to OpenAI or Gemini for explanation.
-
-These components are not yet connected into a complete end-to-end review → upload → OCR result flow.
-
-## Required interaction sequence
-
-1. User selects one or more documents and reviews the local metadata/quality checks.
-2. The app requires an active Supabase user session.
-3. The app shows the OCR upload consent dialog, naming the number of documents and selected output language.
-4. Only the explicit consent callback may invoke `OcrSubmissionCoordinator.submit(..., userConfirmedExternalProcessing = true)`.
-5. The coordinator obtains a short-lived consent grant using the document SHA-256, then streams the file to the authenticated upload endpoint with an idempotency key.
-6. The app retains the returned document ID and polls the owner-authenticated OCR result endpoint with bounded backoff and a maximum wait.
-7. The completed OCR result is shown in `OcrResultScreen`; uncertain spans remain visible and unchanged.
-8. A separate AI explanation consent dialog is required before calling the OpenAI/Gemini explanation endpoint.
+1. User selects a document and reviews local metadata and quality checks.
+2. The app requires an active Supabase user session before upload.
+3. With a verified HTTPS API origin configured, the app presents a separate OCR upload consent dialog naming the document count and output language.
+4. Only the explicit consent callback starts the authenticated submission coordinator.
+5. The coordinator requests a short-lived consent grant using the document SHA-256, then streams the file to the upload endpoint with an idempotency key.
+6. The app retains the returned document ID and polls the owner-authenticated OCR result endpoint.
+7. Polling is bounded to 30 attempts at two-second intervals. Only HTTP 404 is treated as “not ready”; authentication, ownership, validation, and server failures stop immediately.
+8. The completed OCR result is validated and shown in the accessible result screen. Uncertain spans are preserved.
+9. A separate AI explanation consent dialog is required before calling the selected OpenAI or Gemini explanation endpoint.
 
 ## API origin configuration
 
@@ -29,35 +18,25 @@ These components are not yet connected into a complete end-to-end review → upl
 - Keep it blank until a verified HTTPS staging API origin is supplied. Do not use `kavorynai.com.ng`; that domain is the separate public website, not a confirmed API host.
 - Never put provider keys, Supabase secret keys, or service-role credentials in this value or the Android build.
 
-## Release and privacy gates
+## Cancellation and privacy boundaries
 
-- Do not infer OCR consent from sign-in, file selection, or the local review confirmation.
-- Never upload before the user checks the explicit consent control and taps Agree and upload.
-- Keep upload and OCR worker feature flags disabled until staging acceptance tests pass.
-- The Kavorynai website domain is not the staging API URL. Do not substitute it.
-- Keep the API base URL unset until the user supplies the staging API endpoint at the final integration stage.
-- Never put Supabase service-role, Google Vision, OpenAI, or Gemini secrets in the Android app.
-- Cancellation must stop the client request where possible, discard temporary local copies, and must not claim remote deletion unless the API confirms it.
-- Treat timeout or lost upload responses as ambiguous; retry only with the same idempotency key.
-- Do not start AI explanation automatically after OCR; require its separate provider-specific consent.
+- Selecting a file or reviewing it does not grant OCR or AI consent.
+- The OCR consent checkbox and explicit confirmation must be completed before any upload request.
+- AI explanation is a separate external-processing step and is never started automatically after OCR.
+- “Stop waiting” cancels the client coroutine. It does not claim that an upload already accepted by the server has been deleted or that server processing has stopped.
+- Timeout or a lost upload response can be ambiguous; any retry of the same logical submission must reuse the same idempotency key.
+- The app does not send privileged credentials to the Android client.
 
-## Acceptance tests before enabling the flow
+## Automated coverage
 
-- No session: upload is blocked and the user is directed to sign in.
-- Consent unchecked or dialog cancelled: no consent API request and no file bytes leave the device.
-- Consent accepted: consent grant is requested before multipart upload.
-- Consent endpoint rejection: upload is not attempted.
-- Upload retry: same idempotency key is reused for the same logical submission.
-- Expired/rejected session: no retry with stale credentials; preserve local document and request sign-in.
-- Network timeout: show a safe retry state without exposing tokens, paths, or provider errors.
-- OCR pending: bounded polling with backoff; never busy-loop.
-- OCR complete: validate document ID and payload, then display original text and uncertain spans.
-- Ownership mismatch, malformed response, or oversized response: fail closed.
-- User declines AI explanation: OCR text remains available locally without external AI processing.
+- Unit tests verify bounded retry after HTTP 404, successful completion after a pending response, immediate failure on non-404 errors, and rejection of invalid polling bounds.
+- Existing OCR result tests verify Unicode code-point to UTF-16 uncertainty-span conversion, including emoji and Arabic text.
+- Android CI runs unit tests, assembles a debug APK, and runs the configured Keystore instrumentation tests.
 
-## Current implementation status
+## Remaining acceptance gates
 
-- Explicit OCR upload consent dialog: implemented in this branch.
-- Consent coordinator and authenticated gateway: existing foundations in the repository.
-- Review screen wiring, authenticated upload invocation, bounded OCR polling, cancellation/deletion UX, and end-to-end tests: still outstanding.
-- Staging API URL and credentials: deliberately deferred to the final integration step.
+- Supply a verified HTTPS staging API origin and staging test accounts before authenticated end-to-end tests.
+- Verify owner isolation, consent rejection, idempotent retry, expiry/deletion, OCR worker completion, and OpenAI/Gemini consent on staging.
+- Exercise cancellation and ambiguous network outcomes against the staging server.
+- Complete TalkBack, large-text, contrast, reduced-motion, Hausa special-character, and low-RAM real-device testing.
+- Keep upload, OCR worker, and Q&A feature flags disabled until these gates pass.
