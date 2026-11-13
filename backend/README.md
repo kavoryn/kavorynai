@@ -49,7 +49,7 @@ Without server-side Supabase configuration, `/v1/me` must fail closed with HTTP 
 - Require HTTPS before accepting credentials or document data.
 - The health route is liveness only; it must not expose database or provider status.
 - Do not accept user IDs supplied by clients as proof of identity.
-- This endpoint verifies identity only. It does not yet implement roles, account recovery, phone/email ownership policy, rate limiting, session revocation checks, or account creation UX.
+- The identity endpoint verifies the current user session only. Role authorization, account recovery, phone/email ownership policy, rate limiting, session revocation checks, and account creation UX remain outstanding.
 - Do not enable document upload until consent verification, file signature/MIME validation, quotas, temporary-file cleanup, and privacy tests are implemented.
 
 ## Current status
