@@ -17,6 +17,7 @@ Kavoryn is an accessibility-first application that helps people read, understand
 - The Android home/review flow includes a selectable output language for English, Hausa, Arabic and French.
 - A reusable AI explanation consent dialog lets the user choose OpenAI or Gemini and an output language, and disables confirmation until explicit consent is checked.
 - An authenticated Android API client now calls `POST /v1/documents/{document_id}/explain` over HTTPS with the user's bearer token, explicit provider/language consent payload, bounded response size and sanitized errors. The UI is not yet connected to this client because Android sign-in, upload/OCR completion and document-ID state are not yet integrated end-to-end.
+- An authenticated Android OCR result reader now calls `GET /v1/documents/{document_id}/result` over HTTPS, validates the returned document reference and bounded payload, and converts server Unicode code-point uncertainty offsets to Android UTF-16 ranges safely. Result display and end-to-end sign-in/session wiring remain outstanding.
 
 ## Non-negotiable requirements
 
