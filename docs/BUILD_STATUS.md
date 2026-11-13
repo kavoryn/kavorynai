@@ -23,8 +23,8 @@ Last updated: 2026-11-13
 - Supabase Auth REST client supports password sign-in, refresh-token exchange and sign-out over HTTPS using an injected client publishable key.
 - Supabase access/refresh tokens can be stored using AES-256-GCM encryption backed by an Android Keystore key; corrupt or undecryptable session data is cleared.
 - Supabase sign-in and email/password registration are wired into the main Compose activity. Registration supports both immediate sessions and email-confirmation-required projects. Successful authentication persists the session in Android Keystore-backed encrypted storage; startup restores the session and refreshes it when near expiry; sign-out revokes remotely when possible and always clears the local session. Network and keystore operations run on `Dispatchers.IO`.
-- Local document selection/review remains available without an account. Registration and proactive background refresh scheduling are not implemented.
-- Unit tests cover Supabase project URL validation and auth-session parsing.
+- Local document selection/review remains available without an account. Registration is implemented; proactive refresh scheduling and session-expiry UX remain outstanding.
+- Unit tests cover Supabase project URL validation, auth-session parsing, refresh-failure policy and registration response handling.
 - Android CI runs unit tests before assembling the debug APK.
 
 ### Backend
@@ -38,6 +38,8 @@ Last updated: 2026-11-13
 - Feature flags for document upload and OCR worker remain disabled pending staging verification.
 
 ## Verified build evidence
+
+- Android workflow [43482418795](https://github.com/kavoryn/kavorynai/actions/runs/43482418795) completed successfully for the Supabase registration PR; unit tests and debug APK assembly passed.
 
 - Android workflow [43479920282](https://github.com/kavoryn/kavorynai/actions/runs/43479920282) completed successfully on the Supabase Auth foundation; unit tests and debug APK assembly passed.
 - Earlier Android workflows [43475751689](https://github.com/kavoryn/kavorynai/actions/runs/43475751689) and [43476229668](https://github.com/kavoryn/kavorynai/actions/runs/43476229668) also passed their respective commits.
@@ -57,8 +59,7 @@ A successful CI build is not a staging or device acceptance test.
 
 ## Next engineering milestones
 
-1. Run CI for the integrated Supabase sign-in/session flow and resolve any failures.
-2. Add proactive refresh/session-expiry handling with device-level secure-storage tests.
+1. Add proactive refresh/session-expiry handling with device-level secure-storage tests.
 3. Connect Android review → consent → upload → OCR result → AI explanation, with cancel/delete and explicit consent behavior.
 4. Configure and test a staging environment, then verify ownership isolation, expiry/deletion, retries, provider consent, OpenAI and Gemini.
 5. Complete accessibility and multilingual corpus testing before enabling upload/worker flags or any public release.
