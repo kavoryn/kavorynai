@@ -36,6 +36,7 @@ fun SupabaseSignInScreen(
     loading: Boolean,
     errorMessage: String?,
     onSignIn: (email: String, password: String) -> Unit,
+    onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var email by remember { mutableStateOf("") }
@@ -104,6 +105,11 @@ fun SupabaseSignInScreen(
             }
         }
         Spacer(Modifier.weight(1f))
+        androidx.compose.material3.TextButton(
+            onClick = onCancel,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !loading
+        ) { Text("Back") }
         Text(
             "Your password is sent only to Supabase Auth over HTTPS. Kavoryn does not store your password.",
             style = MaterialTheme.typography.bodySmall
