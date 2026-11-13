@@ -13,5 +13,6 @@ final readonly class InspectedDocument
         public string $sha256,
         public ?int $width = null,
         public ?int $height = null,
+        public ?int $pageCount = null,
     ) {}
 }
