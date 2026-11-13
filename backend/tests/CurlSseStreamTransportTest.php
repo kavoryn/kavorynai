@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/Ai/ProviderSseEventMapper.php';
 require_once dirname(__DIR__) . '/src/Ai/ProviderStreamException.php';
+require_once dirname(__DIR__) . '/src/Ai/ProviderStreamRequest.php';
+require_once dirname(__DIR__) . '/src/Ai/ProviderStreamTransport.php';
 require_once dirname(__DIR__) . '/src/Ai/SseEventDecoder.php';
 require_once dirname(__DIR__) . '/src/Ai/CurlSseStreamTransport.php';
 
