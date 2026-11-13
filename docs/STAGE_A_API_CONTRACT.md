@@ -1,6 +1,6 @@
 # Stage A — Document API contract (draft)
 
-Status: consent, secure upload, OCR queue/worker foundation, and temporary OCR result retrieval are implemented in code; provider accuracy and host staging remain open  
+Status: consent, secure upload, OCR queue/worker foundation, temporary OCR result retrieval, provider-specific AI consent audit, and document explanation endpoint are implemented in code; Android end-to-end wiring, provider accuracy and host staging remain open  
 Version: 0.2  
 All endpoints require HTTPS. Exact auth mechanism, API base URL, upload caps and job transport remain deployment decisions.
 
@@ -108,7 +108,42 @@ Implemented for the authenticated owner. It returns the temporary original OCR t
   "request_id": "<opaque-id>"
 }
 
-The backend checks the authenticated owner, decrypts the stored payload, verifies its keyed HMAC and metadata, and returns `Cache-Control: no-store`. Results expire with the source document after one hour. Summary, Detailed, What to do, key details and document-grounded Q&A remain separate future work. Never present inferred or missing details as facts.
+The backend checks the authenticated owner, decrypts the stored payload, verifies its keyed HMAC and metadata, and returns `Cache-Control: no-store`. Results expire with the source document after one hour. The separate explanation endpoint below consumes the OCR result only after provider-specific AI consent. Document-grounded Q&A and TTS remain future work. Never present inferred or missing details as facts.
+
+
+### POST /v1/documents/{document_id}/explain
+
+Implemented in the PHP API. Requires a valid user access token and a completed, unexpired OCR result owned by that user. The client must show the provider-specific "What happens next" notice and collect explicit confirmation before calling this endpoint.
+
+Request:
+{
+  "confirmed": true,
+  "provider": "openai|gemini",
+  "language": "en|ha|ar|fr"
+}
+
+The backend:
+- validates the provider and output language;
+- reads and decrypts only the authenticated user's completed OCR result;
+- records provider-specific consent in the private audit table before sending OCR text to the selected external AI provider;
+- uses the selected provider only; it does not silently fall back to another provider;
+- does not persist the generated explanation.
+
+200:
+{
+  "document_id": "<opaque-id>",
+  "provider": "openai|gemini",
+  "language": "en|ha|ar|fr",
+  "summary": "...",
+  "detailed_explanation": "...",
+  "actions": ["..."],
+  "key_facts": [
+    {"label": "...", "value": "...", "source_quote": "..."}
+  ],
+  "request_id": "<opaque-id>"
+}
+
+The explanation is AI-generated and must be checked against the original OCR text. Critical names, dates and amounts must not be invented. The Android consent dialog and authenticated API client exist, but they are not yet wired into the signed-in document flow. Provider accuracy and staging verification remain release blockers.
 
 ### POST /v1/documents/{document_id}/questions
 Document-grounded Q&A only. The answer must cite relevant OCR snippets/spans internally or in UI. If the answer is not supported by the document, respond that the document does not provide enough information.
