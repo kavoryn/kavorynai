@@ -107,9 +107,6 @@ final class PrivateDocumentStorage
             }
             $createdDirectory = true;
         }
-        if (!@chmod($this->storagePath, 0700)) {
-            throw new DocumentFileException('storage_permissions_failed', 'Private storage permissions could not be secured.');
-        }
         $root = realpath($this->storagePath);
         if ($root === false) {
             throw new DocumentFileException('storage_unavailable', 'Private document storage is unavailable.');
@@ -119,6 +116,11 @@ final class PrivateDocumentStorage
         if ($root === $public || str_starts_with($root . DIRECTORY_SEPARATOR, $publicPrefix)) {
             if ($createdDirectory) @rmdir($root);
             throw new DocumentFileException('unsafe_storage_path', 'Private storage must be outside the public web root.');
+        }
+
+        if (!@chmod($root, 0700)) {
+            if ($createdDirectory) @rmdir($root);
+            throw new DocumentFileException('storage_permissions_failed', 'Private storage permissions could not be secured.');
         }
 
         return $root;
