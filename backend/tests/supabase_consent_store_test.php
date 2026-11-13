@@ -67,7 +67,6 @@ storeExpect($storedRecord->expiresAt->getTimestamp() - $storedRecord->createdAt-
 storeExpect(($requests[0]['headers']['apikey'] ?? '') === 'sb_secret_test', 'New secret API key must be sent in apikey.');
 storeExpect(($requests[0]['headers']['Authorization'] ?? '') === 'Bearer service-role-jwt-test', 'Legacy service-role JWT must be used as bearer.');
 storeExpect(($insert['p_token_hash'] ?? null) === $record->tokenHash, 'Only the token hash must be sent to the database.');
-storeExpect(($requests[0]['headers']['Authorization'] ?? '') === 'Bearer service-role-jwt-test', 'Legacy service-role JWT must be used as bearer.');
 
 $consumed = $store->consumeOnce(
     $record->tokenHash,
