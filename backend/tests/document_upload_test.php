@@ -98,8 +98,29 @@ mkdir($public, 0700, true);
 mkdir($private, 0700, true);
 
 $pdfPath = $base . '/sample.pdf';
-$pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n";
+$pdf = "%PDF-1.4\n";
+$objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>',
+];
+$offsets = [0];
+foreach ($objects as $index => $object) {
+    $offsets[] = strlen($pdf);
+    $objectId = $index + 1;
+    $pdf .= $objectId . " 0 obj\n" . $object . "\nendobj\n";
+}
+$xrefOffset = strlen($pdf);
+$pdf .= "xref\n0 4\n0000000000 65535 f \n";
+foreach (array_slice($offsets, 1) as $offset) {
+    $pdf .= sprintf("%010d 00000 n \n", $offset);
+}
+$pdf .= "trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n" . $xrefOffset . "\n%%EOF\n";
 file_put_contents($pdfPath, $pdf);
+
+// Exercise the real Poppler binary in CI, not only a mocked process response.
+$realDocument = (new DocumentFileInspector())->inspect($pdfPath, 'sample.pdf');
+uploadExpect($realDocument->pageCount === 1, 'Real PDF inspection must count the page in a valid PDF.');
 
 $inspector = new DocumentFileInspector(
     static fn (string $path): array => ['exit_code' => 0, 'stdout' => "Pages:          2\nEncrypted:       no\n", 'stderr' => ''],
