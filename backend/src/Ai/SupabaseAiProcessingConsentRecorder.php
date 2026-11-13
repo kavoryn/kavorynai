@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Ai;
+namespace Kavoryn\Ai;
 
 final class SupabaseAiProcessingConsentRecorder
 {
@@ -14,7 +14,7 @@ final class SupabaseAiProcessingConsentRecorder
         private readonly mixed $http = null,
     ) {
         if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' || $secretKey === '' || $serviceRoleJwt === '') {
-            throw new \\InvalidArgumentException('AI consent storage is not configured.');
+            throw new \InvalidArgumentException('AI consent storage is not configured.');
         }
     }
 
@@ -22,11 +22,11 @@ final class SupabaseAiProcessingConsentRecorder
     {
         foreach ([$userId, $documentId] as $id) {
             if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $id)) {
-                throw new \\InvalidArgumentException('Invalid AI consent identity.');
+                throw new \InvalidArgumentException('Invalid AI consent identity.');
             }
         }
         if (!in_array($provider, ['openai', 'gemini'], true) || !in_array($language, ['en', 'ha', 'ar', 'fr'], true)) {
-            throw new \\InvalidArgumentException('Invalid AI consent selection.');
+            throw new \InvalidArgumentException('Invalid AI consent selection.');
         }
 
         $bytes = random_bytes(16);
@@ -79,7 +79,7 @@ final class SupabaseAiProcessingConsentRecorder
             }
         } catch (AiConsentStorageUnavailableException $error) {
             throw $error;
-        } catch (\\Throwable) {
+        } catch (\Throwable) {
             throw new AiConsentStorageUnavailableException();
         }
 
@@ -89,7 +89,7 @@ final class SupabaseAiProcessingConsentRecorder
         }
         try {
             $rows = json_decode($response['body'], true, 16, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException) {
+        } catch (\JsonException) {
             throw new AiConsentStorageUnavailableException();
         }
         if (!is_array($rows) || !is_array($rows[0] ?? null) ||
@@ -102,4 +102,4 @@ final class SupabaseAiProcessingConsentRecorder
     }
 }
 
-final class AiConsentStorageUnavailableException extends \\RuntimeException {}
+final class AiConsentStorageUnavailableException extends \RuntimeException {}
