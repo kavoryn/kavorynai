@@ -32,6 +32,7 @@ import com.kavoryn.app.speech.SpeechLanguage
 fun OcrResultScreen(
     result: DocumentOcrResult,
     onExplain: () -> Unit,
+    onAskQuestion: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val highlightedText = buildAnnotatedString {
@@ -115,6 +116,9 @@ fun OcrResultScreen(
         }
         Button(onClick = onExplain, modifier = Modifier.fillMaxWidth()) {
             Text("Explain this document")
+        }
+        Button(onClick = onAskQuestion, modifier = Modifier.fillMaxWidth()) {
+            Text("Ask a question about this document")
         }
     }
 }
