@@ -22,7 +22,7 @@ Last updated: 2026-11-13
 - AI processing consent dialog with OpenAI/Gemini and language selection, plus authenticated explanation API client.
 - Supabase Auth REST client supports password sign-in, refresh-token exchange and sign-out over HTTPS using an injected client publishable key.
 - Supabase access/refresh tokens can be stored using AES-256-GCM encryption backed by an Android Keystore key; corrupt or undecryptable session data is cleared.
-- Supabase sign-in is wired into the main Compose activity. Successful sign-in persists the session in Android Keystore-backed encrypted storage; startup restores the session and refreshes it when near expiry; sign-out revokes remotely when possible and always clears the local session. Network and keystore operations run on `Dispatchers.IO`.
+- Supabase sign-in and email/password registration are wired into the main Compose activity. Registration supports both immediate sessions and email-confirmation-required projects. Successful authentication persists the session in Android Keystore-backed encrypted storage; startup restores the session and refreshes it when near expiry; sign-out revokes remotely when possible and always clears the local session. Network and keystore operations run on `Dispatchers.IO`.
 - Local document selection/review remains available without an account. Registration and proactive background refresh scheduling are not implemented.
 - Unit tests cover Supabase project URL validation and auth-session parsing.
 - Android CI runs unit tests before assembling the debug APK.
@@ -47,7 +47,7 @@ A successful CI build is not a staging or device acceptance test.
 ## Not yet complete / release blockers
 
 - Supabase URL and publishable key are injected from Gradle properties or environment variables (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`); never place a service-role key in Android or source control.
-- Registration, proactive background token refresh scheduling, session-expiry UX and encrypted-store device tests remain outstanding.
+- Proactive background token refresh scheduling, session-expiry UX and encrypted-store device tests remain outstanding.
 - Staging API base URL and staging credentials have not been supplied, so authenticated end-to-end staging tests have not run.
 - The local review screen is not yet connected to authenticated upload, OCR completion polling, OCR result display, AI explanation consent/API, and result actions.
 - Text-to-speech, document-grounded Q&A, Share and Delete controls are not yet connected end-to-end in the Android result flow.
@@ -58,7 +58,7 @@ A successful CI build is not a staging or device acceptance test.
 ## Next engineering milestones
 
 1. Run CI for the integrated Supabase sign-in/session flow and resolve any failures.
-2. Add registration and proactive refresh/session-expiry handling with device-level secure-storage tests.
+2. Add proactive refresh/session-expiry handling with device-level secure-storage tests.
 3. Connect Android review → consent → upload → OCR result → AI explanation, with cancel/delete and explicit consent behavior.
 4. Configure and test a staging environment, then verify ownership isolation, expiry/deletion, retries, provider consent, OpenAI and Gemini.
 5. Complete accessibility and multilingual corpus testing before enabling upload/worker flags or any public release.
