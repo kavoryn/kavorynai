@@ -15,7 +15,8 @@ Kavoryn is an accessibility-first application that helps people read, understand
 - OCR provider selection is intentionally open. See `docs/OCR_PROVIDER_EVALUATION.md` for the multilingual corpus and comparison gate.
 - A consent-gated OCR submission coordinator now streams SHA-256, requests a short-lived consent grant, and only then streams the document to an injected API gateway. No concrete network gateway/provider is connected yet.
 - The Android home/review flow includes a selectable output language for English, Hausa, Arabic and French.
-- A reusable AI explanation consent dialog now lets the user choose OpenAI or Gemini and an output language, and disables confirmation until explicit consent is checked. It is intentionally not wired to a network call yet: the authenticated OCR-complete document flow and provider request callback must be connected first.
+- A reusable AI explanation consent dialog lets the user choose OpenAI or Gemini and an output language, and disables confirmation until explicit consent is checked.
+- An authenticated Android API client now calls `POST /v1/documents/{document_id}/explain` over HTTPS with the user's bearer token, explicit provider/language consent payload, bounded response size and sanitized errors. The UI is not yet connected to this client because Android sign-in, upload/OCR completion and document-ID state are not yet integrated end-to-end.
 
 ## Non-negotiable requirements
 
