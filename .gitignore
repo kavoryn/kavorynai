@@ -1,0 +1,16 @@
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Composer dependencies
+/vendor/
+/backend/vendor/
+
+# Runtime files
+*.log
+*.tmp
+.DS_Store
