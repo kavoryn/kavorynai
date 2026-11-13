@@ -222,7 +222,6 @@ final class GoogleCloudVisionOcrProvider implements OcrProvider
         $pages = is_array($annotation['pages'] ?? null) ? $annotation['pages'] : [];
         foreach ($pages as $page) {
             if (!is_array($page)) continue;
-            $this->collectLanguages($page, $languages = []);
             foreach (($page['blocks'] ?? []) as $block) {
                 foreach (($block['paragraphs'] ?? []) as $paragraph) {
                     foreach (($paragraph['words'] ?? []) as $word) {
@@ -332,9 +331,11 @@ final class GoogleCloudVisionOcrProvider implements OcrProvider
             }
             $stdout .= stream_get_contents($pipes[1]) ?: '';
             $stderr .= stream_get_contents($pipes[2]) ?: '';
-            $exit = proc_close($process);
+            $exitCode = $status['exitcode'] ?? -1;
+            $closedExit = proc_close($process);
             $process = null;
-            if ($exit !== 0) throw new OcrProviderUnavailableException('PDF rendering failed.');
+            if ($exitCode === -1) $exitCode = $closedExit;
+            if ($exitCode !== 0) throw new OcrProviderUnavailableException('PDF rendering failed.');
             return $stdout;
         } finally {
             if (is_resource($pipes[1])) fclose($pipes[1]);
