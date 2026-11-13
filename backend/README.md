@@ -68,4 +68,4 @@ Unprocessed uploads receive a one-hour expiry in Postgres. Configure the PHP hos
 */5 * * * * /usr/bin/php /home/ACCOUNT/backend/bin/cleanup_expired_documents.php >/dev/null 2>&1
 ```
 
-Replace `/home/ACCOUNT` and the PHP binary path with the actual hosting paths. The cleanup script removes the private file first and then marks the database row deleted. If the database update fails, the next run safely retries because deleting a missing file is treated as success. The script never reads or logs document contents.
+Replace `/home/ACCOUNT` and the PHP binary path with the actual hosting paths. The cleanup script removes the private file first and then marks the database row deleted. It also scans for old staged files that have no matching database row, which covers interrupted registration requests. If the database update fails, the next run safely retries because deleting a missing file is treated as success. The script never reads or logs document contents.
