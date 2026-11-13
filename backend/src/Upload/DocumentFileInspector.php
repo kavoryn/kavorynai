@@ -76,6 +76,7 @@ final class DocumentFileInspector
             if (!is_string($header) || !preg_match('/^%PDF-[12]\.[0-9]/', $header)) {
                 throw new DocumentFileException('invalid_file', 'The uploaded PDF signature is invalid.');
             }
+            $pageCount = $this->inspectPdfPageCount($path);
         } else {
             $image = @getimagesize($path);
             if (!is_array($image) || !isset($image[0], $image[1]) ||
@@ -105,7 +106,7 @@ final class DocumentFileInspector
         if ($this->pdfInfoRunner !== null) {
             try {
                 $result = ($this->pdfInfoRunner)($path);
-            } catch (\\Throwable) {
+            } catch (\Throwable) {
                 throw new DocumentFileException('pdf_inspection_failed', 'The PDF could not be safely inspected.');
             }
         } else {
@@ -113,7 +114,7 @@ final class DocumentFileInspector
                 throw new DocumentFileException('server_configuration_error', 'PDF inspection is not configured on this server.');
             }
             $binary = $this->pdfInfoBinary ?? (getenv('PDFINFO_BINARY') ?: 'pdfinfo');
-            if ($binary === '' || str_contains($binary, "\\0")) {
+            if ($binary === '' || str_contains($binary, "\0")) {
                 throw new DocumentFileException('server_configuration_error', 'PDF inspection is not configured on this server.');
             }
 
