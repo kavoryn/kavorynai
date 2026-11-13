@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { HOME, REVIEW, LOCAL_READY, AUTH }
+private enum class Screen { HOME, REVIEW, LOCAL_READY, AUTH, UPLOAD }
 
 @Composable
 private fun DocumentFlow() {
@@ -248,7 +248,7 @@ private fun DocumentFlow() {
                             authApi.signInWithPassword(email, password).also(authStore::save)
                         }
                         authSession = session
-                        screen = Screen.HOME
+                        screen = if (selectedDocuments.isNotEmpty()) Screen.REVIEW else Screen.HOME
                     } catch (error: Exception) {
                         authError = error.message ?: "Sign-in failed. Please try again."
                     } finally {
@@ -269,7 +269,7 @@ private fun DocumentFlow() {
                         }
                         if (result.session != null) {
                             authSession = result.session
-                            screen = Screen.HOME
+                            screen = if (selectedDocuments.isNotEmpty()) Screen.REVIEW else Screen.HOME
                         } else {
                             authNotice = "Account created. Check your email to confirm it, then sign in."
                         }
@@ -308,8 +308,35 @@ private fun DocumentFlow() {
                 confirmed = false
                 screen = Screen.HOME
             },
-            onConfirm = { confirmed = true; screen = Screen.LOCAL_READY }
+            onConfirm = {
+                if (selectedDocuments.size != 1) {
+                    pickerError = "Please process one document at a time in this build."
+                } else if (authSession == null) {
+                    authError = "Please sign in before uploading a document."
+                    screen = Screen.AUTH
+                } else {
+                    confirmed = true
+                    screen = Screen.UPLOAD
+                }
+            }
         )
+        Screen.UPLOAD -> {
+            val document = selectedDocuments.firstOrNull()
+            val session = authSession
+            if (document != null && session != null) {
+                DocumentUploadFlow(
+                    document = document,
+                    language = selectedLanguage,
+                    accessToken = session.accessToken,
+                    apiBaseUrl = BuildConfig.KAVORYN_API_BASE_URL,
+                    onBack = { screen = Screen.REVIEW }
+                )
+            } else {
+                LocalReadyScreen(false) {
+                    screen = Screen.HOME
+                }
+            }
+        }
         Screen.LOCAL_READY -> LocalReadyScreen(confirmed) {
             cleanupTemporaryScans(context, selectedDocuments)
             selectedDocuments = emptyList()
@@ -463,13 +490,13 @@ private fun ReviewScreen(
                 }
             }
         }
-        Text("No OCR, AI processing or upload happens here. The checks above only inspect file structure and image dimensions.")
+        Text("Only one document can be uploaded per processing run. Upload and external OCR start only after the separate consent dialog.")
         OutlinedButton(onClick = onCancel, Modifier.fillMaxWidth().height(52.dp)) { Text("Cancel") }
         Button(
             onClick = onConfirm,
-            enabled = inspections.isNotEmpty() && inspections.none { it.second is DocumentInspection.Problem },
+            enabled = inspections.size == 1 && inspections.none { it.second is DocumentInspection.Problem },
             modifier = Modifier.fillMaxWidth().height(56.dp)
-        ) { Text("Confirm local review") }
+        ) { Text("Continue to secure upload") }
     }
 }
 

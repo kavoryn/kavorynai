@@ -23,6 +23,12 @@ These components are not yet connected into a complete end-to-end review → upl
 7. The completed OCR result is shown in `OcrResultScreen`; uncertain spans remain visible and unchanged.
 8. A separate AI explanation consent dialog is required before calling the OpenAI/Gemini explanation endpoint.
 
+## API origin configuration
+
+- Android reads `KAVORYN_API_BASE_URL` from a Gradle property or environment variable and exposes it as `BuildConfig.KAVORYN_API_BASE_URL`.
+- Keep it blank until a verified HTTPS staging API origin is supplied. Do not use `kavorynai.com.ng`; that domain is the separate public website, not a confirmed API host.
+- Never put provider keys, Supabase secret keys, or service-role credentials in this value or the Android build.
+
 ## Release and privacy gates
 
 - Do not infer OCR consent from sign-in, file selection, or the local review confirmation.
