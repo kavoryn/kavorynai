@@ -91,4 +91,17 @@ try {
 }
 expect($unavailable, 'Auth provider outages must be distinguished from invalid sessions.');
 
+$misconfiguredVerifier = new SupabaseUserVerifier(
+    'http://example.supabase.co',
+    'sb_publishable_test_key',
+    static fn (): array => ['status' => 200, 'body' => json_encode(['id' => $validId], JSON_THROW_ON_ERROR)],
+);
+$unavailable = false;
+try {
+    $misconfiguredVerifier->verifyBearerToken('Bearer opaque-access-token');
+} catch (AuthenticationServiceUnavailableException) {
+    $unavailable = true;
+}
+expect($unavailable, 'Non-HTTPS Supabase configuration must fail closed as a server configuration error.');
+
 echo "Authentication verifier tests passed." . PHP_EOL;
