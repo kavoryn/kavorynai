@@ -221,6 +221,16 @@ if ($method === 'POST' && $path === '/v1/consents') {
 
 
 if ($method === 'POST' && $path === '/v1/documents') {
+    if (strtolower(getenv('DOCUMENT_UPLOAD_ENABLED') ?: 'false') !== 'true') {
+        respond(503, [
+            'error' => [
+                'code' => 'document_upload_disabled',
+                'message' => 'Secure document upload is not enabled on this server yet.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
     $maxRequestBytes = 21 * 1024 * 1024;
     $contentLength = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
     if ($contentLength > $maxRequestBytes) {
