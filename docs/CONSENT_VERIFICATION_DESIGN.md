@@ -50,7 +50,11 @@ A second migration, `20261113142434_allow_provider_selection_before_consent`, ma
 
 A third migration, `20261113142706_lock_down_signup_trigger_function`, revokes direct execution of the existing SECURITY DEFINER signup trigger function from `public`, `anon`, and `authenticated`. The trigger remains enabled on `auth.users`; the function is no longer directly callable through the Data API by client roles.
 
-All three migrations are recorded in `supabase/migrations/` in this repository. The table had zero rows before the migration, so the new required binding columns were added without migrating existing consent records.
+The fourth and fifth migrations, `20261113142849_create_processing_consent_with_db_clock` and `20261113142952_validate_all_consent_creation_parameters`, add and harden the database-clock creation RPC. The database returns the authoritative creation and expiry timestamps, and all required arguments are validated before insertion.
+
+All five migrations are recorded in `supabase/migrations/` in this repository. The table had zero rows before the migration, so the new required binding columns were added without migrating existing consent records.
+
+At the time of this implementation, `auth.users` contains zero accounts in this project. The SQL migration and invalid-parameter rejection were verified, but a successful live sign-in and positive one-time-consumption test must wait until the Android sign-up flow creates a test account and the PHP host has its server-only credentials configured.
 
 ## Release gates still open
 
