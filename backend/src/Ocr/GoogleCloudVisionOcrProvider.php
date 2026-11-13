@@ -17,10 +17,10 @@ final class GoogleCloudVisionOcrProvider implements OcrProvider
         private readonly string $pdfInfoBinary = 'pdfinfo',
         private readonly string $pdfToPpmBinary = 'pdftoppm',
         private readonly mixed $http = null,
-        private readonly string $endpoint = 'https://vision.googleapis.com/v1/images:annotate',
+        private readonly string $endpoint = 'https://eu-vision.googleapis.com/v1/images:annotate',
     ) {
         if (parse_url($endpoint, PHP_URL_SCHEME) !== 'https' ||
-            parse_url($endpoint, PHP_URL_HOST) !== 'vision.googleapis.com') {
+            !in_array(parse_url($endpoint, PHP_URL_HOST), ['vision.googleapis.com', 'eu-vision.googleapis.com', 'us-vision.googleapis.com'], true)) {
             throw new \InvalidArgumentException('Google Vision endpoint must use the official HTTPS host.');
         }
     }
