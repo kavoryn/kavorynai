@@ -1,6 +1,6 @@
 # OCR provider evaluation — Stage A
 
-Status: evaluation plan; no OCR provider selected  
+Status: Google Cloud Vision selected for the first controlled adapter; production accuracy gate remains open  
 Scope: English, Hausa, Arabic and French
 
 ## Non-negotiable design
@@ -54,9 +54,16 @@ Do not combine language scores into one average that hides weak Hausa or Arabic 
 
 ## Provider decision gate
 
-A provider remains unselected until:
-1. Legal/privacy review confirms acceptable processing terms.
-2. The same permissioned corpus is run through at least three candidates.
+Google Cloud Vision is the initial implementation candidate, not a claim that it has already passed the quality gate.
+
+Published language support distinguishes three tiers:
+- Arabic, English and French are listed as supported languages that Google prioritizes and regularly evaluates.
+- Hausa (`ha`) is listed as a mapped language using the Latin character model. It is more prone to misidentification than a fully supported language.
+- The adapter omits language hints so the document OCR model can auto-detect mixed language content.
+
+The provider decision becomes production-approved only after:
+1. Legal/privacy review confirms acceptable processing terms and the chosen EU regional endpoint.
+2. The same permissioned corpus is run through Google Cloud Vision and at least two alternatives.
 3. Hausa and Arabic results meet product-approved accuracy thresholds.
 4. Critical values can be cross-checked against source regions.
 5. Deletion and failure paths are demonstrated.
@@ -68,17 +75,17 @@ Thresholds must be approved after measuring the baseline; do not invent a public
 
 - Android provider-neutral data contracts are in `app/src/main/java/com/kavoryn/app/ocr/OcrContracts.kt`.
 - Unit tests cover language codes, Hausa Unicode preservation, Arabic direction metadata, confidence/geometry/span validation and page ordering.
-- No OCR provider SDK is installed and no real OCR request is made yet.
+- The Android app still does not call Google Vision directly; provider credentials remain on the PHP server.
 
+## Backend provider implementation
 
-## Backend provider boundary (implemented foundation)
+The PHP API now has a Google Cloud Vision adapter under `backend/src/Ocr/`:
 
-The PHP API now has a provider-neutral contract under `backend/src/Ocr/`:
+- `GoogleServiceAccountTokenProvider` signs OAuth JWTs server-side and caches access tokens only within the worker process.
+- `GoogleCloudVisionOcrProvider` calls `DOCUMENT_TEXT_DETECTION`, auto-detects languages, parses detected language metadata, and marks words with confidence below 0.80 as uncertain.
+- PDF pages are rendered locally with Poppler and sent in bounded synchronous image batches; source PDFs are not copied to a separate cloud bucket.
+- The default endpoint is Google's EU regional endpoint. Credentials remain in a server-only JSON file with owner-only permissions.
+- `SupabaseEncryptedOcrResultSink` encrypts OCR JSON with libsodium secretbox before persistence. `SupabaseEncryptedOcrResultReader` checks ownership, decrypts and verifies the keyed HMAC.
+- The CLI worker is `backend/bin/ocr_worker.php`; it is disabled by default until the host is configured.
 
-- `OcrRequest` accepts only readable server-side files, the supported PDF/image MIME types, and `en`, `ha`, `ar`, or `fr`.
-- `OcrProvider` defines the server-side `recognize()` boundary. Vendor SDKs and credentials must remain behind this interface.
-- `OcrResult` preserves the original UTF-8 text and validates uncertainty spans as Unicode character offsets, plus an optional detected-language code.
-- `OcrProviderUnavailableException` provides a safe failure type for future adapters.
-- `backend/tests/OcrContractTest.php` covers supported request values, unsupported languages, Hausa/Arabic Unicode preservation, and invalid uncertainty offsets.
-
-This is a contract and test foundation only. There is intentionally no vendor adapter, OCR endpoint, background job, OCR text persistence, or provider credential configured yet. The provider-selection gate above remains in force; do not enable external OCR until comparative Hausa/Arabic testing and privacy review are complete.
+Mocked provider, worker, sink and reader tests are part of the PHP CI workflow. They verify integration contracts, not real provider accuracy. The provider-selection quality gate remains open until a permissioned corpus is measured per language, especially Hausa and Arabic, and privacy/retention terms are approved.
