@@ -73,6 +73,9 @@ jobs:
       - name: OpenAI document explainer tests
         run: php backend/tests/OpenAiDocumentExplainerTest.php
 
+      - name: Gemini document explainer tests
+        run: php backend/tests/GeminiDocumentExplainerTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
