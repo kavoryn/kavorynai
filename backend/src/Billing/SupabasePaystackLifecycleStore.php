@@ -26,6 +26,7 @@ final class SupabasePaystackLifecycleStore
         ?string $subscriptionCode,
         ?string $providerStatus,
         ?int $gracePeriodHours,
+        ?int $refundAmountMinor = null,
     ): bool {
         $allowed = [
             'invoice.payment_failed', 'subscription.not_renew', 'subscription.disable',
@@ -37,7 +38,9 @@ final class SupabasePaystackLifecycleStore
             ($subscriptionCode !== null && strlen($subscriptionCode) > 160) ||
             ($providerStatus !== null && strlen($providerStatus) > 80) ||
             ($eventType === 'invoice.payment_failed' &&
-                ($gracePeriodHours === null || $gracePeriodHours < 1 || $gracePeriodHours > 720))) {
+                ($gracePeriodHours === null || $gracePeriodHours < 1 || $gracePeriodHours > 720)) ||
+            (str_starts_with($eventType, 'refund.') && ($refundAmountMinor === null || $refundAmountMinor < 0)) ||
+            (!str_starts_with($eventType, 'refund.') && $refundAmountMinor !== null)) {
             throw new \InvalidArgumentException('Invalid billing lifecycle event.');
         }
 
@@ -55,6 +58,7 @@ final class SupabasePaystackLifecycleStore
             'p_subscription_code' => $subscriptionCode,
             'p_provider_status' => $providerStatus,
             'p_grace_period_hours' => $gracePeriodHours,
+            'p_refund_amount_minor' => $refundAmountMinor,
         ], JSON_THROW_ON_ERROR);
 
         try {
