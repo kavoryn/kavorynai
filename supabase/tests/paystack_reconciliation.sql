@@ -206,6 +206,22 @@ begin
 end;
 $;
 
+-- Authenticated user can read only their server-computed Plus entitlement.
+set role authenticated;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', false);
+do $
+declare
+  v_entitlements jsonb;
+begin
+  v_entitlements := public.get_my_billing_entitlements();
+  if v_entitlements->>'plan_key' <> 'plus'
+     or v_entitlements->>'subscription_status' <> 'past_due' then
+    raise exception 'grace-period Plus entitlement was not returned';
+  end if;
+end;
+$;
+reset role;
+
 -- Cancellation request from Paystack preserves paid access until period end.
 set role service_role;
 select public.record_paystack_webhook_receipt(
