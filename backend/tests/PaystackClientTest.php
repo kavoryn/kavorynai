@@ -20,6 +20,15 @@ $mock = static function (string $method, string $url, array $headers, ?string $b
     $calls[] = compact('method', 'url', 'headers', 'body');
     paystackExpect(($headers['Authorization'] ?? null) === 'Bearer sk_test_unit_only', 'Secret key must be sent only in the server-side authorization header.');
 
+    if (str_contains($url, '/subscription/') && str_ends_with($url, '/manage/link')) {
+        return [
+            'status' => 200,
+            'body' => json_encode(['status' => true, 'data' => [
+                'link' => 'https://paystack.com/manage/subscriptions/example?subscription_token=opaque',
+            ]], JSON_THROW_ON_ERROR),
+        ];
+    }
+
     if (str_ends_with($url, '/transaction/initialize')) {
         $input = json_decode((string) $body, true, 16, JSON_THROW_ON_ERROR);
         return [
@@ -56,8 +65,11 @@ paystackExpect($checkout['reference'] === 'kavoryn-test-0001', 'Checkout referen
 paystackExpect($checkout['authorization_url'] === 'https://checkout.paystack.com/example', 'Only the hosted Paystack checkout URL should be returned.');
 $verified = $client->verifyTransaction('kavoryn-test-0001');
 paystackExpect(($verified['status'] ?? null) === 'success', 'Verification response should expose Paystack transaction status.');
+$manageLink = $client->generateSubscriptionManagementLink('SUB_test123456');
+paystackExpect(str_starts_with($manageLink, 'https://paystack.com/manage/subscriptions/'), 'Management link must use the official Paystack host.');
+paystackExpect($calls[1]['method'] === 'GET' && str_contains($calls[1]['url'], '/subscription/SUB_test123456/manage/link'), 'Management link must use the authenticated Paystack subscription endpoint.');
 paystackExpect(count($calls) === 2, 'Initialize and verify should each make one request.');
-paystackExpect($calls[0]['method'] === 'POST' && $calls[1]['method'] === 'GET', 'Paystack HTTP methods should be correct.');
+paystackExpect($calls[0]['method'] === 'POST' && $calls[1]['method'] === 'GET' && $calls[2]['method'] === 'GET', 'Paystack HTTP methods should be correct.');
 
 try {
     $client->initializeTransaction('not-an-email', 1, 'NGN', 'kavoryn-test-0002', 'https://kavorynai.com.ng/callback');
@@ -72,6 +84,18 @@ $badResponse = new PaystackClient('sk_test_unit_only', static fn() => [
 try {
     $badResponse->verifyTransaction('kavoryn-test-0001');
     throw new RuntimeException('Provider-declared failure must fail closed.');
+} catch (PaystackUnavailableException) {
+}
+
+$wrongManagementHost = new PaystackClient('sk_test_unit_only', static fn() => [
+    'status' => 200,
+    'body' => json_encode(['status' => true, 'data' => [
+        'link' => 'https://evil.example/manage/subscriptions/example?token=opaque',
+    ]], JSON_THROW_ON_ERROR),
+]);
+try {
+    $wrongManagementHost->generateSubscriptionManagementLink('SUB_test123456');
+    throw new RuntimeException('Untrusted subscription management hosts must be rejected.');
 } catch (PaystackUnavailableException) {
 }
 
