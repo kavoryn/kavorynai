@@ -145,7 +145,7 @@ begin
   if v_receipt.processing_status='processed' then return true; end if;
   if v_receipt.processing_status <> 'received' then return false; end if;
 
-  select min(s.id), count(*) into v_subscription_id, v_count
+  select (pg_catalog.array_agg(s.id))[1], count(*) into v_subscription_id, v_count
     from private.user_subscriptions s
     join auth.users u on u.id=s.user_id
     join private.billing_prices bp on bp.id=s.price_id and bp.plan_id=s.plan_id
