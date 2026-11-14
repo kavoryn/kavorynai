@@ -148,18 +148,15 @@ insert into private.user_subscriptions (
   'paystack', 'SUB_test_kavoryn_01', 'pending'
 );
 
-insert into private.billing_transactions (
-  id, user_id, subscription_id, price_id, provider, reference,
-  expected_amount_minor, currency, status
-) values (
-  '88888888-8888-4888-8888-888888888888',
-  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-  '99999999-9999-4999-8999-999999999999',
-  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-  'paystack', 'kavoryn-renewal-test-01', 250000, 'NGN', 'pending'
-);
-
 set role service_role;
+select public.record_paystack_webhook_receipt(
+  '15151515-1515-4515-8515-151515151515',
+  repeat('d', 64), 'invoice.create', 'kavoryn-renewal-test-01'
+);
+select public.apply_paystack_lifecycle_event(
+  repeat('d', 64), 'invoice.create', 'kavoryn-renewal-test-01',
+  'SUB_test_kavoryn_01', 'success', null, null, 250000, 'NGN'
+);
 select public.record_paystack_webhook_receipt(
   '55555555-5555-4555-8555-555555555555',
   repeat('e', 64), 'charge.success', 'kavoryn-renewal-test-01'
