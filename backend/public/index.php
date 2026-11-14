@@ -301,7 +301,7 @@ if ($method === 'POST' && $path === '/v1/billing/checkout') {
         respond(400, ['error'=>['code'=>'invalid_json','message'=>'The checkout request is not valid JSON.','request_id'=>$requestId]]);
     }
     $priceId = is_array($input) ? ($input['price_id'] ?? null) : null;
-    if (!is_string($priceId) || preg_match('/\\A[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\z/i', $priceId) !== 1) {
+    if (!is_string($priceId) || preg_match('/\A[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/i', $priceId) !== 1) {
         respond(422, ['error'=>['code'=>'invalid_billing_price','message'=>'Choose a valid plan price.','request_id'=>$requestId]]);
     }
     if (!is_string($user->email) || filter_var($user->email, FILTER_VALIDATE_EMAIL) === false) {
