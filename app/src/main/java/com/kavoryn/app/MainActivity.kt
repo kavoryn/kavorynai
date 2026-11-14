@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { HOME, DOCUMENT_CENTER, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD }
+private enum class Screen { HOME, DOCUMENT_CENTER, LISTEN_VOICE, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD }
 
 @Composable
 private fun DocumentFlow() {
@@ -209,6 +209,7 @@ private fun DocumentFlow() {
         Screen.HOME -> HomeScreen(
             error = pickerError,
             onOpenDocuments = { screen = Screen.DOCUMENT_CENTER },
+            onOpenVoice = { screen = Screen.LISTEN_VOICE },
             signedInEmail = authSession?.email,
             authConfigured = authConfigured,
             accountError = authError,
@@ -252,6 +253,7 @@ private fun DocumentFlow() {
                 }
             }
         )
+        Screen.LISTEN_VOICE -> ListenVoiceScreen(onBack = { screen = Screen.HOME })
         Screen.DOCUMENT_CENTER -> DocumentCenterScreen(
             selectedLanguage = selectedLanguage,
             onLanguageChange = { selectedLanguage = it },
@@ -389,6 +391,7 @@ private fun DocumentFlow() {
 private fun HomeScreen(
     error: String?,
     onOpenDocuments: () -> Unit,
+    onOpenVoice: () -> Unit,
     signedInEmail: String?,
     authConfigured: Boolean,
     accountError: String?,
@@ -515,7 +518,11 @@ private fun HomeScreen(
                             fontWeight = FontWeight.Bold)
                     }
                     HorizontalDivider(color = canvas)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenVoice),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFEAF7F2)) {
                             Text("♫", modifier = Modifier.padding(12.dp), color = Color(0xFF388568),
                                 style = MaterialTheme.typography.titleLarge)
@@ -525,7 +532,7 @@ private fun HomeScreen(
                             Text("Listen to content and use voice tools.", color = muted,
                                 style = MaterialTheme.typography.bodySmall)
                         }
-                        Text("SOON", color = muted, style = MaterialTheme.typography.labelSmall,
+                        Text("OPEN", color = Color(0xFF2F805E), style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold)
                     }
                 }
