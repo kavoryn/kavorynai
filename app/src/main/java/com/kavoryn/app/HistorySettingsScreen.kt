@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
 import com.kavoryn.app.chat.ChatApi
 import com.kavoryn.app.chat.ChatConversation
 import kotlinx.coroutines.Dispatchers
@@ -32,9 +33,10 @@ fun HistorySettingsScreen(
     preferredLanguage: String,
     onPreferredLanguageChange: (String) -> Unit,
     onOpenSignIn: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    historyApi: com.kavoryn.app.chat.ChatHistoryApi? = null
 ) {
-    val api = remember(apiBaseUrl) { ChatApi(apiBaseUrl) }
+    val api = remember(apiBaseUrl, historyApi) { historyApi ?: ChatApi(apiBaseUrl) }
     val scope = rememberCoroutineScope()
     var history by remember { mutableStateOf<List<ChatConversation>>(emptyList()) }
     var selected by remember { mutableStateOf<ChatConversation?>(null) }
@@ -64,7 +66,7 @@ fun HistorySettingsScreen(
     }
 
     Column(
-        Modifier.fillMaxSize().background(HistoryCanvas).padding(18.dp),
+        Modifier.fillMaxSize().testTag("history_settings_screen").background(HistoryCanvas).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         TextButton(onClick = { if (selected != null) selected = null else onBack() }) {
@@ -98,11 +100,11 @@ fun HistorySettingsScreen(
                     Text("Conversation history", color = HistoryInk, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     when {
                         accessToken.isNullOrBlank() -> {
-                            Text("Sign in to view your private conversations. History is not stored on this device.", color = HistoryMuted, style = MaterialTheme.typography.bodySmall)
+                            Text("Sign in to view your private conversations. History is not stored on this device.", modifier = Modifier.testTag("history_sign_in_required"), color = HistoryMuted, style = MaterialTheme.typography.bodySmall)
                             Button(onClick = onOpenSignIn, modifier = Modifier.fillMaxWidth()) { Text("Sign in") }
                         }
                         loading -> CircularProgressIndicator()
-                        error != null -> Text(error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        error != null -> Text(error!!, modifier = Modifier.testTag("history_api_error"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         history.isEmpty() -> Text("No saved conversations yet. Your conversations will appear here after they are created and saved by Kavoryn Chat.", color = HistoryMuted, style = MaterialTheme.typography.bodySmall)
                         else -> {
                             Text("Your latest private conversations", color = HistoryMuted, style = MaterialTheme.typography.bodySmall)
@@ -142,7 +144,7 @@ fun HistorySettingsScreen(
                     Text("Preferences", color = HistoryInk, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     Text("Default response language for new AI conversations", color = HistoryMuted, style = MaterialTheme.typography.bodySmall)
                     Box {
-                        OutlinedButton(onClick = { languageMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { languageMenu = true }, modifier = Modifier.fillMaxWidth().testTag("history_preferred_language")) {
                             Text(languageLabel(preferredLanguage), color = HistoryInk)
                         }
                         DropdownMenu(expanded = languageMenu, onDismissRequest = { languageMenu = false }) {
