@@ -5,6 +5,10 @@ insert into auth.users (id)
 values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
 on conflict (id) do nothing;
 
+insert into auth.users (id)
+values ('abababab-abab-4bab-8bab-abababababab')
+on conflict (id) do nothing;
+
 insert into private.billing_plans (id, plan_key, version, display_name, active, entitlements)
 values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'plus', 1, 'Plus', true,
   '{"features":{"chat":true},"quotas":{"chat_messages":2}}'::jsonb)
@@ -210,6 +214,7 @@ select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
 do $$
 declare
   v_entitlements jsonb;
+  v_subscription_code text;
 begin
   v_entitlements := public.get_my_billing_entitlements();
   if v_entitlements->>'plan_key' <> 'plus'
@@ -219,6 +224,17 @@ begin
   if not public.check_my_feature_entitlement('chat') then
     raise exception 'configured Plus chat feature was not allowed';
   end if;
+  select public.get_my_paystack_subscription_code() into v_subscription_code;
+  if v_subscription_code is distinct from 'SUB_test_kavoryn_01' then
+    raise exception 'authenticated user did not receive their own Paystack subscription code';
+  end if;
+
+  perform pg_catalog.set_config('request.jwt.claim.sub', 'abababab-abab-4bab-8bab-abababababab', false);
+  if public.get_my_paystack_subscription_code() is not null then
+    raise exception 'user received another account Paystack subscription code';
+  end if;
+  perform pg_catalog.set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', false);
+
   if (public.consume_my_billing_quota('chat_messages', 1)->>'allowed') <> 'true'
      or (public.consume_my_billing_quota('chat_messages', 1)->>'allowed') <> 'true'
      or (public.consume_my_billing_quota('chat_messages', 1)->>'allowed') <> 'false' then
