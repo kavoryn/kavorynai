@@ -69,7 +69,6 @@ $checkout_test$;
 
 -- A second signed payload for the same Paystack transaction must not extend
 -- the paid subscription period a second time, even when the raw payload hash differs.
-set role service_role;
 do $duplicate_payment_test$
 declare
   v_period_before timestamptz;
@@ -102,7 +101,6 @@ begin
   end if;
 end;
 $duplicate_payment_test$;
-reset role;
 
 -- Authenticated catalog exposes only active plans and the explicitly selected currency.
 set role authenticated;
