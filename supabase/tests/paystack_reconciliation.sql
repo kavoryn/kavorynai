@@ -280,7 +280,7 @@ select public.apply_paystack_lifecycle_event(
 );
 reset role;
 
-do $
+do $$
 begin
   if (select status from private.billing_transactions where reference='kavoryn-refund-test-01') <> 'succeeded' then
     raise exception 'failed refund did not restore successful transaction state';
@@ -290,7 +290,7 @@ begin
     raise exception 'failed refund incorrectly advanced the subscription period';
   end if;
 end;
-$;
+$$;
 
 -- Partial processed refund reverses only the refunded transaction amount and
 -- must not revoke the subscription; full refund does revoke it.
@@ -304,13 +304,13 @@ select public.apply_paystack_lifecycle_event(
 );
 reset role;
 
-do $
+do $$
 begin
   if (select status from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999') <> 'past_due' then
     raise exception 'partial refund incorrectly revoked subscription entitlement';
   end if;
 end;
-$;
+$$;
 
 set role service_role;
 select public.record_paystack_webhook_receipt(
@@ -322,13 +322,13 @@ select public.apply_paystack_lifecycle_event(
 );
 reset role;
 
-do $
+do $$
 begin
   if (select status from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999') <> 'expired' then
     raise exception 'full processed refund did not revoke subscription entitlement';
   end if;
 end;
-$;
+$$;
 
 -- Expiration housekeeping removes stale active access after the period end.
 insert into private.user_subscriptions (
@@ -347,13 +347,13 @@ set role service_role;
 select public.expire_due_billing_subscriptions();
 reset role;
 
-do $
+do $$
 begin
   if (select status from private.user_subscriptions where id='17171717-1717-4717-8717-171717171717') <> 'expired' then
     raise exception 'expired billing period was not transitioned to expired';
   end if;
 end;
-$;
+$$;
 
 select 'Paystack reconciliation and lifecycle SQL integration tests passed.' as result;
 
