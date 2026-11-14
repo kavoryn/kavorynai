@@ -19,6 +19,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import androidx.compose.ui.unit.dp
 import com.kavoryn.app.ocr.HttpOcrSubmissionGateway
 import com.kavoryn.app.ocr.OcrInput
@@ -164,7 +166,18 @@ fun DocumentUploadFlow(
                 OcrResultScreen(
                     result = result!!,
                     onExplain = { showAiConsent = true },
-                    onAskQuestion = { showQuestions = true }
+                    onAskQuestion = { showQuestions = true },
+                    onShareText = {
+                        try {
+                            val chooser = Intent.createChooser(
+                                createDocumentShareIntent(result!!.text),
+                                "Share document text"
+                            )
+                            context.startActivity(chooser)
+                        } catch (_: ActivityNotFoundException) {
+                            error = "No compatible app is available to share this text."
+                        }
+                    }
                 )
             }
             if (showAiConsent && !showQuestions) {
