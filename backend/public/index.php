@@ -622,7 +622,7 @@ if ($method === 'POST' && preg_match(
 }
 
 if ($method === 'DELETE' && preg_match(
-    '#^/v1/documents/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12})$#i',
+    '#^/v1/documents/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$#i',
     $path,
     $matches,
 )) {
