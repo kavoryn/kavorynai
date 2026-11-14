@@ -378,3 +378,95 @@ revoke all on function public.expire_due_billing_subscriptions() from public, an
 grant execute on function public.expire_due_billing_subscriptions() to service_role;
 
 revoke all on function private.advance_subscription_period_after_paid_charge() from public, anon, authenticated, service_role;
+
+
+-- Atomic monthly usage counters. No quotas are seeded; every quota must be
+-- explicitly configured in the active plan's entitlements. Missing = denied.
+create table if not exists private.billing_usage_counters (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  quota_key text not null check (quota_key ~ '^[a-z][a-z0-9_]{1,63}$'),
+  period_start date not null,
+  used_count bigint not null default 0 check (used_count >= 0),
+  updated_at timestamptz not null default pg_catalog.now(),
+  primary key (user_id, quota_key, period_start)
+);
+alter table private.billing_usage_counters enable row level security;
+revoke all on table private.billing_usage_counters from public, anon, authenticated, service_role;
+
+create or replace function public.check_my_feature_entitlement(p_feature_key text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (public.get_my_billing_entitlements()->'entitlements'->'features'->>p_feature_key) = 'true',
+    false
+  );
+$$;
+
+revoke all on function public.check_my_feature_entitlement(text) from public, anon;
+grant execute on function public.check_my_feature_entitlement(text) to authenticated, service_role;
+
+create or replace function public.consume_my_billing_quota(
+  p_quota_key text,
+  p_amount bigint default 1
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_entitlements jsonb;
+  v_limit_text text;
+  v_limit bigint;
+  v_period date := pg_catalog.date_trunc('month', pg_catalog.now())::date;
+  v_used bigint;
+begin
+  if v_user_id is null
+     or p_quota_key is null
+     or p_quota_key !~ '^[a-z][a-z0-9_]{1,63}$'
+     or p_amount is null or p_amount < 1 or p_amount > 100000 then
+    raise exception 'invalid quota request';
+  end if;
+
+  v_entitlements := public.get_my_billing_entitlements()->'entitlements';
+  v_limit_text := v_entitlements->'quotas'->>p_quota_key;
+  if v_limit_text is null or v_limit_text !~ '^[0-9]{1,12}$' then
+    return pg_catalog.jsonb_build_object(
+      'allowed', false, 'reason', 'quota_not_configured',
+      'quota_key', p_quota_key
+    );
+  end if;
+  v_limit := v_limit_text::bigint;
+
+  insert into private.billing_usage_counters(user_id, quota_key, period_start, used_count)
+  values (v_user_id, p_quota_key, v_period, p_amount)
+  on conflict (user_id, quota_key, period_start)
+  do update set used_count = private.billing_usage_counters.used_count + excluded.used_count,
+                updated_at = pg_catalog.now()
+    where private.billing_usage_counters.used_count + excluded.used_count <= v_limit
+  returning used_count into v_used;
+
+  if v_used is null then
+    select used_count into v_used
+      from private.billing_usage_counters
+     where user_id=v_user_id and quota_key=p_quota_key and period_start=v_period;
+    return pg_catalog.jsonb_build_object(
+      'allowed', false, 'reason', 'quota_exceeded',
+      'quota_key', p_quota_key, 'used', coalesce(v_used,0), 'limit', v_limit
+    );
+  end if;
+
+  return pg_catalog.jsonb_build_object(
+    'allowed', true, 'quota_key', p_quota_key, 'used', v_used, 'limit', v_limit,
+    'period_start', v_period
+  );
+end;
+$$;
+
+revoke all on function public.consume_my_billing_quota(text,bigint) from public, anon;
+grant execute on function public.consume_my_billing_quota(text,bigint) to authenticated, service_role;
