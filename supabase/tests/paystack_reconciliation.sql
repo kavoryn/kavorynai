@@ -241,11 +241,12 @@ $$;
 
 -- Refund pending blocks access only once processed; failed refunds restore success.
 insert into private.billing_transactions (
-  id, user_id, price_id, provider, reference, expected_amount_minor,
+  id, user_id, subscription_id, price_id, provider, reference, expected_amount_minor,
   actual_amount_minor, currency, status, provider_transaction_id, paid_at
 ) values (
   '12121212-1212-4212-8212-121212121212',
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  '99999999-9999-4999-8999-999999999999',
   'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
   'paystack', 'kavoryn-refund-test-01', 250000, 250000, 'NGN',
   'succeeded', 'paystack-refund-txn-01', now()
@@ -279,13 +280,55 @@ select public.apply_paystack_lifecycle_event(
 );
 reset role;
 
-do $$
+do $
 begin
   if (select status from private.billing_transactions where reference='kavoryn-refund-test-01') <> 'succeeded' then
     raise exception 'failed refund did not restore successful transaction state';
   end if;
+  if (select current_period_end from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999')
+     <> timestamptz '2026-12-14T00:00:00Z' then
+    raise exception 'failed refund incorrectly advanced the subscription period';
+  end if;
 end;
-$$;
+$;
+
+-- Partial processed refund reverses only the refunded transaction amount and
+-- must not revoke the subscription; full refund does revoke it.
+set role service_role;
+select public.record_paystack_webhook_receipt(
+  '15151515-1616-4515-8515-151515151515',
+  repeat('4', 64), 'refund.processed', 'kavoryn-refund-test-01'
+);
+select public.apply_paystack_lifecycle_event(
+  repeat('4', 64), 'refund.processed', 'kavoryn-refund-test-01', null, 'processed', null, 10000
+);
+reset role;
+
+do $
+begin
+  if (select status from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999') <> 'past_due' then
+    raise exception 'partial refund incorrectly revoked subscription entitlement';
+  end if;
+end;
+$;
+
+set role service_role;
+select public.record_paystack_webhook_receipt(
+  '16161616-1616-4616-8616-161616161616',
+  repeat('5', 64), 'refund.processed', 'kavoryn-refund-test-01'
+);
+select public.apply_paystack_lifecycle_event(
+  repeat('5', 64), 'refund.processed', 'kavoryn-refund-test-01', null, 'processed', null, 250000
+);
+reset role;
+
+do $
+begin
+  if (select status from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999') <> 'expired' then
+    raise exception 'full processed refund did not revoke subscription entitlement';
+  end if;
+end;
+$;
 
 select 'Paystack reconciliation and lifecycle SQL integration tests passed.' as result;
 
