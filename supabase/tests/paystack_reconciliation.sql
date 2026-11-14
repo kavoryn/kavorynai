@@ -1,5 +1,5 @@
 -- Disposable PostgreSQL integration test for Paystack charge reconciliation.
--- Run after the two billing migrations, with auth.users and Supabase roles bootstrapped.
+-- Run after all billing migrations, with auth.users and Supabase roles bootstrapped.
 
 insert into auth.users (id)
 values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
