@@ -20,7 +20,7 @@ on conflict (id) do nothing;
 
 -- Authenticated catalog exposes only active plans and the explicitly selected currency.
 set role authenticated;
-select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', false);
 do $catalog_test$
 declare
   v_ngn jsonb;
