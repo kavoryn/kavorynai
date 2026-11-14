@@ -307,7 +307,9 @@ private fun DocumentFlow() {
                 accessToken = session.accessToken,
                 onBack = { screen = Screen.HOME }
             ) else {
-                screen = Screen.AUTH
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Please sign in to access Kavoryn Chat.")
+                }
             }
         }
         Screen.REVIEW -> ReviewScreen(
