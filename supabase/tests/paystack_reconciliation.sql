@@ -146,7 +146,7 @@ insert into private.user_subscriptions (
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-  'paystack', 'SUB_test_kavoryn_01', 'pending'
+  'paystack', 'SUB_test_kavoryn_01', 'active'
 );
 
 set role service_role;
