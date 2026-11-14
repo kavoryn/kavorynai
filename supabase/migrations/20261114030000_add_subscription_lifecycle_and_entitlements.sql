@@ -27,7 +27,9 @@ create or replace function public.apply_paystack_lifecycle_event(
   p_subscription_code text default null,
   p_provider_status text default null,
   p_grace_period_hours integer default null,
-  p_refund_amount_minor bigint default null
+  p_refund_amount_minor bigint default null,
+  p_amount_minor bigint default null,
+  p_currency text default null
 )
 returns boolean
 language plpgsql
@@ -42,11 +44,16 @@ declare
 begin
   if p_payload_sha256 is null or p_payload_sha256 !~ '^[0-9a-f]{64}$'
      or p_event_type not in (
-       'invoice.payment_failed', 'subscription.not_renew',
+       'invoice.create', 'invoice.payment_failed', 'subscription.not_renew',
        'subscription.disable', 'refund.pending', 'refund.processing',
        'refund.processed', 'refund.failed'
      ) then
     raise exception 'invalid lifecycle event';
+  end if;
+
+  if p_event_type = 'invoice.create'
+     and (p_amount_minor is null or p_amount_minor < 1 or p_currency not in ('NGN','USD')) then
+    raise exception 'invalid invoice amount';
   end if;
 
   if p_event_type = 'invoice.payment_failed'
@@ -66,7 +73,67 @@ begin
   if v_receipt.processing_status = 'processed' then return true; end if;
   if v_receipt.processing_status <> 'received' then return false; end if;
 
-  if p_event_type in ('refund.pending','refund.processing','refund.processed','refund.failed') then
+  if p_event_type = 'invoice.create' then
+    if p_reference is null or v_receipt.event_reference is distinct from p_reference
+       or p_subscription_code is null then
+      update private.billing_webhook_receipts
+         set processing_status='ignored', safe_error_code='invoice_identity_missing',
+             processed_at=pg_catalog.now()
+       where id=v_receipt.id;
+      return false;
+    end if;
+
+    select * into v_subscription
+      from private.user_subscriptions
+     where provider='paystack' and provider_subscription_code=p_subscription_code
+     for update;
+    if not found or v_subscription.status not in ('active','trialing','past_due') then
+      update private.billing_webhook_receipts
+         set processing_status='ignored', safe_error_code='subscription_not_renewable',
+             processed_at=pg_catalog.now()
+       where id=v_receipt.id;
+      return false;
+    end if;
+
+    if not exists (
+      select 1 from private.billing_prices bp
+       where bp.id=v_subscription.price_id
+         and bp.plan_id=v_subscription.plan_id
+         and bp.active=true
+         and bp.amount_minor=p_amount_minor
+         and bp.currency=p_currency
+    ) then
+      update private.billing_webhook_receipts
+         set processing_status='ignored', safe_error_code='invoice_price_mismatch',
+             processed_at=pg_catalog.now()
+       where id=v_receipt.id;
+      return false;
+    end if;
+
+    insert into private.billing_transactions (
+      id, user_id, subscription_id, price_id, provider, reference,
+      expected_amount_minor, currency, status
+    ) values (
+      pg_catalog.gen_random_uuid(), v_subscription.user_id, v_subscription.id,
+      v_subscription.price_id, 'paystack', p_reference, p_amount_minor, p_currency, 'pending'
+    )
+    on conflict (reference) do nothing;
+
+    if not exists (
+      select 1 from private.billing_transactions bt
+       where bt.reference=p_reference
+         and bt.subscription_id=v_subscription.id
+         and bt.expected_amount_minor=p_amount_minor
+         and bt.currency=p_currency
+    ) then
+      update private.billing_webhook_receipts
+         set processing_status='ignored', safe_error_code='invoice_reference_conflict',
+             processed_at=pg_catalog.now()
+       where id=v_receipt.id;
+      return false;
+    end if;
+
+  elsif p_event_type in ('refund.pending','refund.processing','refund.processed','refund.failed') then
     if p_reference is null or v_receipt.event_reference is distinct from p_reference
        or p_refund_amount_minor is null or p_refund_amount_minor < 0 then
       update private.billing_webhook_receipts
@@ -166,7 +233,7 @@ begin
 end;
 $$;
 
-revoke all on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint)
+revoke all on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint,bigint,text)
   from public, anon, authenticated;
 grant execute on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer)
   to service_role;
