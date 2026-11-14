@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Upload;
+namespace Kavoryn\Upload;
 
 final class SupabaseDocumentDeletionStore implements DocumentDeletionStore
 {
@@ -23,7 +23,7 @@ final class SupabaseDocumentDeletionStore implements DocumentDeletionStore
     {
         foreach ([$documentId, $userId] as $id) {
             if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $id)) {
-                throw new \\InvalidArgumentException('Invalid document deletion identity.');
+                throw new \InvalidArgumentException('Invalid document deletion identity.');
             }
         }
 
@@ -68,7 +68,7 @@ final class SupabaseDocumentDeletionStore implements DocumentDeletionStore
             }
         } catch (DocumentDeletionUnavailableException $error) {
             throw $error;
-        } catch (\\Throwable) {
+        } catch (\Throwable) {
             throw new DocumentDeletionUnavailableException();
         }
 
@@ -80,7 +80,7 @@ final class SupabaseDocumentDeletionStore implements DocumentDeletionStore
 
         try {
             $rows = json_decode($response['body'], true, 16, JSON_THROW_ON_ERROR);
-        } catch (\\JsonException) {
+        } catch (\JsonException) {
             throw new DocumentDeletionUnavailableException();
         }
 
@@ -92,7 +92,7 @@ final class SupabaseDocumentDeletionStore implements DocumentDeletionStore
         $row = $rows[0] ?? null;
         if (!is_array($row) ||
             !is_string($row['stored_key'] ?? null) ||
-            !preg_match('/^[a-f0-9]{32}\\.(pdf|jpg|png|webp)$/', $row['stored_key']) ||
+            !preg_match('/^[a-f0-9]{32}\.(pdf|jpg|png|webp)$/', $row['stored_key']) ||
             ($row['deletion_status'] ?? null) !== 'deleted') {
             throw new DocumentDeletionUnavailableException();
         }
