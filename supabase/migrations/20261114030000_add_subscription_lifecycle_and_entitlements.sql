@@ -285,7 +285,7 @@ $$;
 revoke all on function public.get_my_billing_entitlements() from public, anon;
 grant execute on function public.get_my_billing_entitlements() to authenticated, service_role;
 
-comment on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer) is
+comment on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint,bigint,text) is
   'Processes authenticated Paystack subscription/refund events idempotently; grace duration must be configured server-side.';
 comment on function public.get_my_billing_entitlements() is
   'Returns only the authenticated user entitlement derived from private subscription state.';
