@@ -19,6 +19,20 @@ function retryExpect(bool $condition, string $message): void
     }
 }
 
+final class FailOnceDeletionStorage implements DocumentDeletionStorage
+{
+    public int $calls = 0;
+
+    public function delete(string $storageKey): bool
+    {
+        $this->calls++;
+        if ($this->calls === 1) {
+            throw new DocumentFileException('storage_delete_failed', 'Simulated transient unlink failure.');
+        }
+        return true;
+    }
+}
+
 final class RetryableDeletionStore implements DocumentDeletionStore
 {
     public int $calls = 0;
@@ -58,6 +72,22 @@ $retry = new DocumentDeletionService($store, new PrivateDocumentStorage($private
 retryExpect($retry->delete($documentId, $userId), 'A retry must finish cleanup.');
 retryExpect(!is_file($private . '/' . $key), 'Retry must remove the private file.');
 retryExpect($store->calls === 2, 'Retry must re-run the idempotent owner-scoped tombstone RPC.');
+
+// Exercise a genuine post-tombstone deletion failure at the service boundary,
+// then prove a second request retries the same storage key successfully.
+$transientStore = new RetryableDeletionStore();
+$transientStorage = new FailOnceDeletionStorage();
+$transientService = new DocumentDeletionService($transientStore, $transientStorage);
+$transientFailed = false;
+try {
+    $transientService->delete($documentId, $userId);
+} catch (DocumentDeletionUnavailableException) {
+    $transientFailed = true;
+}
+retryExpect($transientFailed, 'A transient private-file deletion failure must be reported as retryable.');
+retryExpect($transientService->delete($documentId, $userId), 'A subsequent deletion request must complete cleanup.');
+retryExpect($transientStorage->calls === 2, 'Storage cleanup must be attempted again on retry.');
+retryExpect($transientStore->calls === 2, 'Retry must re-fetch the tombstoned storage key.');
 
 rmdir($private);
 rmdir($public);
