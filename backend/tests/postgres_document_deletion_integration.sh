@@ -17,7 +17,7 @@ wait_for_sleep() {
   local app="$1"
   local attempt found
   for attempt in $(seq 1 200); do
-    found="$(psql -X -At -v app="$app" -c "select exists (select 1 from pg_stat_activity where application_name = :'app' and state = 'active' and query ilike '%pg_sleep%');")"
+    found="$(psql -X -At -c "select exists (select 1 from pg_stat_activity where application_name = '$app' and state = 'active' and query ilike '%pg_sleep%');")"
     if [ "$found" = "t" ]; then return 0; fi
     sleep 0.05
   done
@@ -29,7 +29,7 @@ wait_for_lock() {
   local app="$1"
   local attempt found
   for attempt in $(seq 1 200); do
-    found="$(psql -X -At -v app="$app" -c "select exists (select 1 from pg_stat_activity where application_name = :'app' and wait_event_type = 'Lock');")"
+    found="$(psql -X -At -c "select exists (select 1 from pg_stat_activity where application_name = '$app' and wait_event_type = 'Lock');")"
     if [ "$found" = "t" ]; then return 0; fi
     sleep 0.05
   done
