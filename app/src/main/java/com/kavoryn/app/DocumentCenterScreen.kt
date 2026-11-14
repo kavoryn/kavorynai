@@ -1,5 +1,7 @@
 package com.kavoryn.app
 
+import com.kavoryn.app.ocr.OcrLanguage
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -177,7 +179,7 @@ fun DocumentCenterScreen(
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(selectedLanguage.displayName, color = ink)
+                    Text(selectedLanguage.name.lowercase().replaceFirstChar { it.uppercase() }, color = ink)
                 }
                 DropdownMenu(
                     expanded = languageMenuExpanded,
@@ -185,7 +187,7 @@ fun DocumentCenterScreen(
                 ) {
                     OcrLanguage.entries.forEach { language ->
                         DropdownMenuItem(
-                            text = { Text(language.displayName) },
+                            text = { Text(language.name.lowercase().replaceFirstChar { it.uppercase() }) },
                             onClick = {
                                 onLanguageChange(language)
                                 languageMenuExpanded = false
