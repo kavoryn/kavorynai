@@ -52,7 +52,7 @@ begin
   end if;
 
   if p_event_type = 'invoice.create'
-     and (p_amount_minor is null or p_amount_minor < 1 or p_currency not in ('NGN','USD')) then
+     and (p_amount_minor is null or p_amount_minor < 1 or p_currency is null or p_currency not in ('NGN','USD')) then
     raise exception 'invalid invoice amount';
   end if;
 
