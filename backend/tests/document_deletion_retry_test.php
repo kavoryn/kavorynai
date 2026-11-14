@@ -7,7 +7,9 @@ require_once dirname(__DIR__) . '/src/Upload/PrivateDocumentStorage.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentDeletionService.php';
 
 use Kavoryn\Upload\DocumentDeletionService;
+use Kavoryn\Upload\DocumentDeletionStorage;
 use Kavoryn\Upload\DocumentDeletionStore;
+use Kavoryn\Upload\DocumentFileException;
 use Kavoryn\Upload\PrivateDocumentStorage;
 use Kavoryn\Upload\DocumentDeletionUnavailableException;
 
