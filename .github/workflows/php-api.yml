@@ -165,6 +165,9 @@ jobs:
       - name: Paystack lifecycle store tests
         run: php backend/tests/SupabasePaystackLifecycleStoreTest.php
 
+      - name: Billing entitlement store tests
+        run: php backend/tests/SupabaseBillingEntitlementStoreTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
