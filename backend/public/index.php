@@ -90,9 +90,9 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
     require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackReconciliationStore.php';
 
     try {
-        $verifier = new \Kavoryn\\Billing\\PaystackWebhookVerifier($paystackSecret);
+        $verifier = new \Kavoryn\Billing\PaystackWebhookVerifier($paystackSecret);
         $event = $verifier->verify($rawBody, $_SERVER['HTTP_X_PAYSTACK_SIGNATURE'] ?? null);
-    } catch (\Kavoryn\\Billing\\InvalidPaystackWebhookException) {
+    } catch (\Kavoryn\Billing\InvalidPaystackWebhookException) {
         respond(401, ['error'=>['code'=>'invalid_webhook_signature','message'=>'The payment notification could not be authenticated.','request_id'=>$requestId]]);
     }
 
@@ -102,7 +102,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
     }
 
     try {
-        $store = new \Kavoryn\\Billing\\SupabasePaystackWebhookStore(
+        $store = new \Kavoryn\Billing\SupabasePaystackWebhookStore(
             $supabaseUrl,
             $supabaseSecret,
             $serviceRoleJwt,
@@ -129,7 +129,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
 
         $reconciled = false;
         if ($event['event'] === 'charge.success' && $eventReference !== null) {
-            $paystack = new \\Kavoryn\\Billing\\PaystackClient($paystackSecret);
+            $paystack = new \Kavoryn\Billing\PaystackClient($paystackSecret);
             $verified = $paystack->verifyTransaction($eventReference);
             $providerTransactionId = $verified['id'] ?? null;
             $paidAt = $verified['paid_at'] ?? null;
@@ -139,7 +139,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
                 throw new \\RuntimeException('Verified payment details are incomplete.');
             }
 
-            $reconciliation = new \\Kavoryn\\Billing\\SupabasePaystackReconciliationStore(
+            $reconciliation = new \Kavoryn\Billing\SupabasePaystackReconciliationStore(
                 $supabaseUrl,
                 $supabaseSecret,
                 $serviceRoleJwt,
