@@ -3,7 +3,7 @@ on:
   push:
     branches: [main, feature/android-ai-chat-ui, feature/android-document-center, feature/android-listen-voice, feature/android-history-settings, feature/android-document-result-share]
   pull_request:
-    branches: [main, feature/premium-android-home-ui, feature/android-ai-chat-ui, feature/android-document-center, feature/android-listen-voice, feature/android-history-settings]
+    branches: [main, feature/premium-android-home-ui, feature/android-ai-chat-ui, feature/android-document-center, feature/android-listen-voice, feature/android-history-settings, fix/ocr-result-expiry-integration-tests]
 jobs:
   assemble:
     runs-on: ubuntu-latest
