@@ -27,9 +27,11 @@ final class SupabasePaystackLifecycleStore
         ?string $providerStatus,
         ?int $gracePeriodHours,
         ?int $refundAmountMinor = null,
+        ?int $amountMinor = null,
+        ?string $currency = null,
     ): bool {
         $allowed = [
-            'invoice.payment_failed', 'subscription.not_renew', 'subscription.disable',
+            'invoice.create', 'invoice.payment_failed', 'subscription.not_renew', 'subscription.disable',
             'refund.pending', 'refund.processing', 'refund.processed', 'refund.failed',
         ];
         if (preg_match('/\A[0-9a-f]{64}\z/', $payloadSha256) !== 1 ||
@@ -40,7 +42,9 @@ final class SupabasePaystackLifecycleStore
             ($eventType === 'invoice.payment_failed' &&
                 ($gracePeriodHours === null || $gracePeriodHours < 1 || $gracePeriodHours > 720)) ||
             (str_starts_with($eventType, 'refund.') && ($refundAmountMinor === null || $refundAmountMinor < 0)) ||
-            (!str_starts_with($eventType, 'refund.') && $refundAmountMinor !== null)) {
+            (!str_starts_with($eventType, 'refund.') && $refundAmountMinor !== null) ||
+            ($eventType === 'invoice.create' && ($amountMinor === null || $amountMinor < 1 || !in_array($currency, ['NGN','USD'], true))) ||
+            ($eventType !== 'invoice.create' && ($amountMinor !== null || $currency !== null))) {
             throw new \InvalidArgumentException('Invalid billing lifecycle event.');
         }
 
@@ -59,6 +63,8 @@ final class SupabasePaystackLifecycleStore
             'p_provider_status' => $providerStatus,
             'p_grace_period_hours' => $gracePeriodHours,
             'p_refund_amount_minor' => $refundAmountMinor,
+            'p_amount_minor' => $amountMinor,
+            'p_currency' => $currency,
         ], JSON_THROW_ON_ERROR);
 
         try {
