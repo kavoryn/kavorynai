@@ -645,7 +645,7 @@ if ($method === 'DELETE' && preg_match(
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
     $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
-    $storagePath = getenv('DOCUMENT_STORAGE_PATH') ?: '';
+    $storagePath = getenv('PRIVATE_DOCUMENT_STORAGE_PATH') ?: '';
     if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $storagePath === '') {
         respond(503, [
             'error' => [
