@@ -26,7 +26,8 @@ create or replace function public.apply_paystack_lifecycle_event(
   p_reference text default null,
   p_subscription_code text default null,
   p_provider_status text default null,
-  p_grace_period_hours integer default null
+  p_grace_period_hours integer default null,
+  p_refund_amount_minor bigint default null
 )
 returns boolean
 language plpgsql
@@ -66,7 +67,8 @@ begin
   if v_receipt.processing_status <> 'received' then return false; end if;
 
   if p_event_type in ('refund.pending','refund.processing','refund.processed','refund.failed') then
-    if p_reference is null or v_receipt.event_reference is distinct from p_reference then
+    if p_reference is null or v_receipt.event_reference is distinct from p_reference
+       or p_refund_amount_minor is null or p_refund_amount_minor < 0 then
       update private.billing_webhook_receipts
          set processing_status='ignored', safe_error_code='event_reference_mismatch',
              processed_at=pg_catalog.now()
@@ -105,7 +107,9 @@ begin
        set status=v_refund_status, updated_at=pg_catalog.now()
      where id=v_transaction.id;
 
-    if p_event_type in ('refund.processed') and v_transaction.subscription_id is not null then
+    if p_event_type = 'refund.processed'
+       and v_transaction.subscription_id is not null
+       and p_refund_amount_minor >= coalesce(v_transaction.actual_amount_minor, v_transaction.expected_amount_minor) then
       update private.user_subscriptions
          set status='expired', grace_period_end=null, updated_at=pg_catalog.now()
        where id=v_transaction.subscription_id;
@@ -162,7 +166,7 @@ begin
 end;
 $$;
 
-revoke all on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer)
+revoke all on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint)
   from public, anon, authenticated;
 grant execute on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer)
   to service_role;
