@@ -5,8 +5,9 @@ insert into auth.users (id)
 values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
 on conflict (id) do nothing;
 
-insert into private.billing_plans (id, plan_key, version, display_name, active)
-values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'plus', 1, 'Plus', true)
+insert into private.billing_plans (id, plan_key, version, display_name, active, entitlements)
+values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'plus', 1, 'Plus', true,
+  '{"features":{"chat":true},"quotas":{"chat_messages":2}}'::jsonb)
 on conflict (id) do nothing;
 
 insert into private.billing_prices (id, plan_id, currency, amount_minor, interval_unit, active)
@@ -215,8 +216,16 @@ begin
      or v_entitlements->>'subscription_status' <> 'past_due' then
     raise exception 'grace-period Plus entitlement was not returned';
   end if;
+  if not public.check_my_feature_entitlement('chat') then
+    raise exception 'configured Plus chat feature was not allowed';
+  end if;
+  if (public.consume_my_billing_quota('chat_messages', 1)->>'allowed') <> 'true'
+     or (public.consume_my_billing_quota('chat_messages', 1)->>'allowed') <> 'true'
+     or (public.consume_my_billing_quota('chat_messages', 1)->>'allowed') <> 'false' then
+    raise exception 'monthly quota enforcement did not enforce the configured limit';
+  end if;
 end;
-$$;
+$;
 reset role;
 
 -- Cancellation request from Paystack preserves paid access until period end.
