@@ -176,6 +176,16 @@ jobs:
             }
           '
 
+          delete_status=$(curl --silent --output /tmp/kavoryn-delete.json --write-out '%{http_code}' -X DELETE http://127.0.0.1:8080/v1/documents/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12)
+          test "$delete_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-delete.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "document_delete_disabled") {
+                fwrite(STDERR, "Document deletion must remain disabled until staging and release gates pass.\\n");
+                exit(1);
+            }
+          '
+
           upload_status=$(curl --silent --output /tmp/kavoryn-upload.json --write-out '%{http_code}' -X POST http://127.0.0.1:8080/v1/documents)
           test "$upload_status" = "503"
           php -r '
