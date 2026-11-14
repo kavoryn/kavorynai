@@ -67,8 +67,8 @@ $verified = $client->verifyTransaction('kavoryn-test-0001');
 paystackExpect(($verified['status'] ?? null) === 'success', 'Verification response should expose Paystack transaction status.');
 $manageLink = $client->generateSubscriptionManagementLink('SUB_test123456');
 paystackExpect(str_starts_with($manageLink, 'https://paystack.com/manage/subscriptions/'), 'Management link must use the official Paystack host.');
-paystackExpect($calls[1]['method'] === 'GET' && str_contains($calls[1]['url'], '/subscription/SUB_test123456/manage/link'), 'Management link must use the authenticated Paystack subscription endpoint.');
-paystackExpect(count($calls) === 2, 'Initialize and verify should each make one request.');
+paystackExpect($calls[2]['method'] === 'GET' && str_contains($calls[2]['url'], '/subscription/SUB_test123456/manage/link'), 'Management link must use the authenticated Paystack subscription endpoint.');
+paystackExpect(count($calls) === 3, 'Initialize, verify, and management-link generation should each make one request.');
 paystackExpect($calls[0]['method'] === 'POST' && $calls[1]['method'] === 'GET' && $calls[2]['method'] === 'GET', 'Paystack HTTP methods should be correct.');
 
 try {
