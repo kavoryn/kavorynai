@@ -206,8 +206,13 @@ jobs:
             cat /tmp/kavoryn-php-server.log || true
             exit "$consent_curl_exit"
           fi
-          echo "Consent smoke response: $(cat /tmp/kavoryn-consent.json)"
-          test "$consent_status" = "503"
+          if [ "$consent_status" != "503" ]; then
+            printf 'Consent endpoint expected HTTP 503 but received HTTP %s. Body: ' "${consent_status:-none}" >&2
+            cat /tmp/kavoryn-consent.json >&2 || true
+            printf '\\nPHP server log:\\n' >&2
+            cat /tmp/kavoryn-php-server.log >&2 || true
+            exit 1
+          fi
           php -r '
             $data = json_decode(file_get_contents("/tmp/kavoryn-consent.json"), true, 512, JSON_THROW_ON_ERROR);
             if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
