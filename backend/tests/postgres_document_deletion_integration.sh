@@ -8,49 +8,94 @@ set -euo pipefail
 : "${PGPASSWORD:=postgres}"
 export PGHOST PGPORT PGUSER PGDATABASE PGPASSWORD
 
-psql -v ON_ERROR_STOP=1 -f backend/tests/postgres/document_deletion_integration.sql
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
 
-# Race A: the worker obtains the OCR row lock, stores a valid encrypted result,
-# and commits. DELETE must wait, then tombstone the document and purge that result.
-psql -v ON_ERROR_STOP=1 <<'SQL' &
+psql -X -v ON_ERROR_STOP=1 -f backend/tests/postgres/document_deletion_integration.sql
+
+wait_for_sleep() {
+  local app="$1"
+  local attempt found
+  for attempt in $(seq 1 200); do
+    found="$(psql -X -At -c "select exists (select 1 from pg_stat_activity where application_name = '$app' and state = 'active' and query ilike '%pg_sleep%');")"
+    if [ "$found" = "t" ]; then return 0; fi
+    sleep 0.05
+  done
+  echo "Timed out waiting for PostgreSQL session '$app' to reach its synchronization point." >&2
+  return 1
+}
+
+wait_for_lock() {
+  local app="$1"
+  local attempt found
+  for attempt in $(seq 1 200); do
+    found="$(psql -X -At -c "select exists (select 1 from pg_stat_activity where application_name = '$app' and wait_event_type = 'Lock');")"
+    if [ "$found" = "t" ]; then return 0; fi
+    sleep 0.05
+  done
+  echo "Timed out waiting for PostgreSQL session '$app' to block on a row lock." >&2
+  return 1
+}
+
+# Race A: worker locks the OCR job first. The harness observes the worker at
+# its in-transaction barrier, starts DELETE, and confirms DELETE is blocked
+# before allowing the worker transaction to commit.
+PGAPPNAME=race_worker_first psql -X -v ON_ERROR_STOP=1 <<'SQL' &
 begin;
 select id from private.ocr_jobs
  where id='30000000-0000-4000-8000-000000000003'
  for update;
-select pg_sleep(1);
-select private.store_ocr_result(
+select pg_sleep(5);
+select public.store_document_ocr_result(
  '30000000-0000-4000-8000-000000000003',
  'worker-race-0003',
- 'google_cloud_vision',
- 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
  'AAAAAAAAAAAAAAAAAAAAAA==',
+ 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+ '1',
+ 'ha',
+ 40,
+ 0,
  repeat('a',64),
  16
 );
 commit;
 SQL
 worker_pid=$!
-sleep 0.2
-psql -v ON_ERROR_STOP=1 -c "select * from public.delete_document_for_user('20000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000001');"
-wait "$worker_pid"
-psql -v ON_ERROR_STOP=1 -c "do \$\$ begin if exists(select 1 from private.ocr_results where document_id='20000000-0000-4000-8000-000000000003') then raise exception 'Worker-first race left OCR result after delete'; end if; end \$\$;"
+wait_for_sleep race_worker_first
 
-# Race B: DELETE locks and tombstones first. A worker waiting on the same OCR
-# row must fail closed after the delete commits and must not persist a result.
-psql -v ON_ERROR_STOP=1 <<'SQL' &
+PGAPPNAME=race_delete_waiting psql -X -v ON_ERROR_STOP=1 \
+  -c "select * from public.delete_document_for_user('20000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000001');" \
+  >"$tmp_dir/race-a-delete.log" &
+delete_pid=$!
+wait_for_lock race_delete_waiting
+wait "$worker_pid"
+wait "$delete_pid"
+psql -X -v ON_ERROR_STOP=1 -c "do \$\$ begin if exists(select 1 from private.ocr_results where document_id='20000000-0000-4000-8000-000000000003') then raise exception 'Worker-first race left OCR result after delete'; end if; end \$\$;"
+
+# Race B: DELETE locks/tombstones first. The harness waits until a worker RPC
+# is observably blocked on that row before allowing the delete transaction to
+# commit; the worker must then fail closed.
+PGAPPNAME=race_delete_first psql -X -v ON_ERROR_STOP=1 <<'SQL' &
 begin;
 select * from public.delete_document_for_user(
  '20000000-0000-4000-8000-000000000004',
  '10000000-0000-4000-8000-000000000001'
 );
-select pg_sleep(1);
+select pg_sleep(5);
 commit;
 SQL
 delete_pid=$!
-sleep 0.2
-store_result=$(psql -v ON_ERROR_STOP=1 -At -c "select private.store_ocr_result('30000000-0000-4000-8000-000000000004','worker-race-0004','google_cloud_vision','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA','AAAAAAAAAAAAAAAAAAAAAA==',repeat('b',64),16);")
-wait "$delete_pid"
-test "$store_result" = "f"
-psql -v ON_ERROR_STOP=1 -c "do \$\$ begin if exists(select 1 from private.ocr_results where document_id='20000000-0000-4000-8000-000000000004') then raise exception 'Delete-first race stored an OCR result'; end if; end \$\$;"
+wait_for_sleep race_delete_first
 
-echo "PostgreSQL document deletion integration tests passed (owner isolation, ACLs, purge, both OCR lock races)."
+PGAPPNAME=race_worker_waiting psql -X -At -v ON_ERROR_STOP=1 \
+  -c "select public.store_document_ocr_result('30000000-0000-4000-8000-000000000004','worker-race-0004','AAAAAAAAAAAAAAAAAAAAAA==','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA','1','ha',40,0,repeat('b',64),16);" \
+  >"$tmp_dir/race-b-worker.out" &
+worker_pid=$!
+wait_for_lock race_worker_waiting
+wait "$delete_pid"
+wait "$worker_pid"
+store_result="$(tr -d '[:space:]' < "$tmp_dir/race-b-worker.out")"
+test "$store_result" = "f"
+psql -X -v ON_ERROR_STOP=1 -c "do \$\$ begin if exists(select 1 from private.ocr_results where document_id='20000000-0000-4000-8000-000000000004') then raise exception 'Delete-first race stored an OCR result'; end if; end \$\$;"
+
+echo "PostgreSQL integration tests passed (full OCR migrations, result expiry, owner isolation, ACLs, purge, deterministic lock races)."

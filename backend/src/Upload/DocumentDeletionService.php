@@ -15,7 +15,7 @@ final class DocumentDeletionService
 {
     public function __construct(
         private readonly DocumentDeletionStore $store,
-        private readonly PrivateDocumentStorage $storage,
+        private readonly DocumentDeletionStorage $storage,
     ) {}
 
     public function delete(string $documentId, string $userId): bool
