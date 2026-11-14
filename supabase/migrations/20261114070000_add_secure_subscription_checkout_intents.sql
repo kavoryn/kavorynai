@@ -1,6 +1,12 @@
 -- Server-created subscription checkout intents and verified subscription.create linkage.
 -- No live Paystack requests or customer access are enabled by this migration.
 
+-- Database-level invariant: a user can have at most one pending checkout.
+-- The function takes a per-user advisory transaction lock before checking/inserting.
+create unique index if not exists user_subscriptions_one_pending_checkout_per_user_idx
+  on private.user_subscriptions (user_id)
+  where status = 'pending';
+
 create or replace function public.create_my_billing_checkout_intent(
   p_user_id uuid,
   p_price_id uuid,
@@ -24,6 +30,12 @@ begin
      or p_reference !~ '^[A-Za-z0-9._=-]{8,120}$' then
     raise exception 'invalid checkout intent';
   end if;
+
+  -- Serialize checkout creation per account. The transaction-scoped lock is
+  -- held through stale-intent cleanup, pending checks, and both inserts.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('kavoryn-billing-checkout:' || p_user_id::text, 0)
+  );
 
   select * into v_user from auth.users where id = p_user_id;
   if not found or v_user.email is null or v_user.email_confirmed_at is null then
