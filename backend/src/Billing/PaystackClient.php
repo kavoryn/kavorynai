@@ -33,6 +33,7 @@ final class PaystackClient
         string $reference,
         string $callbackUrl,
         array $metadata = [],
+        ?string $planCode = null,
     ): array {
         if (filter_var($email, FILTER_VALIDATE_EMAIL) === false ||
             $amountMinor < 1 ||
@@ -40,18 +41,23 @@ final class PaystackClient
             preg_match('/\A[A-Za-z0-9._=-]{8,120}\z/', $reference) !== 1 ||
             parse_url($callbackUrl, PHP_URL_SCHEME) !== 'https' ||
             !is_array($metadata) ||
-            strlen(json_encode($metadata, JSON_THROW_ON_ERROR)) > 4096) {
+            strlen(json_encode($metadata, JSON_THROW_ON_ERROR)) > 4096 ||
+            ($planCode !== null && preg_match('/\\APLN_[A-Za-z0-9_-]{6,120}\\z/', $planCode) !== 1)) {
             throw new \InvalidArgumentException('Invalid Paystack checkout details.');
         }
 
-        $data = $this->request('POST', '/transaction/initialize', [
+        $payload = [
             'email' => $email,
             'amount' => $amountMinor,
             'currency' => $currency,
             'reference' => $reference,
             'callback_url' => $callbackUrl,
             'metadata' => $metadata,
-        ]);
+        ];
+        if ($planCode !== null) {
+            $payload['plan'] = $planCode;
+        }
+        $data = $this->request('POST', '/transaction/initialize', $payload);
 
         $url = $data['authorization_url'] ?? null;
         $accessCode = $data['access_code'] ?? null;
