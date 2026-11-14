@@ -4,7 +4,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -40,8 +40,8 @@ class HistorySettingsInstrumentedTest {
     fun homeOpensHistoryAndSettingsWorkspace() {
         openHistory()
 
-        composeRule.onNodeWithTag("history_settings_screen").assertExists()
-        composeRule.onNodeWithText("Your workspace, in one place.").assertExists()
+        composeRule.onNodeWithTag("history_settings_screen").assertIsDisplayed()
+        composeRule.onNodeWithText("Your workspace, in one place.").assertIsDisplayed()
     }
 
     @Test
@@ -68,8 +68,8 @@ class HistorySettingsInstrumentedTest {
         val api = CountingHistoryApi()
         showHistoryScreen(accessToken = null, api = api)
 
-        composeRule.onNodeWithTag("history_sign_in_required").assertExists()
-        composeRule.onNodeWithText("Sign in").assertExists()
+        composeRule.onNodeWithTag("history_sign_in_required").assertIsDisplayed()
+        composeRule.onNodeWithText("Sign in").assertIsDisplayed()
         assertEquals(0, api.listCalls)
     }
 
@@ -82,9 +82,9 @@ class HistorySettingsInstrumentedTest {
 
         waitForApiError()
         composeRule.onNodeWithTag("history_api_error")
-            .assertExists()
+            .assertIsDisplayed()
         composeRule.onNodeWithText("The chat service is temporarily unavailable. Please try again.")
-            .assertExists()
+            .assertIsDisplayed()
     }
 
     @Test
@@ -96,7 +96,7 @@ class HistorySettingsInstrumentedTest {
 
         waitForApiError()
         composeRule.onNodeWithText("Kavoryn Chat is temporarily unavailable. Please check your connection and try again.")
-            .assertExists()
+            .assertIsDisplayed()
     }
 
     private fun openHistory() {
