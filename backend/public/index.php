@@ -97,7 +97,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
         respond(401, ['error'=>['code'=>'invalid_webhook_signature','message'=>'The payment notification could not be authenticated.','request_id'=>$requestId]]);
     }
 
-    $eventReference = $event['data']['reference'] ?? $event['data']['transaction_reference'] ?? null;
+    $eventReference = $event['data']['reference'] ?? $event['data']['transaction']['reference'] ?? $event['data']['transaction_reference'] ?? null;
     if (!is_string($eventReference) || $eventReference === '' || strlen($eventReference) > 120) {
         $eventReference = null;
     }
@@ -158,7 +158,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
 
         $lifecycleApplied = false;
         $lifecycleEvents = [
-            'invoice.payment_failed', 'subscription.not_renew', 'subscription.disable',
+            'invoice.create', 'invoice.payment_failed', 'subscription.not_renew', 'subscription.disable',
             'refund.pending', 'refund.processing', 'refund.processed', 'refund.failed',
         ];
         if (in_array($event['event'], $lifecycleEvents, true)) {
@@ -196,6 +196,18 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
                 $supabaseSecret,
                 $serviceRoleJwt,
             );
+            $invoiceAmountMinor = null;
+            $invoiceCurrency = null;
+            if ($event['event'] === 'invoice.create') {
+                $invoiceAmount = $event['data']['transaction']['amount'] ?? $event['data']['amount'] ?? null;
+                $invoiceCurrencyValue = $event['data']['transaction']['currency'] ?? null;
+                if (is_int($invoiceAmount) && is_string($invoiceCurrencyValue)) {
+                    $invoiceAmountMinor = $invoiceAmount;
+                    $invoiceCurrency = $invoiceCurrencyValue;
+                } else {
+                    throw new \RuntimeException('Invoice amount or currency is invalid.');
+                }
+            }
             $lifecycleApplied = $lifecycle->apply(
                 $payloadSha256,
                 $event['event'],
@@ -204,6 +216,8 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
                 $providerStatus,
                 $graceHours,
                 $refundAmountMinor,
+                $invoiceAmountMinor,
+                $invoiceCurrency,
             );
         }
     } catch (\Throwable) {
