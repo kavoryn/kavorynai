@@ -201,7 +201,7 @@ jobs:
           php -r '
             $data = json_decode(file_get_contents("/tmp/kavoryn-consent.json"), true, 512, JSON_THROW_ON_ERROR);
             if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
-                fwrite(STDERR, "Consent endpoint must fail closed without Auth configuration.\\n");
+                fwrite(STDERR, "Consent endpoint must fail closed without Auth configuration. Actual response: " . json_encode($data) . PHP_EOL);
                 exit(1);
             }
           '
