@@ -28,13 +28,13 @@ header{display:flex;justify-content:space-between;align-items:center;gap:18px;ma
  <div class="card"><div class="stat-label">Repository visibility</div><div class="stat-value" id="repoVisibility">—</div><div class="stat-note" id="repoBranch">Loading repository…</div></div>
  <div class="card"><div class="stat-label">Open pull requests</div><div class="stat-value" id="openPrs">—</div><div class="stat-note">Live GitHub count</div></div>
  <div class="card"><div class="stat-label">Draft work items</div><div class="stat-value" id="draftPrs">—</div><div class="stat-note">Across active project PRs</div></div>
- <div class="card"><div class="stat-label">Verified CI runs</div><div class="stat-value" id="ciPass">—</div><div class="stat-note" id="ciNote">Latest runs for reviewed PR heads</div></div>
+ <div class="card"><div class="stat-label">Latest CI checks</div><div class="stat-value" id="ciPass">—</div><div class="stat-note" id="ciNote">Latest run per workflow on each reviewed PR head</div></div>
 </section>
 <div class="section-head"><div><div class="eyebrow">Live repository snapshot</div><h2 style="margin:3px 0">Delivery overview</h2></div><span class="pill info" id="updatedAt">Fetching GitHub…</span></div>
-<nav class="tabs" aria-label="Dashboard sections">
- <button data-tab="overview" aria-selected="true">Overview</button><button data-tab="pulls" aria-selected="false">PRs & CI</button><button data-tab="architecture" aria-selected="false">Architecture</button><button data-tab="security" aria-selected="false">Security</button><button data-tab="roadmap" aria-selected="false">Roadmap</button>
+<nav class="tabs" role="tablist" aria-label="Dashboard sections">
+ <button id="tab-overview" role="tab" aria-controls="overview" data-tab="overview" aria-selected="true" tabindex="0">Overview</button><button id="tab-pulls" role="tab" aria-controls="pulls" data-tab="pulls" aria-selected="false" tabindex="-1">PRs & CI</button><button id="tab-architecture" role="tab" aria-controls="architecture" data-tab="architecture" aria-selected="false" tabindex="-1">Architecture</button><button id="tab-security" role="tab" aria-controls="security" data-tab="security" aria-selected="false" tabindex="-1">Security</button><button id="tab-roadmap" role="tab" aria-controls="roadmap" data-tab="roadmap" aria-selected="false" tabindex="-1">Roadmap</button>
 </nav>
-<section id="overview" class="panel active">
+<section id="overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="0" class="panel active">
  <div class="grid two">
   <div class="card"><h2>Product direction</h2><p class="muted">Kavoryn is an accessibility-first assistant that helps people read, understand and listen to documents in their chosen language. Stage A (Documents) is the first release priority; later stages add voice and scene/money utilities.</p><div class="pr-status"><span class="pill info">Android first</span><span class="pill info">Hausa-friendly</span><span class="pill info">Privacy-first</span></div></div>
   <div class="card"><h2>Current engineering position</h2><div class="list"><div class="row"><div><strong>Android foundation</strong><p>Kotlin + Jetpack Compose code and tests exist.</p></div><span class="pill warn">Integration gates open</span></div><div class="row"><div><strong>PHP API + AI adapters</strong><p>Document processing and provider-neutral building blocks.</p></div><span class="pill warn">Staging unverified</span></div><div class="row"><div><strong>AI Chat</strong><p>Chat persistence, provider selection and streaming PR stack.</p></div><span class="pill info">Draft PRs</span></div></div></div>
@@ -46,14 +46,14 @@ header{display:flex;justify-content:space-between;align-items:center;gap:18px;ma
  </div>
  <div class="card" style="margin-top:14px"><h2>Important release gates</h2><div class="list"><div class="row"><div><strong>Staging environment</strong><p>Verified HTTPS API origin and staging credentials are still required for end-to-end tests.</p></div><span class="pill bad">Blocked</span></div><div class="row"><div><strong>Multilingual quality</strong><p>Measure OCR and explanation quality on a fixed, permissioned corpus, especially Hausa letters ɓ ɗ ƙ ƴ and Arabic RTL.</p></div><span class="pill warn">Pending evidence</span></div><div class="row"><div><strong>Accessibility acceptance</strong><p>TalkBack, low vision, large text, contrast, reduced motion and low-end device checks.</p></div><span class="pill warn">Pending</span></div></div></div>
 </section>
-<section id="pulls" class="panel">
+<section id="pulls" role="tabpanel" aria-labelledby="tab-pulls" tabindex="0" class="panel">
  <div class="grid two">
   <div class="card"><h2>Active project pull requests</h2><p class="source">Fetched from the public GitHub REST API. Head SHAs and states are current at refresh time.</p><div id="prList" class="loading">Loading pull requests…</div></div>
   <div class="card"><h2>CI checks on reviewed PR heads</h2><p class="source">Workflow runs are looked up against each PR's exact current head SHA. A missing run is shown as unverified, not as a pass.</p><div id="ciList" class="loading">Loading workflow runs…</div></div>
  </div>
  <div class="card" style="margin-top:14px"><h2>How to read CI status</h2><div class="list"><div class="row"><div><strong>Success</strong><p>GitHub reports the workflow completed successfully for that exact commit.</p></div><span class="pill ok">Passed</span></div><div class="row"><div><strong>Failure / cancelled</strong><p>The latest matching run did not complete successfully.</p></div><span class="pill bad">Not passed</span></div><div class="row"><div><strong>No matching run</strong><p>No PR-triggered workflow run was returned for that exact SHA.</p></div><span class="pill warn">Unverified</span></div></div></div>
 </section>
-<section id="architecture" class="panel">
+<section id="architecture" role="tabpanel" aria-labelledby="tab-architecture" tabindex="0" class="panel">
  <div class="card"><h2>System architecture — intended boundary</h2><p class="muted small">Conceptual architecture based on repository documentation; not a live deployment topology.</p>
  <div class="arch">
   <div class="node"><strong>Android app</strong><span>Kotlin · Compose · camera · sign-in · document UI</span></div><div class="arrow">→</div><div class="node"><strong>PHP API</strong><span>Auth · consent · validation · orchestration · provider secrets</span></div>
@@ -62,7 +62,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:18px;ma
  <div class="grid two" style="margin-top:14px"><div class="card"><h2>Client responsibilities</h2><ul class="muted"><li>Capture/select and locally inspect documents.</li><li>Show what data will be sent and request explicit consent.</li><li>Present original OCR text separately from AI explanations.</li><li>Keep provider and service-role secrets out of the app.</li></ul></div><div class="card"><h2>Backend responsibilities</h2><ul class="muted"><li>Verify user identity and ownership on every resource.</li><li>Validate consent, payload, limits and request idempotency.</li><li>Call only the explicitly selected AI provider.</li><li>Protect private data and clean temporary content on all paths.</li></ul></div></div>
  <p class="source" style="margin-top:12px">Source documents: docs/ARCHITECTURE_DECISIONS.md, docs/BUILD_STATUS.md, docs/PRODUCT_REQUIREMENTS_V3.1.md.</p>
 </section>
-<section id="security" class="panel">
+<section id="security" role="tabpanel" aria-labelledby="tab-security" tabindex="0" class="panel">
  <div class="grid two">
   <div class="card"><h2>Security & privacy checklist</h2>
    <div class="check done"><span class="symbol">✓</span><div><strong>Server-side provider credentials</strong><p>Architecture and adapters keep provider secrets on the server, not in Android.</p></div></div>
@@ -75,7 +75,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:18px;ma
   <div class="card"><h2>Non-negotiable controls</h2><div class="list"><div class="row"><div><strong>Feature flags</strong><p>Keep all sensitive features off until release gates pass.</p></div><span class="pill warn">OFF</span></div><div class="row"><div><strong>Provider selection</strong><p>No silent switch from the selected AI provider.</p></div><span class="pill ok">Required</span></div><div class="row"><div><strong>Document content</strong><p>Never log raw documents, OCR text, tokens or secrets.</p></div><span class="pill ok">Required</span></div><div class="row"><div><strong>Deletion</strong><p>No deletion merely because 90 days elapsed; ask the owner and require explicit confirmation.</p></div><span class="pill ok">Policy</span></div><div class="row"><div><strong>Production changes</strong><p>No deployment, merge, migration or flag enablement from this dashboard.</p></div><span class="pill info">Read-only</span></div></div></div>
  </div>
 </section>
-<section id="roadmap" class="panel">
+<section id="roadmap" role="tabpanel" aria-labelledby="tab-roadmap" tabindex="0" class="panel">
  <div class="grid two">
   <div class="card"><h2>Stage A — Documents</h2><div class="phase"><strong>1. Complete document journey</strong><p>Connect upload → OCR result → explanation → Q&A → listen/share/delete.</p><span class="pill warn">In progress</span></div><div class="phase"><strong>2. Prove quality</strong><p>Measure English, Hausa, Arabic and French OCR; verify names, dates, amounts and uncertainty.</p><span class="pill warn">Pending evidence</span></div><div class="phase"><strong>3. Privacy & accessibility</strong><p>Complete retention decisions, deletion, TalkBack, large text, contrast and low-end device checks.</p><span class="pill warn">Pending</span></div><div class="phase"><strong>4. Staging acceptance</strong><p>Verify HTTPS API, ownership isolation, provider consent, retries and cancellation before enabling flags.</p><span class="pill bad">Blocked by environment</span></div></div>
   <div class="card"><h2>Stage B & C</h2><div class="phase"><strong>Stage B — Voice</strong><p>Advanced dictation, voice input in Chat and document preparation helper.</p><span class="pill neutral">Later stage</span></div><div class="phase"><strong>Stage C — Scene & utilities</strong><p>Scene/object description, NGN-first money reader, colour and light utilities.</p><span class="pill neutral">Later stage</span></div><div class="phase"><strong>Phase 2</strong><p>Offline AI, Braille export, trusted helper, indoor navigation and advanced automation.</p><span class="pill neutral">Deferred</span></div></div>
@@ -91,7 +91,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:18px;ma
 (function(){
 "use strict";
 var owner="kavoryn",repo="kavorynai",api="https://api.github.com/repos/"+owner+"/"+repo;
-var reviewed=[26,27,29,31,32],prData=[],runData=[];
+var reviewed=[26,27,29,31,32,33],prData=[],runData=[];
 function el(id){return document.getElementById(id)}
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function pill(text,kind){return '<span class="pill '+kind+'">'+esc(text)+'</span>'}
@@ -112,8 +112,8 @@ async function refresh(){
    catch(e){return {number:p.number,sha:p.head.sha,runs:[],error:e.message}}
   }));
   runData=settled;renderRuns();
-  var successes=0,seen=0;settled.forEach(function(x){x.runs.forEach(function(w){seen++;if(w.status==="completed"&&w.conclusion==="success")successes++})});
-  el("ciPass").textContent=successes+"/"+seen;el("ciNote").textContent=seen?"Successful runs / returned runs":"No matching workflow runs returned";
+  var successes=0,seen=0;settled.forEach(function(x){latestRuns(x.runs).forEach(function(w){seen++;if(w.status==="completed"&&w.conclusion==="success")successes++})});
+  el("ciPass").textContent=successes+"/"+seen;el("ciNote").textContent=seen?"Successful latest runs / latest runs checked":"No matching workflow runs returned";
   el("updatedAt").textContent="Updated "+new Date().toLocaleTimeString();
   el("lastRefresh").textContent="Last refresh: "+new Date().toLocaleString()+" (your device time).";
  }catch(e){setError("prList",e.message);setError("ciList",e.message);el("updatedAt").textContent="Refresh failed";el("lastRefresh").textContent="Could not refresh GitHub data: "+e.message}
@@ -126,17 +126,18 @@ function renderPrs(){
   return '<div class="pr"><div class="pr-title"><a href="'+esc(p.html_url)+'" target="_blank" rel="noreferrer">#'+p.number+' · '+esc(p.title)+'</a></div><div class="pr-meta">'+esc(p.head.ref)+' → '+esc(p.base.ref)+' · '+sha.slice(0,12)+' · '+p.changed_files+' files · +'+p.additions+' / −'+p.deletions+'</div><div class="pr-status">'+pill(p.state==="closed"?(p.merged_at?"Merged":"Closed"):"Open",kind)+(p.draft?pill("Draft","warn"):pill("Ready for review","info"))+pill(p.mergeable===true?"Mergeable":p.mergeable===false?"Conflict":"Mergeability unknown","neutral")+'</div></div>'
  }).join("");
 }
+function latestRuns(runs){var byWorkflow={};runs.slice().sort(function(a,b){return new Date(b.created_at)-new Date(a.created_at)}).forEach(function(w){var key=w.workflow_id||w.name;if(!byWorkflow[key])byWorkflow[key]=w});return Object.keys(byWorkflow).map(function(k){return byWorkflow[k]})}
 function renderRuns(){
  var target=el("ciList");var html="";
  runData.forEach(function(item){
   var p=prData.find(function(x){return x.number===item.number});html+='<div class="pr"><div class="pr-title">PR #'+item.number+' · '+esc(p?p.title:"")+'</div><div class="pr-meta">Head: '+esc(item.sha.slice(0,12))+'</div>';
   if(item.error){html+='<p class="error small">'+esc(item.error)+'</p>'}
   else if(!item.runs.length){html+='<div class="pr-status">'+pill("No matching workflow run","warn")+'</div>'}
-  else{item.runs.forEach(function(w){var st=w.status==="completed"?(w.conclusion||"completed"):w.status;html+='<div class="pr-status">'+pill(w.name||"Workflow","neutral")+pill(st,stateKind(st))+'<a class="small" href="'+esc(w.html_url)+'" target="_blank" rel="noreferrer">View run ↗</a></div>'})}
+  else{latestRuns(item.runs).forEach(function(w){var st=w.status==="completed"?(w.conclusion||"completed"):w.status;html+='<div class="pr-status">'+pill(w.name||"Workflow","neutral")+pill(st,stateKind(st))+'<a class="small" href="'+esc(w.html_url)+'" target="_blank" rel="noreferrer">View run ↗</a></div>'})}
   html+='</div>';
  });target.innerHTML=html||'<p class="muted">No CI data available.</p>';
 }
-document.querySelectorAll("[data-tab]").forEach(function(b){b.addEventListener("click",function(){document.querySelectorAll("[data-tab]").forEach(function(x){x.setAttribute("aria-selected",x===b?"true":"false")});document.querySelectorAll(".panel").forEach(function(x){x.classList.toggle("active",x.id===b.dataset.tab)})})});
+var tabs=Array.prototype.slice.call(document.querySelectorAll("[data-tab]"));function activateTab(b,moveFocus){tabs.forEach(function(x){var active=x===b;x.setAttribute("aria-selected",active?"true":"false");x.tabIndex=active?0:-1});document.querySelectorAll(".panel").forEach(function(x){x.classList.toggle("active",x.id===b.dataset.tab)});if(moveFocus)b.focus()}tabs.forEach(function(b){b.addEventListener("click",function(){activateTab(b,false)});b.addEventListener("keydown",function(e){var i=tabs.indexOf(b),next=null;if(e.key==="ArrowRight")next=tabs[(i+1)%tabs.length];else if(e.key==="ArrowLeft")next=tabs[(i+tabs.length-1)%tabs.length];else if(e.key==="Home")next=tabs[0];else if(e.key==="End")next=tabs[tabs.length-1];if(next){e.preventDefault();activateTab(next,true)}})});
 el("refresh").addEventListener("click",refresh);refresh();
 })();
 </script>
