@@ -58,6 +58,9 @@ jobs:
       - name: Supabase document registry tests
         run: php backend/tests/supabase_document_registry_test.php
 
+      - name: Secure document deletion tests
+        run: php backend/tests/document_deletion_test.php
+
       - name: OCR worker tests
         run: php backend/tests/OcrWorkerTest.php
 
