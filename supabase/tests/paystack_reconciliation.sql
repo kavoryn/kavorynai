@@ -14,8 +14,8 @@ values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'plus', 1, 'Plus', true,
   '{"features":{"chat":true},"quotas":{"chat_messages":2}}'::jsonb)
 on conflict (id) do nothing;
 
-insert into private.billing_prices (id, plan_id, currency, amount_minor, interval_unit, active)
-values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'NGN', 250000, 'month', true)
+insert into private.billing_prices (id, plan_id, currency, amount_minor, interval_unit, active, paystack_plan_code)
+values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'NGN', 250000, 'month', true, 'PLN_kavoryn_test_01')
 on conflict (id) do nothing;
 
 -- Authenticated catalog exposes only active plans and the explicitly selected currency.
