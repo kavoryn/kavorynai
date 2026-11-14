@@ -54,10 +54,19 @@ select public.reconcile_paystack_charge_success(
   repeat('a', 64), 'kavoryn-integration-ok-01', 'success', 250000, 'NGN',
   'paystack-txn-1001', '2026-11-14T00:00:00Z'
 );
-select public.reconcile_paystack_charge_success(
-  repeat('a', 64), 'kavoryn-wrong-reference-01', 'success', 250000, 'NGN',
-  'paystack-txn-1001', '2026-11-14T00:00:00Z'
-);
+do $
+declare
+  v_reconciled boolean;
+begin
+  select public.reconcile_paystack_charge_success(
+    repeat('a', 64), 'kavoryn-wrong-reference-01', 'success', 250000, 'NGN',
+    'paystack-txn-1001', '2026-11-14T00:00:00Z'
+  ) into v_reconciled;
+  if v_reconciled then
+    raise exception 'duplicate receipt accepted a mismatched reference';
+  end if;
+end;
+$;
 reset role;
 
 do $
