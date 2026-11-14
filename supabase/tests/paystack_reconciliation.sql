@@ -18,6 +18,30 @@ insert into private.billing_prices (id, plan_id, currency, amount_minor, interva
 values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'NGN', 250000, 'month', true)
 on conflict (id) do nothing;
 
+-- Authenticated catalog exposes only active plans and the explicitly selected currency.
+set role authenticated;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
+do $catalog_test$
+declare
+  v_ngn jsonb;
+  v_usd jsonb;
+begin
+  select public.get_active_billing_catalog('NGN') into v_ngn;
+  if v_ngn->>'currency' <> 'NGN'
+     or v_ngn->'plans'->0->>'plan_key' <> 'plus'
+     or v_ngn->'plans'->0->'prices'->0->>'amount_minor' <> '250000' then
+    raise exception 'NGN catalog did not return the active plan and price';
+  end if;
+
+  select public.get_active_billing_catalog('USD') into v_usd;
+  if v_usd->>'currency' <> 'USD'
+     or jsonb_array_length(v_usd->'plans'->0->'prices') <> 0 then
+    raise exception 'USD catalog must not silently reuse NGN prices';
+  end if;
+end;
+$catalog_test$;
+reset role;
+
 insert into private.billing_transactions (
   id, user_id, price_id, provider, reference, expected_amount_minor, currency, status
 ) values
