@@ -260,6 +260,7 @@ as $$
     from private.user_subscriptions s
     join private.billing_plans p on p.id=s.plan_id
     where s.user_id=auth.uid()
+      and p.active=true
       and (
         (s.status in ('active','trialing') and
           (s.current_period_end is null or s.current_period_end > pg_catalog.now()))
@@ -303,7 +304,7 @@ declare
   v_start timestamptz;
 begin
   if new.status <> 'succeeded'
-     or old.status = 'succeeded'
+     or old.status not in ('initialized','pending')
      or new.subscription_id is null
      or new.paid_at is null then
     return new;
