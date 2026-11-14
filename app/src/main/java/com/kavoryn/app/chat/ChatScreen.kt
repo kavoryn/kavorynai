@@ -37,6 +37,7 @@ fun ChatScreen(
     var streaming by remember { mutableStateOf(false) }
     var showConsent by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var chatUnavailable by remember { mutableStateOf(false) }
 
     LaunchedEffect(apiBaseUrl, accessToken) {
         if (apiBaseUrl.startsWith("https://") && accessToken.isNotBlank()) {
@@ -44,6 +45,7 @@ fun ChatScreen(
             try {
                 history = withContext(Dispatchers.IO) { api.listConversations(accessToken) }
             } catch (failure: Exception) {
+                chatUnavailable = failure is ChatApiException && failure.code == "chat_disabled"
                 error = failure.message ?: "Chat history is unavailable."
             } finally {
                 loading = false
@@ -71,6 +73,7 @@ fun ChatScreen(
                 conversation = created
                 history = listOf(created) + history.filterNot { it.id == created.id }
             } catch (failure: Exception) {
+                chatUnavailable = failure is ChatApiException && failure.code == "chat_disabled"
                 error = failure.message ?: "The chat could not be created."
             } finally {
                 loading = false
@@ -148,11 +151,14 @@ fun ChatScreen(
             }
             Button(
                 onClick = ::beginNewChat,
-                enabled = !loading && apiBaseUrl.startsWith("https://") && accessToken.isNotBlank(),
+                enabled = !loading && !chatUnavailable && apiBaseUrl.startsWith("https://") && accessToken.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = ChatGold, contentColor = ChatInk),
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (loading) "Please wait…" else "Start a new conversation") }
 
+            if (chatUnavailable) {
+                Text("Chat is currently disabled by the server release flag. The app will not bypass this restriction.", color = Color(0xFF68758A), style = MaterialTheme.typography.bodySmall)
+            }
             if (history.isNotEmpty()) {
                 Text("Recent conversations", color = ChatInk, fontWeight = FontWeight.Bold)
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
