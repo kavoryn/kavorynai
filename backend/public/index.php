@@ -89,6 +89,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
     require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
     require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackReconciliationStore.php';
     require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackLifecycleStore.php';
+    require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackSubscriptionCreatedStore.php';
 
     try {
         $verifier = new \Kavoryn\Billing\PaystackWebhookVerifier($paystackSecret);
@@ -153,6 +154,31 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
                 $verified['currency'],
                 (string) $providerTransactionId,
                 gmdate('c', strtotime($paidAt)),
+            );
+        }
+
+        $subscriptionCreatedApplied = false;
+        if ($event['event'] === 'subscription.create') {
+            $subscriptionCode = $event['data']['subscription_code'] ?? null;
+            $customerEmail = $event['data']['customer']['email'] ?? null;
+            $planCode = $event['data']['plan']['plan_code'] ?? null;
+            $customerCode = $event['data']['customer']['customer_code'] ?? null;
+            if (!is_string($subscriptionCode) || !is_string($customerEmail) ||
+                !is_string($planCode) ||
+                ($customerCode !== null && !is_string($customerCode))) {
+                throw new \RuntimeException('Subscription creation details are incomplete.');
+            }
+            $subscriptionCreated = new \Kavoryn\Billing\SupabasePaystackSubscriptionCreatedStore(
+                $supabaseUrl,
+                $supabaseSecret,
+                $serviceRoleJwt,
+            );
+            $subscriptionCreatedApplied = $subscriptionCreated->apply(
+                $payloadSha256,
+                $subscriptionCode,
+                $customerEmail,
+                $planCode,
+                $customerCode,
             );
         }
 
@@ -230,6 +256,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
         'duplicate' => !$created,
         'reconciled' => $reconciled,
         'lifecycle_applied' => $lifecycleApplied,
+        'subscription_created_applied' => $subscriptionCreatedApplied,
         'request_id' => $requestId,
     ]);
 }
@@ -305,7 +332,7 @@ if ($method === 'POST' && $path === '/v1/billing/checkout') {
         $checkoutStore = new \Kavoryn\Billing\SupabaseBillingCheckoutStore($supabaseUrl, $supabaseSecret, $serviceRoleJwt);
         $intent = $checkoutStore->createIntent($user->id, $priceId, $reference, $uuid(), $uuid());
         if (strtolower($intent['email']) !== strtolower($user->email)) {
-            throw new \\RuntimeException('Checkout account identity mismatch.');
+            throw new \RuntimeException('Checkout account identity mismatch.');
         }
         $paystack = new \Kavoryn\Billing\PaystackClient($paystackSecret);
         $checkout = $paystack->initializeTransaction(
