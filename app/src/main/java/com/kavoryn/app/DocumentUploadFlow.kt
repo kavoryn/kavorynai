@@ -217,6 +217,7 @@ fun DocumentUploadFlow(
                                     } catch (cancelled: CancellationException) {
                                         throw cancelled
                                     } catch (failure: Exception) {
+                                        showDeleteConfirmation = false
                                         error = failure.message
                                             ?: "The document could not be deleted. Please try again."
                                     } finally {
