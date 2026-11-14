@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Billing;
+namespace Kavoryn\Billing;
 
 final class SupabaseBillingSubscriptionStore
 {
@@ -13,7 +13,7 @@ final class SupabaseBillingSubscriptionStore
         private readonly mixed $http = null,
     ) {
         if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' || $publishableKey === '') {
-            throw new \\InvalidArgumentException('Billing subscription lookup is not configured.');
+            throw new \InvalidArgumentException('Billing subscription lookup is not configured.');
         }
     }
 
@@ -21,7 +21,7 @@ final class SupabaseBillingSubscriptionStore
     {
         if (!is_string($authorization) ||
             preg_match('/\\ABearer\\s+([A-Za-z0-9._~-]{20,8192})\\z/i', trim($authorization), $matches) !== 1) {
-            throw new \\InvalidArgumentException('A valid user session is required.');
+            throw new \InvalidArgumentException('A valid user session is required.');
         }
 
         $url = rtrim($this->supabaseUrl, '/') . '/rest/v1/rpc/get_my_paystack_subscription_code';
@@ -37,11 +37,11 @@ final class SupabaseBillingSubscriptionStore
                 $response = ($this->http)($url, $headers, '{}');
             } else {
                 if (!function_exists('curl_init')) {
-                    throw new \\RuntimeException('Subscription lookup transport unavailable.');
+                    throw new \RuntimeException('Subscription lookup transport unavailable.');
                 }
                 $curl = curl_init($url);
                 if ($curl === false) {
-                    throw new \\RuntimeException('Subscription lookup transport unavailable.');
+                    throw new \RuntimeException('Subscription lookup transport unavailable.');
                 }
                 $lines = [];
                 foreach ($headers as $name => $value) {
@@ -63,12 +63,12 @@ final class SupabaseBillingSubscriptionStore
                 $error = curl_errno($curl);
                 curl_close($curl);
                 if ($body === false || $error !== 0) {
-                    throw new \\RuntimeException('Subscription lookup transport unavailable.');
+                    throw new \RuntimeException('Subscription lookup transport unavailable.');
                 }
                 $response = ['status' => $status, 'body' => (string) $body];
             }
-        } catch (\\Throwable) {
-            throw new \\RuntimeException('Billing subscription lookup is temporarily unavailable.');
+        } catch (\Throwable) {
+            throw new \RuntimeException('Billing subscription lookup is temporarily unavailable.');
         }
 
         if (!is_array($response) ||
@@ -76,7 +76,7 @@ final class SupabaseBillingSubscriptionStore
             !is_string($response['body'] ?? null) ||
             $response['status'] < 200 || $response['status'] >= 300 ||
             strlen($response['body']) > 4096) {
-            throw new \\RuntimeException('Billing subscription lookup is temporarily unavailable.');
+            throw new \RuntimeException('Billing subscription lookup is temporarily unavailable.');
         }
 
         $code = json_decode($response['body'], true, 8);
@@ -84,7 +84,7 @@ final class SupabaseBillingSubscriptionStore
             return null;
         }
         if (!is_string($code) || preg_match('/\\A[A-Za-z0-9_-]{8,160}\\z/', $code) !== 1) {
-            throw new \\RuntimeException('Billing subscription lookup response is invalid.');
+            throw new \RuntimeException('Billing subscription lookup response is invalid.');
         }
         return $code;
     }
