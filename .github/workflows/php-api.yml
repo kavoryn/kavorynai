@@ -183,6 +183,9 @@ jobs:
       - name: Billing checkout store tests
         run: php backend/tests/SupabaseBillingCheckoutStoreTest.php
 
+      - name: Paystack subscription-created store tests
+        run: php backend/tests/SupabasePaystackSubscriptionCreatedStoreTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
