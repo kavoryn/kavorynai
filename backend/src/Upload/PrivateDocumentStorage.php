@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Kavoryn\Upload;
 
-final class PrivateDocumentStorage
+interface DocumentDeletionStorage
+{
+    public function delete(string $storageKey): bool;
+}
+
+final class PrivateDocumentStorage implements DocumentDeletionStorage
 {
     public function __construct(
         private readonly string $storagePath,
