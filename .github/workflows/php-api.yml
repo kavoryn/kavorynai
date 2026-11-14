@@ -61,6 +61,7 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114010000_create_private_billing_foundation.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114020000_add_atomic_paystack_charge_reconciliation.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114030000_add_subscription_lifecycle_and_entitlements.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114040000_add_subscription_management_link_access.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/paystack_reconciliation.sql
 
       - name: Install Poppler PDF utilities
@@ -168,6 +169,9 @@ jobs:
       - name: Billing entitlement store tests
         run: php backend/tests/SupabaseBillingEntitlementStoreTest.php
 
+      - name: Billing subscription store tests
+        run: php backend/tests/SupabaseBillingSubscriptionStoreTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
@@ -200,6 +204,16 @@ jobs:
             $data = json_decode(file_get_contents("/tmp/kavoryn-chat.json"), true, 512, JSON_THROW_ON_ERROR);
             if (($data["error"]["code"] ?? null) !== "chat_disabled") {
                 fwrite(STDERR, "General-purpose chat must remain disabled until release gates pass.\\n");
+                exit(1);
+            }
+          '
+
+          management_status=$(curl --silent --output /tmp/kavoryn-management.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/billing/subscription-management-link)
+          test "$management_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-management.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "Subscription management must authenticate before reading provider subscription data.\\n");
                 exit(1);
             }
           '
