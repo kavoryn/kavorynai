@@ -1,9 +1,9 @@
 name: Android build
 on:
   push:
-    branches: [main, feature/android-ai-chat-ui, feature/android-document-center, feature/android-listen-voice]
+    branches: [main, feature/android-ai-chat-ui, feature/android-document-center, feature/android-listen-voice, feature/android-history-settings]
   pull_request:
-    branches: [main, feature/premium-android-home-ui, feature/android-ai-chat-ui, feature/android-document-center]
+    branches: [main, feature/premium-android-home-ui, feature/android-ai-chat-ui, feature/android-document-center, feature/android-listen-voice]
 jobs:
   assemble:
     runs-on: ubuntu-latest
