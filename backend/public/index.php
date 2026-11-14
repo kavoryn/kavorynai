@@ -278,6 +278,64 @@ if ($method === 'GET' && $path === '/v1/billing/entitlements') {
     }
 }
 
+if ($method === 'GET' && $path === '/v1/billing/payment-recovery') {
+    authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $publishableKey = getenv('SUPABASE_PUBLISHABLE_KEY') ?: '';
+    if ($supabaseUrl === '' || $publishableKey === '') {
+        respond(503, ['error'=>['code'=>'billing_recovery_not_configured','message'=>'Payment recovery is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingEntitlementStore.php';
+    try {
+        $entitlementStore = new \\Kavoryn\\Billing\\SupabaseBillingEntitlementStore($supabaseUrl, $publishableKey);
+        $billing = $entitlementStore->getForBearerToken($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+        $subscriptionStatus = $billing['subscription_status'] ?? 'free';
+        $planKey = $billing['plan_key'];
+        $response = [
+            'plan_key' => $planKey,
+            'subscription_status' => $subscriptionStatus,
+            'current_period_end' => $billing['current_period_end'] ?? null,
+            'grace_period_end' => $billing['grace_period_end'] ?? null,
+            'cancel_at_period_end' => ($billing['cancel_at_period_end'] ?? false) === true,
+            'recovery_available' => false,
+            'next_action' => $subscriptionStatus === 'past_due' ? 'contact_support' : (
+                $subscriptionStatus === 'free' || $subscriptionStatus === 'expired' || $subscriptionStatus === 'cancelled'
+                    ? 'choose_plan'
+                    : 'none'
+            ),
+        ];
+
+        if ($subscriptionStatus === 'past_due') {
+            $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
+            if ($paystackSecret === '') {
+                respond(503, ['error'=>['code'=>'billing_recovery_not_configured','message'=>'Payment recovery is temporarily unavailable.','request_id'=>$requestId]]);
+            }
+            require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingSubscriptionStore.php';
+            require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
+            $subscriptionStore = new \\Kavoryn\\Billing\\SupabaseBillingSubscriptionStore($supabaseUrl, $publishableKey);
+            $subscriptionCode = $subscriptionStore->getMyPaystackSubscriptionCode($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+            if ($subscriptionCode !== null) {
+                $paystack = new \\Kavoryn\\Billing\\PaystackClient($paystackSecret);
+                $response['management_url'] = $paystack->generateSubscriptionManagementLink($subscriptionCode);
+                $response['recovery_available'] = true;
+                $response['next_action'] = 'update_payment_method';
+            }
+        }
+
+        respond(200, ['billing_recovery'=>$response,'request_id'=>$requestId]);
+    } catch (\\InvalidArgumentException) {
+        respond(401, ['error'=>['code'=>'unauthorized','message'=>'A valid sign-in session is required.','request_id'=>$requestId]]);
+    } catch (\\Throwable) {
+        respond(503, ['error'=>['code'=>'billing_recovery_unavailable','message'=>'Payment recovery is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
+    }
+}
+
 if ($method === 'GET' && $path === '/v1/billing/subscription-management-link') {
     authenticatedUser(
         getenv('SUPABASE_URL') ?: '',
