@@ -1,0 +1,48 @@
+name: Chat PostgreSQL security integration
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/20261114002000_create_private_chat_storage.sql"
+      - "supabase/migrations/20261114003000_add_private_chat_operations.sql"
+      - "supabase/tests/chat_security_integration.sh"
+      - ".github/workflows/chat-postgres-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chat-postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Run chat database security integration tests
+        run: bash supabase/tests/chat_security_integration.sh
