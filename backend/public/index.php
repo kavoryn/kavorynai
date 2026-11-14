@@ -180,7 +180,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
                 }
                 $graceHours = (int) $configuredGrace;
             }
-            $lifecycle = new \\Kavoryn\\Billing\\SupabasePaystackLifecycleStore(
+            $lifecycle = new \Kavoryn\Billing\SupabasePaystackLifecycleStore(
                 $supabaseUrl,
                 $supabaseSecret,
                 $serviceRoleJwt,
