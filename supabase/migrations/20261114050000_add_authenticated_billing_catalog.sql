@@ -14,7 +14,7 @@ begin
   if v_user_id is null then
     raise exception 'authentication required';
   end if;
-  if p_currency not in ('NGN', 'USD') then
+  if p_currency is null or p_currency not in ('NGN', 'USD') then
     raise exception 'unsupported currency';
   end if;
 
