@@ -6,6 +6,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -13,6 +17,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -29,9 +37,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val KavorynBlue = Color(0xFFE8F1FB)
-private val KavorynGold = Color(0xFFC9A24B)
-private val KavorynInk = Color(0xFF1A1814)
+private val KavorynBlue = Color(0xFFF5F7FB)
+private val KavorynGold = Color(0xFFD3A64B)
+private val KavorynInk = Color(0xFF17243A)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,7 +47,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(
                 primary = KavorynGold, onPrimary = KavorynInk,
-                background = KavorynBlue, surface = Color(0xFFF4F9FE),
+                background = KavorynBlue, surface = Color.White,
                 onSurface = KavorynInk
             )) {
                 Surface(Modifier.fillMaxSize(), color = KavorynBlue) { DocumentFlow() }
@@ -361,18 +369,144 @@ private fun HomeScreen(
     onCamera: () -> Unit
 ) {
     var languageMenuExpanded by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Text("Kavoryn", style = MaterialTheme.typography.headlineLarge)
-        Text("Read, understand and listen to documents in your language.", style = MaterialTheme.typography.bodyLarge)
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Read a document", style = MaterialTheme.typography.titleLarge)
-                Text("Scan a paper document with your camera or choose an existing PDF or image.")
-                Text("Output language", style = MaterialTheme.typography.labelLarge)
+    val ink = Color(0xFF17243A)
+    val muted = Color(0xFF68758A)
+    val gold = Color(0xFFD3A64B)
+    val canvas = Color(0xFFF5F7FB)
+    val cardShape = RoundedCornerShape(24.dp)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("KAVORYN", style = MaterialTheme.typography.labelMedium,
+                    color = gold, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                Text("Your AI workspace", style = MaterialTheme.typography.titleLarge,
+                    color = ink, fontWeight = FontWeight.Bold)
+            }
+            Surface(shape = CircleShape, color = Color.White, shadowElevation = 2.dp) {
+                Text("K", modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
+                    color = ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = ink),
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(13.dp)
+            ) {
+                Surface(shape = RoundedCornerShape(50), color = Color(0xFF2A3A54)) {
+                    Text("✦  AI MADE SIMPLE", modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                        color = Color(0xFFF2D28A), style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                }
+                Text("Understand more.
+Do more with Kavoryn.",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Read documents, get clear explanations and listen in a language that works for you.",
+                    style = MaterialTheme.typography.bodyMedium, color = Color(0xFFD6DEEA))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = onCamera,
+                        colors = ButtonDefaults.buttonColors(containerColor = gold, contentColor = ink),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.weight(1f).height(50.dp)
+                    ) { Text("Scan document", fontWeight = FontWeight.SemiBold) }
+                    OutlinedButton(
+                        onClick = onChoose,
+                        border = BorderStroke(1.dp, Color(0xFF71809A)),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.weight(1f).height(50.dp)
+                    ) { Text("Choose file", color = Color.White) }
+                }
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Your tools", style = MaterialTheme.typography.titleLarge,
+                color = ink, fontWeight = FontWeight.Bold)
+            Text("Everything you need, in one place.", style = MaterialTheme.typography.bodyMedium, color = muted)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = cardShape,
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFFFF4DA)) {
+                            Text("▤", modifier = Modifier.padding(12.dp), color = Color(0xFF9B7127),
+                                style = MaterialTheme.typography.titleLarge)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("Document reader", color = ink, fontWeight = FontWeight.SemiBold)
+                            Text("Scan PDFs and images with secure processing.", color = muted,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("READY", color = Color(0xFF2F805E), style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold)
+                    }
+                    HorizontalDivider(color = canvas)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFEDF2FF)) {
+                            Text("✧", modifier = Modifier.padding(12.dp), color = Color(0xFF536FAE),
+                                style = MaterialTheme.typography.titleLarge)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("AI chat assistant", color = ink, fontWeight = FontWeight.SemiBold)
+                            Text("Ask questions and explore ideas.", color = muted,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("SOON", color = muted, style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold)
+                    }
+                    HorizontalDivider(color = canvas)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFEAF7F2)) {
+                            Text("♫", modifier = Modifier.padding(12.dp), color = Color(0xFF388568),
+                                style = MaterialTheme.typography.titleLarge)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("Listen & voice", color = ink, fontWeight = FontWeight.SemiBold)
+                            Text("Listen to content and use voice tools.", color = muted,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("SOON", color = muted, style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = cardShape,
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Document language", style = MaterialTheme.typography.titleMedium,
+                    color = ink, fontWeight = FontWeight.Bold)
+                Text("Choose the language for your document results.", color = muted,
+                    style = MaterialTheme.typography.bodySmall)
                 Box {
                     OutlinedButton(
                         onClick = { languageMenuExpanded = true },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(14.dp)
                     ) { Text(selectedLanguage.displayName) }
                     DropdownMenu(
                         expanded = languageMenuExpanded,
@@ -389,45 +523,61 @@ private fun HomeScreen(
                         }
                     }
                 }
-                Button(
-                    onClick = onCamera,
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
-                        .semantics { contentDescription = "Take a document photo with the camera" }
-                ) { Text("Scan with camera") }
-                OutlinedButton(onClick = onChoose, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                    Text("Choose PDF or image")
-                }
                 if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
             }
         }
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Account", style = MaterialTheme.typography.titleMedium)
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = cardShape,
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Your account", style = MaterialTheme.typography.titleMedium,
+                    color = ink, fontWeight = FontWeight.Bold)
                 if (accountError != null) {
                     Text(accountError, color = MaterialTheme.colorScheme.error)
                 }
                 if (signedInEmail != null) {
-                    Text("Signed in as $signedInEmail")
+                    Text("Signed in as $signedInEmail", color = muted)
                     OutlinedButton(
                         onClick = onSignOut,
                         enabled = !authLoading,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (authLoading) "Signing out…" else "Sign out")
-                    }
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text(if (authLoading) "Signing out…" else "Sign out") }
                 } else {
-                    Text(if (authConfigured) "Sign in to access your private workspace."
-                        else "Sign-in is unavailable until Supabase build configuration is provided.")
-                    OutlinedButton(onClick = onOpenSignIn, enabled = authConfigured && !authLoading,
-                        modifier = Modifier.fillMaxWidth()) { Text("Sign in") }
+                    Text(
+                        if (authConfigured) "Sign in to access your private workspace."
+                        else "Sign-in will be available when secure account configuration is provided.",
+                        color = muted, style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(
+                        onClick = onOpenSignIn,
+                        enabled = authConfigured && !authLoading,
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text(if (authLoading) "Please wait…" else "Sign in or create account") }
                 }
             }
         }
-        ModeCard("Describe what I see", "Coming in Stage C")
-        ModeCard("Read money", "Coming in Stage C")
-        ModeCard("Voice dictation and Chat", "Coming in Stage B")
-        Spacer(Modifier.weight(1f))
-        Text("Privacy first: camera scans are saved temporarily in app cache. Nothing is uploaded in this build.")
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            color = Color(0xFFEAF0F8)
+        ) {
+            Row(Modifier.padding(15.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("◈", color = Color(0xFF536B8C), style = MaterialTheme.typography.titleLarge)
+                Text("Privacy first. Your document is not uploaded until you review it and give separate processing consent.",
+                    color = Color(0xFF53617A), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Text("Kavoryn • Built to make information easier to understand",
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            color = muted, style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center)
     }
 }
 
