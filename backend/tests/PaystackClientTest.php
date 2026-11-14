@@ -60,9 +60,12 @@ $checkout = $client->initializeTransaction(
     'kavoryn-test-0001',
     'https://kavorynai.com.ng/payment/callback',
     ['purpose' => 'subscription_test'],
+    'PLN_kavoryn_test_01',
 );
 paystackExpect($checkout['reference'] === 'kavoryn-test-0001', 'Checkout reference must match the server-created reference.');
 paystackExpect($checkout['authorization_url'] === 'https://checkout.paystack.com/example', 'Only the hosted Paystack checkout URL should be returned.');
+$initializedPayload = json_decode((string) $calls[0]['body'], true, 16, JSON_THROW_ON_ERROR);
+paystackExpect(($initializedPayload['plan'] ?? null) === 'PLN_kavoryn_test_01', 'Recurring checkout must include the server-selected Paystack plan code.');
 $verified = $client->verifyTransaction('kavoryn-test-0001');
 paystackExpect(($verified['status'] ?? null) === 'success', 'Verification response should expose Paystack transaction status.');
 $manageLink = $client->generateSubscriptionManagementLink('SUB_test123456');
