@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "backend/tests/postgres/**"
+      - "backend/tests/postgres_document_deletion_integration.sh"
       - "backend/tests/document_deletion_retry_test.php"
       - "supabase/migrations/20261113152043_encrypted_private_ocr_result_storage.sql"
       - "supabase/migrations/20261114040000_add_owner_scoped_document_deletion.sql"
