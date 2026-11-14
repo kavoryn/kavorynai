@@ -1,7 +1,7 @@
 name: Android build
 on:
   push:
-    branches: [main]
+    branches: [main, feature/android-ai-chat-ui]
   pull_request:
     branches: [main, feature/premium-android-home-ui]
 jobs:
