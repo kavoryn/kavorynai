@@ -64,6 +64,7 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114020000_add_atomic_paystack_charge_reconciliation.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114030000_add_subscription_lifecycle_and_entitlements.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114040000_add_subscription_management_link_access.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114050000_add_authenticated_billing_catalog.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/paystack_reconciliation.sql
 
       - name: Install Poppler PDF utilities
@@ -174,6 +175,9 @@ jobs:
       - name: Billing subscription store tests
         run: php backend/tests/SupabaseBillingSubscriptionStoreTest.php
 
+      - name: Billing catalog store tests
+        run: php backend/tests/SupabaseBillingCatalogStoreTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
@@ -196,6 +200,16 @@ jobs:
                 !is_string($data["request_id"] ?? null) ||
                 $data["request_id"] === "") {
                 fwrite(STDERR, "Health response contract failed.\\n");
+                exit(1);
+            }
+          '
+
+          catalog_status=$(curl --silent --output /tmp/kavoryn-catalog.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/billing/catalog)
+          test "$catalog_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-catalog.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "Billing catalog must authenticate before reading plans or prices.\\n");
                 exit(1);
             }
           '
