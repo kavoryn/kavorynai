@@ -95,6 +95,35 @@ final class PaystackClient
     }
 
     /**
+     * Generate Paystack's hosted subscription management link.
+     * The caller must obtain the subscription code from an owner-scoped server-side lookup.
+     */
+    public function generateSubscriptionManagementLink(string $subscriptionCode): string
+    {
+        if (preg_match('/\\A[A-Za-z0-9_-]{8,160}\\z/', $subscriptionCode) !== 1) {
+            throw new \\InvalidArgumentException('Invalid Paystack subscription code.');
+        }
+
+        $data = $this->request(
+            'GET',
+            '/subscription/' . rawurlencode($subscriptionCode) . '/manage/link',
+            null,
+        );
+        $link = $data['link'] ?? null;
+        $host = is_string($link) ? parse_url($link, PHP_URL_HOST) : null;
+        if (!is_string($link) ||
+            parse_url($link, PHP_URL_SCHEME) !== 'https' ||
+            !in_array($host, ['paystack.com', 'www.paystack.com'], true) ||
+            parse_url($link, PHP_URL_USER) !== null ||
+            parse_url($link, PHP_URL_PASS) !== null ||
+            parse_url($link, PHP_URL_PORT) !== null) {
+            throw new PaystackUnavailableException('Paystack returned an invalid subscription management link.');
+        }
+
+        return $link;
+    }
+
+    /**
      * @param array<string,mixed>|null $payload
      * @return array<string,mixed>
      */
