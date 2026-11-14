@@ -92,13 +92,14 @@ class ChatApi(
             connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
             val status = connection.responseCode
             if (status !in 200..299) throw parseError(status, connection.errorStream?.bufferedReader()?.use { it.readText() })
+            var completed = false
             BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
                 var eventData = StringBuilder()
                 while (true) {
                     val line = reader.readLine() ?: break
                     if (line.isEmpty()) {
                         if (eventData.isNotEmpty()) {
-                            handleEvent(eventData.toString(), onDelta)
+                            if (handleEvent(eventData.toString(), onDelta)) completed = true
                             eventData = StringBuilder()
                         }
                     } else if (line.startsWith("data:")) {
@@ -106,8 +107,9 @@ class ChatApi(
                         eventData.append(line.removePrefix("data:").trimStart())
                     }
                 }
-                if (eventData.isNotEmpty()) handleEvent(eventData.toString(), onDelta)
+                if (eventData.isNotEmpty() && handleEvent(eventData.toString(), onDelta)) completed = true
             }
+            if (!completed) throw ChatApiException(null, "incomplete_stream", "The AI response ended before completion. Please try again.")
         } catch (error: ChatApiException) {
             throw error
         } catch (error: Exception) {
@@ -117,15 +119,16 @@ class ChatApi(
         }
     }
 
-    private fun handleEvent(raw: String, onDelta: (String) -> Unit) {
+    private fun handleEvent(raw: String, onDelta: (String) -> Unit): Boolean {
         val event = try { JSONObject(raw) } catch (_: Exception) {
             throw ChatApiException(null, "invalid_stream", "The chat response could not be read.")
         }
         when (event.optString("type")) {
             "delta" -> onDelta(event.optString("text"))
-            "completed" -> Unit
+            "completed" -> return true
             "error" -> throw ChatApiException(null, event.optString("code"), event.optString("message", "The AI response could not be completed."))
         }
+        return false
     }
 
     private fun request(
