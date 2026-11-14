@@ -442,6 +442,12 @@ begin
     );
   end if;
   v_limit := v_limit_text::bigint;
+  if p_amount > v_limit then
+    return pg_catalog.jsonb_build_object(
+      'allowed', false, 'reason', 'quota_exceeded',
+      'quota_key', p_quota_key, 'used', 0, 'limit', v_limit
+    );
+  end if;
 
   insert into private.billing_usage_counters(user_id, quota_key, period_start, used_count)
   values (v_user_id, p_quota_key, v_period, p_amount)
