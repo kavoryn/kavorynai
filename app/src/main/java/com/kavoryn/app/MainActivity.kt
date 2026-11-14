@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.kavoryn.app.chat.ChatScreen
 import com.kavoryn.app.ocr.OcrLanguage
 import com.kavoryn.app.auth.SupabaseAuthApi
 import com.kavoryn.app.auth.SupabaseAuthException
@@ -56,7 +58,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { HOME, REVIEW, LOCAL_READY, AUTH, UPLOAD }
+private enum class Screen { HOME, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD }
 
 @Composable
 private fun DocumentFlow() {
@@ -71,6 +73,7 @@ private fun DocumentFlow() {
     var authLoading by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
     var authNotice by remember { mutableStateOf<String?>(null) }
+    var openChatAfterAuth by remember { mutableStateOf(false) }
     val authConfigured = BuildConfig.SUPABASE_URL.isNotBlank() &&
         BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()
     val authStore = remember(context) { SupabaseSessionStore(context) }
@@ -209,7 +212,15 @@ private fun DocumentFlow() {
             authConfigured = authConfigured,
             accountError = authError,
             authLoading = authLoading,
-            onOpenSignIn = { authError = null; authNotice = null; screen = Screen.AUTH },
+            onOpenSignIn = { openChatAfterAuth = false; authError = null; authNotice = null; screen = Screen.AUTH },
+            onOpenChat = {
+                if (authSession == null) {
+                    openChatAfterAuth = true
+                    authError = null
+                    authNotice = null
+                    screen = Screen.AUTH
+                } else screen = Screen.CHAT
+            },
             onSignOut = {
                 val session = authSession
                 authLoading = true
@@ -256,7 +267,7 @@ private fun DocumentFlow() {
                             authApi.signInWithPassword(email, password).also(authStore::save)
                         }
                         authSession = session
-                        screen = if (selectedDocuments.isNotEmpty()) Screen.REVIEW else Screen.HOME
+                        screen = when { openChatAfterAuth -> { openChatAfterAuth = false; Screen.CHAT }; selectedDocuments.isNotEmpty() -> Screen.REVIEW; else -> Screen.HOME }
                     } catch (error: Exception) {
                         authError = error.message ?: "Sign-in failed. Please try again."
                     } finally {
@@ -277,7 +288,7 @@ private fun DocumentFlow() {
                         }
                         if (result.session != null) {
                             authSession = result.session
-                            screen = if (selectedDocuments.isNotEmpty()) Screen.REVIEW else Screen.HOME
+                            screen = when { openChatAfterAuth -> { openChatAfterAuth = false; Screen.CHAT }; selectedDocuments.isNotEmpty() -> Screen.REVIEW; else -> Screen.HOME }
                         } else {
                             authNotice = "Account created. Check your email to confirm it, then sign in."
                         }
@@ -289,6 +300,16 @@ private fun DocumentFlow() {
                 }
             }
         )
+        Screen.CHAT -> {
+            val session = authSession
+            if (session != null) ChatScreen(
+                apiBaseUrl = BuildConfig.KAVORYN_API_BASE_URL,
+                accessToken = session.accessToken,
+                onBack = { screen = Screen.HOME }
+            ) else {
+                screen = Screen.AUTH
+            }
+        }
         Screen.REVIEW -> ReviewScreen(
             documents = selectedDocuments,
             error = pickerError,
@@ -362,6 +383,7 @@ private fun HomeScreen(
     accountError: String?,
     authLoading: Boolean,
     onOpenSignIn: () -> Unit,
+    onOpenChat: () -> Unit,
     onSignOut: () -> Unit,
     selectedLanguage: OcrLanguage,
     onLanguageChange: (OcrLanguage) -> Unit,
@@ -460,7 +482,11 @@ private fun HomeScreen(
                             fontWeight = FontWeight.Bold)
                     }
                     HorizontalDivider(color = canvas)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenChat),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFEDF2FF)) {
                             Text("✧", modifier = Modifier.padding(12.dp), color = Color(0xFF536FAE),
                                 style = MaterialTheme.typography.titleLarge)
@@ -470,7 +496,7 @@ private fun HomeScreen(
                             Text("Ask questions and explore ideas.", color = muted,
                                 style = MaterialTheme.typography.bodySmall)
                         }
-                        Text("SOON", color = muted, style = MaterialTheme.typography.labelSmall,
+                        Text("OPEN", color = Color(0xFF2F805E), style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold)
                     }
                     HorizontalDivider(color = canvas)
