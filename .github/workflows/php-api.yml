@@ -6,12 +6,16 @@ on:
     paths:
       - "backend/**"
       - "supabase/migrations/**"
+      - "supabase/tests/**"
       - ".github/workflows/php-api.yml"
+      - ".github/workflows/billing-subscription-expiry.yml"
   pull_request:
     paths:
       - "backend/**"
       - "supabase/migrations/**"
+      - "supabase/tests/**"
       - ".github/workflows/php-api.yml"
+      - ".github/workflows/billing-subscription-expiry.yml"
 
 permissions:
   contents: read
@@ -19,9 +23,56 @@ permissions:
 jobs:
   php-api-smoke:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Validate billing migrations and reconciliation against disposable PostgreSQL
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+          create role service_role nologin;
+          create schema auth;
+          create schema private;
+          create table auth.users (
+            id uuid primary key,
+            email text unique,
+            email_confirmed_at timestamptz
+          );
+          create function auth.uid() returns uuid language sql stable as $func$
+            select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
+          $func$;
+          SQL
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114010000_create_private_billing_foundation.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114020000_add_atomic_paystack_charge_reconciliation.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114030000_add_subscription_lifecycle_and_entitlements.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114040000_add_subscription_management_link_access.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114050000_add_authenticated_billing_catalog.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114060000_link_billing_prices_to_paystack_plans.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114070000_add_secure_subscription_checkout_intents.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/paystack_reconciliation.sql
+          bash supabase/tests/paystack_checkout_concurrency.sh
 
       - name: Install Poppler PDF utilities
         run: |
@@ -110,6 +161,36 @@ jobs:
       - name: Chat storage adapter tests
         run: php backend/tests/SupabaseChatStoreTest.php
 
+      - name: Paystack transaction client tests
+        run: php backend/tests/PaystackClientTest.php
+
+      - name: Paystack webhook verifier tests
+        run: php backend/tests/PaystackWebhookVerifierTest.php
+
+      - name: Paystack webhook receipt store tests
+        run: php backend/tests/SupabasePaystackWebhookStoreTest.php
+
+      - name: Paystack reconciliation store tests
+        run: php backend/tests/SupabasePaystackReconciliationStoreTest.php
+
+      - name: Paystack lifecycle store tests
+        run: php backend/tests/SupabasePaystackLifecycleStoreTest.php
+
+      - name: Billing entitlement store tests
+        run: php backend/tests/SupabaseBillingEntitlementStoreTest.php
+
+      - name: Billing subscription store tests
+        run: php backend/tests/SupabaseBillingSubscriptionStoreTest.php
+
+      - name: Billing catalog store tests
+        run: php backend/tests/SupabaseBillingCatalogStoreTest.php
+
+      - name: Billing checkout store tests
+        run: php backend/tests/SupabaseBillingCheckoutStoreTest.php
+
+      - name: Paystack subscription-created store tests
+        run: php backend/tests/SupabasePaystackSubscriptionCreatedStoreTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
@@ -136,12 +217,52 @@ jobs:
             }
           '
 
+          checkout_status=$(curl --silent --output /tmp/kavoryn-checkout.json --write-out '%{http_code}' --request POST --header 'Content-Type: application/json' --data '{"price_id":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}' http://127.0.0.1:8080/v1/billing/checkout)
+          test "$checkout_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-checkout.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "Checkout must authenticate before creating a payment intent.\\n");
+                exit(1);
+            }
+          '
+
+          catalog_status=$(curl --silent --output /tmp/kavoryn-catalog.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/billing/catalog)
+          test "$catalog_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-catalog.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "Billing catalog must authenticate before reading plans or prices.\\n");
+                exit(1);
+            }
+          '
+
           chat_status=$(curl --silent --output /tmp/kavoryn-chat.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/chat/conversations)
           test "$chat_status" = "503"
           php -r '
             $data = json_decode(file_get_contents("/tmp/kavoryn-chat.json"), true, 512, JSON_THROW_ON_ERROR);
             if (($data["error"]["code"] ?? null) !== "chat_disabled") {
                 fwrite(STDERR, "General-purpose chat must remain disabled until release gates pass.\\n");
+                exit(1);
+            }
+          '
+
+          recovery_status=$(curl --silent --output /tmp/kavoryn-recovery.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/billing/payment-recovery)
+          test "$recovery_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-recovery.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "Payment recovery must authenticate before reading billing or provider data.\\n");
+                exit(1);
+            }
+          '
+
+          management_status=$(curl --silent --output /tmp/kavoryn-management.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/billing/subscription-management-link)
+          test "$management_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-management.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "Subscription management must authenticate before reading provider subscription data.\\n");
                 exit(1);
             }
           '
