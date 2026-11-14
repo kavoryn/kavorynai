@@ -101,7 +101,7 @@ final class PaystackClient
     public function generateSubscriptionManagementLink(string $subscriptionCode): string
     {
         if (preg_match('/\\A[A-Za-z0-9_-]{8,160}\\z/', $subscriptionCode) !== 1) {
-            throw new \\InvalidArgumentException('Invalid Paystack subscription code.');
+            throw new \InvalidArgumentException('Invalid Paystack subscription code.');
         }
 
         $data = $this->request(
