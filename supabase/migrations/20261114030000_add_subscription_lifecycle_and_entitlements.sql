@@ -217,3 +217,92 @@ comment on function public.apply_paystack_lifecycle_event(text,text,text,text,te
   'Processes authenticated Paystack subscription/refund events idempotently; grace duration must be configured server-side.';
 comment on function public.get_my_billing_entitlements() is
   'Returns only the authenticated user entitlement derived from private subscription state.';
+
+
+-- A reconciled recurring charge advances the period atomically with the
+-- transaction status change. The payment must already match a server-created row.
+create or replace function private.advance_subscription_period_after_paid_charge()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_price private.billing_prices%rowtype;
+  v_start timestamptz;
+begin
+  if new.status <> 'succeeded'
+     or old.status = 'succeeded'
+     or new.subscription_id is null
+     or new.paid_at is null then
+    return new;
+  end if;
+
+  select * into v_price
+    from private.billing_prices
+   where id=new.price_id
+   for share;
+  if not found then return new; end if;
+
+  select coalesce(
+      greatest(s.current_period_end, new.paid_at),
+      new.paid_at
+    )
+    into v_start
+    from private.user_subscriptions s
+   where s.id=new.subscription_id
+   for update;
+  if not found then return new; end if;
+
+  update private.user_subscriptions
+     set status='active',
+         current_period_start=v_start,
+         current_period_end=case v_price.interval_unit
+           when 'month' then v_start + pg_catalog.make_interval(months => v_price.interval_count)
+           when 'year' then v_start + pg_catalog.make_interval(years => v_price.interval_count)
+         end,
+         grace_period_end=null,
+         last_payment_failed_at=null,
+         updated_at=pg_catalog.now()
+   where id=new.subscription_id;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists billing_transaction_paid_advances_subscription
+  on private.billing_transactions;
+create trigger billing_transaction_paid_advances_subscription
+after update of status on private.billing_transactions
+for each row
+execute function private.advance_subscription_period_after_paid_charge();
+
+-- Run periodically from a trusted scheduler. Entitlement reads already enforce
+-- period end immediately, even before this housekeeping job runs.
+create or replace function public.expire_due_billing_subscriptions()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  update private.user_subscriptions
+     set status='expired',
+         grace_period_end=null,
+         updated_at=pg_catalog.now()
+   where status in ('active','trialing','past_due')
+     and current_period_end is not null
+     and current_period_end <= pg_catalog.now()
+     and (grace_period_end is null or grace_period_end <= pg_catalog.now());
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.expire_due_billing_subscriptions() from public, anon, authenticated;
+grant execute on function public.expire_due_billing_subscriptions() to service_role;
+
+revoke all on function private.advance_subscription_period_after_paid_charge() from public, anon, authenticated, service_role;
