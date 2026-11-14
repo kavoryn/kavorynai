@@ -24,12 +24,13 @@ private val ChatCanvas = Color(0xFFF5F7FB)
 fun ChatScreen(
     apiBaseUrl: String,
     accessToken: String,
+    initialLanguage: String = "en",
     onBack: () -> Unit
 ) {
     val api = remember(apiBaseUrl) { ChatApi(apiBaseUrl) }
     val scope = rememberCoroutineScope()
     var provider by remember { mutableStateOf(ChatProvider.OPENAI) }
-    var language by remember { mutableStateOf("en") }
+    var language by remember { mutableStateOf(initialLanguage) }
     var conversation by remember { mutableStateOf<ChatConversation?>(null) }
     var history by remember { mutableStateOf<List<ChatConversation>>(emptyList()) }
     var draft by remember { mutableStateOf("") }
