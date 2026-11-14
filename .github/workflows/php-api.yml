@@ -8,12 +8,14 @@ on:
       - "supabase/migrations/**"
       - "supabase/tests/**"
       - ".github/workflows/php-api.yml"
+      - ".github/workflows/billing-subscription-expiry.yml"
   pull_request:
     paths:
       - "backend/**"
       - "supabase/migrations/**"
       - "supabase/tests/**"
       - ".github/workflows/php-api.yml"
+      - ".github/workflows/billing-subscription-expiry.yml"
 
 permissions:
   contents: read
