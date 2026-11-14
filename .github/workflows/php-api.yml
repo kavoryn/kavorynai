@@ -12,6 +12,7 @@ on:
     paths:
       - "backend/**"
       - "supabase/migrations/**"
+      - "supabase/tests/**"
       - ".github/workflows/php-api.yml"
 
 permissions:
