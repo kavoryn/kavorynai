@@ -170,7 +170,7 @@ select public.reconcile_paystack_charge_success(
 );
 reset role;
 
-do $
+do $$
 begin
   if (select status from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999') <> 'active' then
     raise exception 'verified renewal did not activate subscription';
@@ -180,7 +180,7 @@ begin
     raise exception 'verified renewal did not advance one monthly period';
   end if;
 end;
-$;
+$$;
 
 -- Failed invoice uses the server-configured grace duration.
 set role service_role;
@@ -194,7 +194,7 @@ select public.apply_paystack_lifecycle_event(
 );
 reset role;
 
-do $
+do $$
 begin
   if (select status from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999') <> 'past_due' then
     raise exception 'failed invoice did not mark subscription past_due';
@@ -204,12 +204,12 @@ begin
     raise exception 'failed invoice did not establish grace period';
   end if;
 end;
-$;
+$$;
 
 -- Authenticated user can read only their server-computed Plus entitlement.
 set role authenticated;
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', false);
-do $
+do $$
 declare
   v_entitlements jsonb;
 begin
@@ -219,7 +219,7 @@ begin
     raise exception 'grace-period Plus entitlement was not returned';
   end if;
 end;
-$;
+$$;
 reset role;
 
 -- Cancellation request from Paystack preserves paid access until period end.
@@ -234,13 +234,13 @@ select public.apply_paystack_lifecycle_event(
 );
 reset role;
 
-do $
+do $$
 begin
   if not (select cancel_at_period_end from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999') then
     raise exception 'subscription not-renew event did not schedule cancellation';
   end if;
 end;
-$;
+$$;
 
 -- Refund pending blocks access only once processed; failed refunds restore success.
 insert into private.billing_transactions (
@@ -264,13 +264,13 @@ select public.apply_paystack_lifecycle_event(
 );
 reset role;
 
-do $
+do $$
 begin
   if (select status from private.billing_transactions where reference='kavoryn-refund-test-01') <> 'reversal_pending' then
     raise exception 'pending refund did not set reversal_pending';
   end if;
 end;
-$;
+$$;
 
 set role service_role;
 select public.record_paystack_webhook_receipt(
@@ -282,13 +282,13 @@ select public.apply_paystack_lifecycle_event(
 );
 reset role;
 
-do $
+do $$
 begin
   if (select status from private.billing_transactions where reference='kavoryn-refund-test-01') <> 'succeeded' then
     raise exception 'failed refund did not restore successful transaction state';
   end if;
 end;
-$;
+$$;
 
 select 'Paystack reconciliation and lifecycle SQL integration tests passed.' as result;
 
