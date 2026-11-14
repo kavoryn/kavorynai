@@ -54,7 +54,7 @@ select public.reconcile_paystack_charge_success(
   repeat('a', 64), 'kavoryn-integration-ok-01', 'success', 250000, 'NGN',
   'paystack-txn-1001', '2026-11-14T00:00:00Z'
 );
-do $
+do $test$
 declare
   v_reconciled boolean;
 begin
@@ -66,10 +66,10 @@ begin
     raise exception 'duplicate receipt accepted a mismatched reference';
   end if;
 end;
-$;
+$test$;
 reset role;
 
-do $
+do $test$
 begin
   if (select count(*) from private.billing_webhook_receipts where payload_sha256 = repeat('a', 64)) <> 1 then
     raise exception 'duplicate webhook receipt was inserted';
@@ -78,7 +78,7 @@ begin
     raise exception 'duplicate reconciliation changed payment state';
   end if;
 end;
-$$;
+$test$;
 
 set role service_role;
 select public.record_paystack_webhook_receipt(
