@@ -256,6 +256,86 @@ if ($method === 'GET' && $path === '/v1/me') {
     ]);
 }
 
+if ($method === 'POST' && $path === '/v1/billing/checkout') {
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $contentType = strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '')[0]));
+    $raw = file_get_contents('php://input');
+    if ($contentType !== 'application/json' || !is_string($raw) || strlen($raw) > 8192) {
+        respond(415, ['error'=>['code'=>'invalid_checkout_request','message'=>'Send a valid JSON checkout request.','request_id'=>$requestId]]);
+    }
+    try {
+        $input = json_decode($raw, true, 8, JSON_THROW_ON_ERROR);
+    } catch (\JsonException) {
+        respond(400, ['error'=>['code'=>'invalid_json','message'=>'The checkout request is not valid JSON.','request_id'=>$requestId]]);
+    }
+    $priceId = is_array($input) ? ($input['price_id'] ?? null) : null;
+    if (!is_string($priceId) || preg_match('/\\A[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\z/i', $priceId) !== 1) {
+        respond(422, ['error'=>['code'=>'invalid_billing_price','message'=>'Choose a valid plan price.','request_id'=>$requestId]]);
+    }
+    if (!is_string($user->email) || filter_var($user->email, FILTER_VALIDATE_EMAIL) === false) {
+        respond(409, ['error'=>['code'=>'verified_email_required','message'=>'Add and verify an email address before subscribing.','request_id'=>$requestId]]);
+    }
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $supabaseSecret = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
+    $callbackUrl = getenv('PAYSTACK_CALLBACK_URL') ?: '';
+    if ($supabaseUrl === '' || $supabaseSecret === '' || $serviceRoleJwt === '' ||
+        $paystackSecret === '' || parse_url($callbackUrl, PHP_URL_SCHEME) !== 'https') {
+        respond(503, ['error'=>['code'=>'billing_checkout_not_configured','message'=>'Checkout is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingCheckoutStore.php';
+    require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
+    try {
+        $reference = 'kvn_' . bin2hex(random_bytes(20));
+        $uuid = static function (): string {
+            $bytes = random_bytes(16);
+            $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
+            $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+            $hex = bin2hex($bytes);
+            return sprintf('%s-%s-%s-%s-%s', substr($hex,0,8),substr($hex,8,4),substr($hex,12,4),substr($hex,16,4),substr($hex,20,12));
+        };
+        $checkoutStore = new \Kavoryn\Billing\SupabaseBillingCheckoutStore($supabaseUrl, $supabaseSecret, $serviceRoleJwt);
+        $intent = $checkoutStore->createIntent($user->id, $priceId, $reference, $uuid(), $uuid());
+        if (strtolower($intent['email']) !== strtolower($user->email)) {
+            throw new \\RuntimeException('Checkout account identity mismatch.');
+        }
+        $paystack = new \Kavoryn\Billing\PaystackClient($paystackSecret);
+        $checkout = $paystack->initializeTransaction(
+            $intent['email'],
+            $intent['amount_minor'],
+            $intent['currency'],
+            $intent['reference'],
+            $callbackUrl,
+            ['product'=>'kavoryn_subscription','plan_key'=>$intent['plan_key']],
+            $intent['plan_code'],
+        );
+        respond(201, [
+            'checkout'=>[
+                'authorization_url'=>$checkout['authorization_url'],
+                'access_code'=>$checkout['access_code'],
+                'reference'=>$checkout['reference'],
+                'plan_key'=>$intent['plan_key'],
+                'plan_name'=>$intent['plan_name'],
+                'amount_minor'=>$intent['amount_minor'],
+                'currency'=>$intent['currency'],
+            ],
+            'request_id'=>$requestId,
+        ]);
+    } catch (\InvalidArgumentException) {
+        respond(422, ['error'=>['code'=>'billing_price_unavailable','message'=>'That plan price is not available. Refresh the plans and try again.','request_id'=>$requestId]]);
+    } catch (\Throwable) {
+        respond(503, ['error'=>['code'=>'billing_checkout_unavailable','message'=>'Checkout could not be started. Please try again later.','request_id'=>$requestId]]);
+    }
+}
+
 if ($method === 'GET' && $path === '/v1/billing/catalog') {
     authenticatedUser(
         getenv('SUPABASE_URL') ?: '',
