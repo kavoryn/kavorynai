@@ -235,7 +235,7 @@ $$;
 
 revoke all on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint,bigint,text)
   from public, anon, authenticated;
-grant execute on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer)
+grant execute on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint,bigint,text)
   to service_role;
 
 -- Entitlement decision is computed from private server-side rows and the
