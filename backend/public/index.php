@@ -256,6 +256,28 @@ if ($method === 'GET' && $path === '/v1/me') {
     ]);
 }
 
+if ($method === 'GET' && $path === '/v1/billing/entitlements') {
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingEntitlementStore.php';
+    try {
+        $store = new \\Kavoryn\\Billing\\SupabaseBillingEntitlementStore(
+            getenv('SUPABASE_URL') ?: '',
+            getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        );
+        $entitlements = $store->getForBearerToken($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+        respond(200, ['user_id'=>$user->id,'billing'=>$entitlements,'request_id'=>$requestId]);
+    } catch (\\InvalidArgumentException) {
+        respond(401, ['error'=>['code'=>'unauthorized','message'=>'A valid sign-in session is required.','request_id'=>$requestId]]);
+    } catch (\\Throwable) {
+        respond(503, ['error'=>['code'=>'billing_entitlements_unavailable','message'=>'Billing information is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+}
+
 if ($method === 'POST' && $path === '/v1/consents') {
     if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 8192) {
         respond(413, [
