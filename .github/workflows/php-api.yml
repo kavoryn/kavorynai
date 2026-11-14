@@ -197,6 +197,7 @@ jobs:
           '
 
           consent_status=$(curl --silent --output /tmp/kavoryn-consent.json --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"action":"document.process","payload_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","language":"ha","translate":false,"confirmed":true}' http://127.0.0.1:8080/v1/consents)
+          echo "Consent smoke response: HTTP $consent_status $(cat /tmp/kavoryn-consent.json)"
           test "$consent_status" = "503"
           php -r '
             $data = json_decode(file_get_contents("/tmp/kavoryn-consent.json"), true, 512, JSON_THROW_ON_ERROR);
