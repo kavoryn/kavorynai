@@ -28,6 +28,7 @@ class DocumentDeleteApi(
             requestMethod = "DELETE"
             connectTimeout = connectTimeoutMs
             readTimeout = readTimeoutMs
+            instanceFollowRedirects = false
             setRequestProperty("Authorization", "Bearer $accessToken")
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Cache-Control", "no-store")
