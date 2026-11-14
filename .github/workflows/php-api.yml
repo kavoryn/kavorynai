@@ -7,6 +7,7 @@ on:
       - "backend/**"
       - "supabase/migrations/**"
       - "supabase/tests/**"
+      - "supabase/tests/**"
       - ".github/workflows/php-api.yml"
   pull_request:
     paths:
@@ -53,9 +54,13 @@ jobs:
           create schema auth;
           create schema private;
           create table auth.users (id uuid primary key);
+          create function auth.uid() returns uuid language sql stable as $
+            select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
+          $;
           SQL
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114010000_create_private_billing_foundation.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114020000_add_atomic_paystack_charge_reconciliation.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114030000_add_subscription_lifecycle_and_entitlements.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/paystack_reconciliation.sql
 
       - name: Install Poppler PDF utilities
@@ -156,6 +161,9 @@ jobs:
 
       - name: Paystack reconciliation store tests
         run: php backend/tests/SupabasePaystackReconciliationStoreTest.php
+
+      - name: Paystack lifecycle store tests
+        run: php backend/tests/SupabasePaystackLifecycleStoreTest.php
 
       - name: API smoke tests
         shell: bash
