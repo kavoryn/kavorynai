@@ -190,3 +190,8 @@ curl --fail-with-body -X POST "https://YOUR_API_HOST/v1/documents/DOCUMENT_UUID/
 ```
 
 This is backend implementation and automated mock-test coverage only. It is not a live-provider or production-host staging pass. Do not enable document uploads or the OCR worker until the full authenticated upload → OCR → encrypted result → consented explanation flow has passed staging tests with rotated credentials and real provider access.
+
+
+## Secure document deletion
+
+The authenticated `DELETE /v1/documents/{document_id}` route is implemented behind `DOCUMENT_DELETE_ENABLED=false` by default. Its service-role-only database RPC verifies both the document id and the authenticated owner, hides cross-account existence with a not-found response, tombstones the row, cancels queued/leased OCR work, and removes encrypted OCR output plus document-linked AI consent records. The API then removes the private file using `PRIVATE_DOCUMENT_STORAGE_PATH`. If filesystem cleanup fails, the document remains inaccessible and a repeated DELETE safely retries cleanup. Apply the owner-scoped deletion migration and validate two-account isolation, worker-race behavior, and private-file cleanup on staging before enabling this flag. No staging migration has been applied by this change.

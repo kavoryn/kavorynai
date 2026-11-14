@@ -621,6 +621,93 @@ if ($method === 'POST' && preg_match(
     ]);
 }
 
+if ($method === 'DELETE' && preg_match(
+    '#^/v1/documents/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$#i',
+    $path,
+    $matches,
+)) {
+    if (strtolower(getenv('DOCUMENT_DELETE_ENABLED') ?: 'false') !== 'true') {
+        respond(503, [
+            'error' => [
+                'code' => 'document_delete_disabled',
+                'message' => 'Secure document deletion is not enabled on this server yet.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $storagePath = getenv('PRIVATE_DOCUMENT_STORAGE_PATH') ?: '';
+    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $storagePath === '') {
+        respond(503, [
+            'error' => [
+                'code' => 'document_delete_not_configured',
+                'message' => 'Secure document deletion is temporarily unavailable.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Upload/DocumentFileException.php';
+    require_once dirname(__DIR__) . '/src/Upload/PrivateDocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentDeletionService.php';
+    require_once dirname(__DIR__) . '/src/Upload/SupabaseDocumentDeletionStore.php';
+
+    try {
+        $store = new \Kavoryn\Upload\SupabaseDocumentDeletionStore(
+            $supabaseUrl,
+            $secretKey,
+            $serviceRoleJwt,
+        );
+        $storage = new \Kavoryn\Upload\PrivateDocumentStorage(
+            $storagePath,
+            dirname(__DIR__) . '/public',
+        );
+        $service = new \Kavoryn\Upload\DocumentDeletionService($store, $storage);
+        $deleted = $service->delete($matches[1], $user->id);
+    } catch (\Kavoryn\Upload\DocumentDeletionUnavailableException) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_delete_unavailable',
+                'message' => 'The document is no longer accessible, but private-file cleanup is still pending. Please retry.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    } catch (\InvalidArgumentException) {
+        respond(400, [
+            'error' => [
+                'code' => 'invalid_document_id',
+                'message' => 'The document identifier is invalid.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    if (!$deleted) {
+        respond(404, [
+            'error' => [
+                'code' => 'document_not_found',
+                'message' => 'The document was not found for this account.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    respond(200, [
+        'document_id' => $matches[1],
+        'deleted' => true,
+        'request_id' => $requestId,
+    ]);
+}
+
 if ($method === 'GET' && preg_match(
     '#^/v1/documents/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/result$#i',
     $path,

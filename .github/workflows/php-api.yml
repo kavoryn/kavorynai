@@ -58,6 +58,9 @@ jobs:
       - name: Supabase document registry tests
         run: php backend/tests/supabase_document_registry_test.php
 
+      - name: Secure document deletion tests
+        run: php backend/tests/document_deletion_test.php
+
       - name: OCR worker tests
         run: php backend/tests/OcrWorkerTest.php
 
@@ -111,7 +114,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          env -u SUPABASE_URL -u SUPABASE_PUBLISHABLE_KEY -u DOCUMENT_UPLOAD_ENABLED php -S 127.0.0.1:8080 -t backend/public > /tmp/kavoryn-php-server.log 2>&1 &
+          trap 'status=$?; echo "API smoke failed at: ${BASH_COMMAND} (exit ${status})"; for response in /tmp/kavoryn-*.json; do if [ -f "$response" ]; then echo "--- $response"; cat "$response"; echo; fi; done; echo "--- PHP server log"; cat /tmp/kavoryn-php-server.log || true; exit "$status"' ERR
+          env -u SUPABASE_URL -u SUPABASE_PUBLISHABLE_KEY -u DOCUMENT_UPLOAD_ENABLED DOCUMENT_DELETE_ENABLED=false php -S 127.0.0.1:8080 -t backend/public backend/public/index.php > /tmp/kavoryn-php-server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
@@ -173,6 +177,16 @@ jobs:
             }
           '
 
+          delete_status=$(curl --silent --output /tmp/kavoryn-delete.json --write-out '%{http_code}' -X DELETE http://127.0.0.1:8080/v1/documents/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12)
+          test "$delete_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-delete.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "document_delete_disabled") {
+                fwrite(STDERR, "Document deletion must remain disabled until staging and release gates pass.\\n");
+                exit(1);
+            }
+          '
+
           upload_status=$(curl --silent --output /tmp/kavoryn-upload.json --write-out '%{http_code}' -X POST http://127.0.0.1:8080/v1/documents)
           test "$upload_status" = "503"
           php -r '
@@ -183,12 +197,27 @@ jobs:
             }
           '
 
+          set +e
           consent_status=$(curl --silent --output /tmp/kavoryn-consent.json --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"action":"document.process","payload_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","language":"ha","translate":false,"confirmed":true}' http://127.0.0.1:8080/v1/consents)
-          test "$consent_status" = "503"
+          consent_curl_exit=$?
+          set -e
+          echo "Consent smoke curl exit: $consent_curl_exit; HTTP status: ${consent_status:-none}"
+          if [ "$consent_curl_exit" -ne 0 ]; then
+            echo "PHP server log:"
+            cat /tmp/kavoryn-php-server.log || true
+            exit "$consent_curl_exit"
+          fi
+          if [ "$consent_status" != "503" ]; then
+            printf 'Consent endpoint expected HTTP 503 but received HTTP %s. Body: ' "${consent_status:-none}" >&2
+            cat /tmp/kavoryn-consent.json >&2 || true
+            printf '\\nPHP server log:\\n' >&2
+            cat /tmp/kavoryn-php-server.log >&2 || true
+            exit 1
+          fi
           php -r '
             $data = json_decode(file_get_contents("/tmp/kavoryn-consent.json"), true, 512, JSON_THROW_ON_ERROR);
             if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
-                fwrite(STDERR, "Consent endpoint must fail closed without Auth configuration.\\n");
+                fwrite(STDERR, "Consent endpoint must fail closed without Auth configuration. Actual response: " . json_encode($data) . PHP_EOL);
                 exit(1);
             }
           '
