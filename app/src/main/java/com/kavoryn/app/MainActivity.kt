@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { HOME, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD }
+private enum class Screen { HOME, DOCUMENT_CENTER, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD }
 
 @Composable
 private fun DocumentFlow() {
@@ -208,6 +208,7 @@ private fun DocumentFlow() {
     when (screen) {
         Screen.HOME -> HomeScreen(
             error = pickerError,
+            onOpenDocuments = { screen = Screen.DOCUMENT_CENTER },
             signedInEmail = authSession?.email,
             authConfigured = authConfigured,
             accountError = authError,
@@ -250,6 +251,13 @@ private fun DocumentFlow() {
                     pickerError = "Camera could not be started. Please try choosing an image instead."
                 }
             }
+        )
+        Screen.DOCUMENT_CENTER -> DocumentCenterScreen(
+            selectedLanguage = selectedLanguage,
+            onLanguageChange = { selectedLanguage = it },
+            onScan = { screen = Screen.HOME; pendingCamera = null; try { val output = createCameraOutput(context); pendingCamera = output; camera.launch(output.uri) } catch (_: Exception) { pickerError = "Camera could not be started. Please choose an image instead." } },
+            onChoose = { screen = Screen.HOME; pickerError = null; picker.launch(arrayOf("application/pdf", "image/jpeg", "image/png", "image/webp")) },
+            onBack = { screen = Screen.HOME }
         )
         Screen.AUTH -> SupabaseSignInScreen(
             configured = authConfigured,
@@ -380,6 +388,7 @@ private fun DocumentFlow() {
 @Composable
 private fun HomeScreen(
     error: String?,
+    onOpenDocuments: () -> Unit,
     signedInEmail: String?,
     authConfigured: Boolean,
     accountError: String?,
@@ -470,7 +479,11 @@ private fun HomeScreen(
                 colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDocuments),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFFFF4DA)) {
                             Text("▤", modifier = Modifier.padding(12.dp), color = Color(0xFF9B7127),
                                 style = MaterialTheme.typography.titleLarge)
