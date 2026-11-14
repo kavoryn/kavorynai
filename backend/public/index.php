@@ -136,7 +136,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
             if ((!is_int($providerTransactionId) && !is_string($providerTransactionId)) ||
                 (string) $providerTransactionId === '' ||
                 !is_string($paidAt) || strtotime($paidAt) === false) {
-                throw new \\RuntimeException('Verified payment details are incomplete.');
+                throw new \RuntimeException('Verified payment details are incomplete.');
             }
 
             $reconciliation = new \Kavoryn\Billing\SupabasePaystackReconciliationStore(
