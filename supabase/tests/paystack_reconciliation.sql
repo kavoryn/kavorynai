@@ -330,5 +330,30 @@ begin
 end;
 $;
 
+-- Expiration housekeeping removes stale active access after the period end.
+insert into private.user_subscriptions (
+  id, user_id, plan_id, price_id, provider, provider_subscription_code,
+  status, current_period_start, current_period_end
+) values (
+  '17171717-1717-4717-8717-171717171717',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'paystack', 'SUB_test_expired_01', 'active',
+  now() - interval '2 months', now() - interval '1 day'
+);
+
+set role service_role;
+select public.expire_due_billing_subscriptions();
+reset role;
+
+do $
+begin
+  if (select status from private.user_subscriptions where id='17171717-1717-4717-8717-171717171717') <> 'expired' then
+    raise exception 'expired billing period was not transitioned to expired';
+  end if;
+end;
+$;
+
 select 'Paystack reconciliation and lifecycle SQL integration tests passed.' as result;
 
