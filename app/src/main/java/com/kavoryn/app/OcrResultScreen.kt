@@ -34,6 +34,7 @@ fun OcrResultScreen(
     onExplain: () -> Unit,
     onAskQuestion: () -> Unit,
     onShareText: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val highlightedText = buildAnnotatedString {
@@ -132,5 +133,11 @@ fun OcrResultScreen(
             "Only the extracted text is shared. Your original document file is not attached.",
             style = MaterialTheme.typography.bodySmall
         )
+        androidx.compose.material3.OutlinedButton(
+            onClick = onDelete,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Delete document securely")
+        }
     }
 }
