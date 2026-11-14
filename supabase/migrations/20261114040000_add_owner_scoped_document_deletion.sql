@@ -22,6 +22,14 @@ begin
     raise exception 'Document deletion identity is required';
   end if;
 
+  -- Match worker lock ordering (OCR job first, then document) to avoid
+  -- deadlocks with a worker completing or storing an OCR result.
+  perform 1
+    from private.ocr_jobs j
+   where j.document_id = p_document_id
+     and j.user_id = p_user_id
+   for update;
+
   select d.*
     into v_document
     from public.documents d
