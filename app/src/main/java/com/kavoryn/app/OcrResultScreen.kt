@@ -128,5 +128,9 @@ fun OcrResultScreen(
         ) {
             Text("Share extracted text")
         }
+        Text(
+            "Only the extracted text is shared. Your original document file is not attached.",
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
