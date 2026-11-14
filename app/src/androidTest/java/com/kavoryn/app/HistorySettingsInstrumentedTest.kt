@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.kavoryn.app.auth.SupabaseSessionStore
 import com.kavoryn.app.chat.ChatApiException
 import com.kavoryn.app.chat.ChatConversation
@@ -100,7 +101,7 @@ class HistorySettingsInstrumentedTest {
     }
 
     private fun openHistory() {
-        composeRule.onNodeWithTag("home_history_settings").performClick()
+        composeRule.onNodeWithTag("home_history_settings").performScrollTo().performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithTag("history_settings_screen").fetchSemanticsNodes().isNotEmpty()
         }
