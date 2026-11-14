@@ -86,6 +86,8 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
 
     require_once dirname(__DIR__) . '/src/Billing/PaystackWebhookVerifier.php';
     require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackWebhookStore.php';
+    require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
+    require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackReconciliationStore.php';
 
     try {
         $verifier = new \Kavoryn\\Billing\\PaystackWebhookVerifier($paystackSecret);
@@ -117,13 +119,42 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
             substr($receiptHex, 16, 4),
             substr($receiptHex, 20, 12),
         );
+        $payloadSha256 = hash('sha256', $rawBody);
         $created = $store->recordVerifiedReceipt(
             $receiptId,
-            hash('sha256', $rawBody),
+            $payloadSha256,
             $event['event'],
             $eventReference,
         );
-    } catch (\\Throwable) {
+
+        $reconciled = false;
+        if ($event['event'] === 'charge.success' && $eventReference !== null) {
+            $paystack = new \\Kavoryn\\Billing\\PaystackClient($paystackSecret);
+            $verified = $paystack->verifyTransaction($eventReference);
+            $providerTransactionId = $verified['id'] ?? null;
+            $paidAt = $verified['paid_at'] ?? null;
+            if ((!is_int($providerTransactionId) && !is_string($providerTransactionId)) ||
+                (string) $providerTransactionId === '' ||
+                !is_string($paidAt) || strtotime($paidAt) === false) {
+                throw new \\RuntimeException('Verified payment details are incomplete.');
+            }
+
+            $reconciliation = new \\Kavoryn\\Billing\\SupabasePaystackReconciliationStore(
+                $supabaseUrl,
+                $supabaseSecret,
+                $serviceRoleJwt,
+            );
+            $reconciled = $reconciliation->reconcile(
+                $payloadSha256,
+                $eventReference,
+                $verified['status'],
+                $verified['amount'],
+                $verified['currency'],
+                (string) $providerTransactionId,
+                gmdate('c', strtotime($paidAt)),
+            );
+        }
+    } catch (\Throwable) {
         // A non-2xx response asks Paystack to retry; do not acknowledge a lost receipt.
         respond(503, ['error'=>['code'=>'webhook_storage_unavailable','message'=>'Payment notification processing is temporarily unavailable.','request_id'=>$requestId]]);
     }
@@ -131,6 +162,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
     respond(200, [
         'received' => true,
         'duplicate' => !$created,
+        'reconciled' => $reconciled,
         'request_id' => $requestId,
     ]);
 }
