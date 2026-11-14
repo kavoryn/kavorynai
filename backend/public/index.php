@@ -662,18 +662,18 @@ if ($method === 'DELETE' && preg_match(
     require_once dirname(__DIR__) . '/src/Upload/SupabaseDocumentDeletionStore.php';
 
     try {
-        $store = new \\Kavoryn\\Upload\\SupabaseDocumentDeletionStore(
+        $store = new \Kavoryn\Upload\SupabaseDocumentDeletionStore(
             $supabaseUrl,
             $secretKey,
             $serviceRoleJwt,
         );
-        $storage = new \\Kavoryn\\Upload\\PrivateDocumentStorage(
+        $storage = new \Kavoryn\Upload\PrivateDocumentStorage(
             $storagePath,
             dirname(__DIR__) . '/public',
         );
-        $service = new \\Kavoryn\\Upload\\DocumentDeletionService($store, $storage);
+        $service = new \Kavoryn\Upload\DocumentDeletionService($store, $storage);
         $deleted = $service->delete($matches[1], $user->id);
-    } catch (\\Kavoryn\\Upload\\DocumentDeletionUnavailableException) {
+    } catch (\Kavoryn\Upload\DocumentDeletionUnavailableException) {
         respond(503, [
             'error' => [
                 'code' => 'document_delete_unavailable',
@@ -681,7 +681,7 @@ if ($method === 'DELETE' && preg_match(
                 'request_id' => $requestId,
             ],
         ]);
-    } catch (\\InvalidArgumentException) {
+    } catch (\InvalidArgumentException) {
         respond(400, [
             'error' => [
                 'code' => 'invalid_document_id',
