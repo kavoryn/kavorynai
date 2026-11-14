@@ -114,6 +114,12 @@ fun ChatScreen(
                 }
             } catch (failure: Exception) {
                 error = failure.message ?: "The AI response could not be completed."
+                conversation?.let { active ->
+                    val updated = active.messages.map {
+                        if (it.role == "assistant" && it.status == "streaming") it.copy(status = "failed") else it
+                    }
+                    conversation = active.copy(messages = updated)
+                }
             } finally {
                 streaming = false
             }
@@ -203,7 +209,7 @@ fun ChatScreen(
                             modifier = Modifier.widthIn(max = 320.dp)
                         ) {
                             Text(
-                                message.content.ifBlank { if (message.status == "streaming") "Thinking…" else "" },
+                                message.content.ifBlank { when (message.status) { "streaming" -> "Thinking…"; "failed" -> "Response failed. Please try again."; else -> "" } },
                                 Modifier.padding(14.dp),
                                 color = if (message.role == "user") Color.White else ChatInk
                             )
@@ -240,7 +246,7 @@ fun ChatScreen(
             title = { Text("Confirm AI provider") },
             text = {
                 Text(
-                    "You selected ${provider.label}. Your chat messages will be sent to this provider to generate replies and stored in your private Kavoryn chat history. You can revoke this provider consent later. Do you want to continue?"
+                    "You selected ${provider.label}. Your chat messages will be sent to this provider to generate replies and stored in your private Kavoryn chat history. This is separate from document-processing consent. Do you want to continue?"
                 )
             },
             confirmButton = {
