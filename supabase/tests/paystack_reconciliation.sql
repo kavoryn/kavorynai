@@ -54,9 +54,13 @@ select public.reconcile_paystack_charge_success(
   repeat('a', 64), 'kavoryn-integration-ok-01', 'success', 250000, 'NGN',
   'paystack-txn-1001', '2026-11-14T00:00:00Z'
 );
+select public.reconcile_paystack_charge_success(
+  repeat('a', 64), 'kavoryn-wrong-reference-01', 'success', 250000, 'NGN',
+  'paystack-txn-1001', '2026-11-14T00:00:00Z'
+);
 reset role;
 
-do $$
+do $
 begin
   if (select count(*) from private.billing_webhook_receipts where payload_sha256 = repeat('a', 64)) <> 1 then
     raise exception 'duplicate webhook receipt was inserted';
