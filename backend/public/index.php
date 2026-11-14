@@ -295,7 +295,7 @@ if ($method === 'GET' && $path === '/v1/billing/subscription-management-link') {
     require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingSubscriptionStore.php';
     require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
     try {
-        $subscriptionStore = new \\Kavoryn\\Billing\\SupabaseBillingSubscriptionStore(
+        $subscriptionStore = new \Kavoryn\Billing\SupabaseBillingSubscriptionStore(
             $supabaseUrl,
             $publishableKey,
         );
@@ -304,12 +304,12 @@ if ($method === 'GET' && $path === '/v1/billing/subscription-management-link') {
             respond(404, ['error'=>['code'=>'manageable_subscription_not_found','message'=>'There is no active subscription available to manage.','request_id'=>$requestId]]);
         }
 
-        $paystack = new \\Kavoryn\\Billing\\PaystackClient($paystackSecret);
+        $paystack = new \Kavoryn\Billing\PaystackClient($paystackSecret);
         $managementLink = $paystack->generateSubscriptionManagementLink($subscriptionCode);
         respond(200, ['management_url'=>$managementLink,'provider'=>'paystack','request_id'=>$requestId]);
-    } catch (\\InvalidArgumentException) {
+    } catch (\InvalidArgumentException) {
         respond(401, ['error'=>['code'=>'unauthorized','message'=>'A valid sign-in session is required.','request_id'=>$requestId]]);
-    } catch (\\Throwable) {
+    } catch (\Throwable) {
         respond(503, ['error'=>['code'=>'billing_management_unavailable','message'=>'Subscription management is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
     }
 }
