@@ -176,7 +176,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
             if ($event['event'] === 'invoice.payment_failed') {
                 $configuredGrace = getenv('BILLING_GRACE_PERIOD_HOURS') ?: '';
                 if (!ctype_digit($configuredGrace) || (int) $configuredGrace < 1 || (int) $configuredGrace > 720) {
-                    throw new \\RuntimeException('Billing grace period is not configured.');
+                    throw new \RuntimeException('Billing grace period is not configured.');
                 }
                 $graceHours = (int) $configuredGrace;
             }
