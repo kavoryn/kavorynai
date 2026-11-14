@@ -66,6 +66,7 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114040000_add_subscription_management_link_access.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114050000_add_authenticated_billing_catalog.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114060000_link_billing_prices_to_paystack_plans.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20261114070000_add_secure_subscription_checkout_intents.sql
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/paystack_reconciliation.sql
 
       - name: Install Poppler PDF utilities
@@ -179,6 +180,9 @@ jobs:
       - name: Billing catalog store tests
         run: php backend/tests/SupabaseBillingCatalogStoreTest.php
 
+      - name: Billing checkout store tests
+        run: php backend/tests/SupabaseBillingCheckoutStoreTest.php
+
       - name: API smoke tests
         shell: bash
         run: |
@@ -201,6 +205,16 @@ jobs:
                 !is_string($data["request_id"] ?? null) ||
                 $data["request_id"] === "") {
                 fwrite(STDERR, "Health response contract failed.\\n");
+                exit(1);
+            }
+          '
+
+          checkout_status=$(curl --silent --output /tmp/kavoryn-checkout.json --write-out '%{http_code}' --request POST --header 'Content-Type: application/json' --data '{"price_id":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}' http://127.0.0.1:8080/v1/billing/checkout)
+          test "$checkout_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-checkout.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "Checkout must authenticate before creating a payment intent.\\n");
                 exit(1);
             }
           '
