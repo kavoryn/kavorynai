@@ -32,7 +32,7 @@ final class SupabasePaystackReconciliationStore
     ): bool {
         if (preg_match('/\A[0-9a-f]{64}\z/', $payloadSha256) !== 1 ||
             preg_match('/\A[A-Za-z0-9._=-]{8,120}\z/', $reference) !== 1 ||
-            !is_string($verifiedStatus) ||
+            !is_string($verifiedStatus) || $verifiedStatus !== 'success' ||
             !is_int($amountMinor) ||
             !is_string($currency) ||
             !in_array($currency, ['NGN', 'USD'], true) ||
