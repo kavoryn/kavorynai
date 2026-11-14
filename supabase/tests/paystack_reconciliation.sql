@@ -244,7 +244,7 @@ select public.record_paystack_webhook_receipt(
   repeat('2', 64), 'refund.pending', 'kavoryn-refund-test-01'
 );
 select public.apply_paystack_lifecycle_event(
-  repeat('2', 64), 'refund.pending', 'kavoryn-refund-test-01', null, 'pending', null
+  repeat('2', 64), 'refund.pending', 'kavoryn-refund-test-01', null, 'pending', null, 10000
 );
 reset role;
 
@@ -262,7 +262,7 @@ select public.record_paystack_webhook_receipt(
   repeat('3', 64), 'refund.failed', 'kavoryn-refund-test-01'
 );
 select public.apply_paystack_lifecycle_event(
-  repeat('3', 64), 'refund.failed', 'kavoryn-refund-test-01', null, 'failed', null
+  repeat('3', 64), 'refund.failed', 'kavoryn-refund-test-01', null, 'failed', null, 10000
 );
 reset role;
 
