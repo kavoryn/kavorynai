@@ -7,10 +7,10 @@ require_once dirname(__DIR__) . '/src/Upload/PrivateDocumentStorage.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentDeletionService.php';
 require_once dirname(__DIR__) . '/src/Upload/SupabaseDocumentDeletionStore.php';
 
-use Kavoryn\\Upload\\DocumentDeletionService;
-use Kavoryn\\Upload\\DocumentDeletionStore;
-use Kavoryn\\Upload\\SupabaseDocumentDeletionStore;
-use Kavoryn\\Upload\\PrivateDocumentStorage;
+use Kavoryn\Upload\DocumentDeletionService;
+use Kavoryn\Upload\DocumentDeletionStore;
+use Kavoryn\Upload\SupabaseDocumentDeletionStore;
+use Kavoryn\Upload\PrivateDocumentStorage;
 
 function deletionExpect(bool $condition, string $message): void
 {
