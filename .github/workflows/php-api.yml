@@ -114,6 +114,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          trap 'status=$?; echo "API smoke failed at: ${BASH_COMMAND} (exit ${status})"; for response in /tmp/kavoryn-*.json; do if [ -f "$response" ]; then echo "--- $response"; cat "$response"; echo; fi; done; echo "--- PHP server log"; cat /tmp/kavoryn-php-server.log || true; exit "$status"' ERR
           env -u SUPABASE_URL -u SUPABASE_PUBLISHABLE_KEY -u DOCUMENT_UPLOAD_ENABLED php -S 127.0.0.1:8080 -t backend/public backend/public/index.php > /tmp/kavoryn-php-server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
