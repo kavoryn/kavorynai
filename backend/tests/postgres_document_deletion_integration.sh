@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "\${PGHOST:=127.0.0.1}"
-: "\${PGPORT:=5432}"
-: "\${PGUSER:=postgres}"
-: "\${PGDATABASE:=kavoryn_test}"
-: "\${PGPASSWORD:=postgres}"
+: "${PGHOST:=127.0.0.1}"
+: "${PGPORT:=5432}"
+: "${PGUSER:=postgres}"
+: "${PGDATABASE:=kavoryn_test}"
+: "${PGPASSWORD:=postgres}"
 export PGHOST PGPORT PGUSER PGDATABASE PGPASSWORD
 
 tmp_dir="$(mktemp -d)"
