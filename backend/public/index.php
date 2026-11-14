@@ -180,6 +180,17 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
                 }
                 $graceHours = (int) $configuredGrace;
             }
+            $refundAmountMinor = null;
+            if (str_starts_with($event['event'], 'refund.')) {
+                $refundAmount = $event['data']['amount'] ?? null;
+                if (is_int($refundAmount)) {
+                    $refundAmountMinor = $refundAmount;
+                } elseif (is_string($refundAmount) && ctype_digit($refundAmount) && strlen($refundAmount) < 19) {
+                    $refundAmountMinor = (int) $refundAmount;
+                } else {
+                    throw new \RuntimeException('Refund amount is invalid.');
+                }
+            }
             $lifecycle = new \Kavoryn\Billing\SupabasePaystackLifecycleStore(
                 $supabaseUrl,
                 $supabaseSecret,
@@ -192,6 +203,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
                 $subscriptionCode,
                 $providerStatus,
                 $graceHours,
+                $refundAmountMinor,
             );
         }
     } catch (\Throwable) {
