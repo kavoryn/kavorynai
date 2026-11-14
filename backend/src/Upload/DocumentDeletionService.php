@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Upload;
+namespace Kavoryn\Upload;
 
 interface DocumentDeletionStore
 {
     public function markDeletedAndGetStorageKey(string $documentId, string $userId): ?string;
 }
 
-final class DocumentDeletionUnavailableException extends \\RuntimeException {}
+final class DocumentDeletionUnavailableException extends \RuntimeException {}
 
 final class DocumentDeletionService
 {
@@ -22,7 +22,7 @@ final class DocumentDeletionService
     {
         foreach ([$documentId, $userId] as $id) {
             if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $id)) {
-                throw new \\InvalidArgumentException('Invalid document deletion identity.');
+                throw new \InvalidArgumentException('Invalid document deletion identity.');
             }
         }
 
