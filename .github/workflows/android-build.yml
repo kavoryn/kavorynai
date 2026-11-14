@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, feature/premium-android-home-ui]
 jobs:
   assemble:
     runs-on: ubuntu-latest
@@ -31,7 +31,13 @@ jobs:
           profile: pixel_2
           emulator-options: "-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save"
           disable-animations: true
-          script: gradle :app:connectedDebugAndroidTest
+          script: |
+            gradle :app:connectedDebugAndroidTest
+            mkdir -p app/build/reports/visual-validation
+            adb shell am force-stop com.kavoryn.app
+            adb shell am start -n com.kavoryn.app/.MainActivity
+            sleep 8
+            adb exec-out screencap -p > app/build/reports/visual-validation/kavoryn-home.png
       - name: Upload Android instrumentation diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -40,4 +46,5 @@ jobs:
           path: |
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/connected/
+            app/build/reports/visual-validation/
           if-no-files-found: ignore
