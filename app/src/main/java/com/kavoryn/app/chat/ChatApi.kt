@@ -29,11 +29,16 @@ data class ChatConversation(
 
 class ChatApiException(val status: Int?, val code: String?, message: String) : Exception(message)
 
+interface ChatHistoryApi {
+    fun listConversations(accessToken: String): List<ChatConversation>
+    fun getConversation(conversationId: String, accessToken: String): ChatConversation
+}
+
 class ChatApi(
     private val baseUrl: String,
     private val connectTimeoutMs: Int = 10_000,
     private val readTimeoutMs: Int = 90_000
-) {
+) : ChatHistoryApi {
     fun recordProviderConsent(provider: ChatProvider, accessToken: String) {
         request(
             path = "/v1/chat/consents",
@@ -57,12 +62,12 @@ class ChatApi(
         return parseConversation(root.getJSONObject("conversation"))
     }
 
-    fun listConversations(accessToken: String): List<ChatConversation> {
+    override fun listConversations(accessToken: String): List<ChatConversation> {
         val root = request("/v1/chat/conversations?limit=30", "GET", accessToken)
         return parseConversations(root.optJSONArray("conversations") ?: JSONArray())
     }
 
-    fun getConversation(conversationId: String, accessToken: String): ChatConversation {
+    override fun getConversation(conversationId: String, accessToken: String): ChatConversation {
         requireUuid(conversationId)
         val root = request("/v1/chat/conversations/$conversationId", "GET", accessToken)
         return parseConversation(root.getJSONObject("conversation"))
