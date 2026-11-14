@@ -256,6 +256,33 @@ if ($method === 'GET' && $path === '/v1/me') {
     ]);
 }
 
+if ($method === 'GET' && $path === '/v1/billing/catalog') {
+    authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $currency = $_GET['currency'] ?? 'NGN';
+    if (!is_string($currency) || !in_array($currency, ['NGN', 'USD'], true)) {
+        respond(422, ['error'=>['code'=>'invalid_billing_currency','message'=>'Choose NGN or USD explicitly.','request_id'=>$requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingCatalogStore.php';
+    try {
+        $catalogStore = new \Kavoryn\Billing\SupabaseBillingCatalogStore(
+            getenv('SUPABASE_URL') ?: '',
+            getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        );
+        $catalog = $catalogStore->getForBearerToken($_SERVER['HTTP_AUTHORIZATION'] ?? null, $currency);
+        respond(200, ['catalog'=>$catalog,'request_id'=>$requestId]);
+    } catch (\InvalidArgumentException) {
+        respond(401, ['error'=>['code'=>'unauthorized','message'=>'A valid sign-in session is required.','request_id'=>$requestId]]);
+    } catch (\Throwable) {
+        respond(503, ['error'=>['code'=>'billing_catalog_unavailable','message'=>'Plan information is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+}
+
 if ($method === 'GET' && $path === '/v1/billing/entitlements') {
     $user = authenticatedUser(
         getenv('SUPABASE_URL') ?: '',
@@ -329,9 +356,9 @@ if ($method === 'GET' && $path === '/v1/billing/payment-recovery') {
         }
 
         respond(200, ['billing_recovery'=>$response,'request_id'=>$requestId]);
-    } catch (\\InvalidArgumentException) {
+    } catch (\InvalidArgumentException) {
         respond(401, ['error'=>['code'=>'unauthorized','message'=>'A valid sign-in session is required.','request_id'=>$requestId]]);
-    } catch (\\Throwable) {
+    } catch (\Throwable) {
         respond(503, ['error'=>['code'=>'billing_recovery_unavailable','message'=>'Payment recovery is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
     }
 }
