@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingSubscriptionStore.php';
 
-use Kavoryn\\Billing\\SupabaseBillingSubscriptionStore;
+use Kavoryn\Billing\SupabaseBillingSubscriptionStore;
 
 function billingSubscriptionExpect(bool $condition, string $message): void
 {
