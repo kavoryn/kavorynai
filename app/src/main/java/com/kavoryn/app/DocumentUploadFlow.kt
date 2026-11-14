@@ -176,6 +176,8 @@ fun DocumentUploadFlow(
                             context.startActivity(chooser)
                         } catch (_: ActivityNotFoundException) {
                             error = "No compatible app is available to share this text."
+                        } catch (failure: IllegalArgumentException) {
+                            error = failure.message ?: "This text cannot be shared."
                         }
                     }
                 )
