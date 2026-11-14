@@ -88,6 +88,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
     require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackWebhookStore.php';
     require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
     require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackReconciliationStore.php';
+    require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackLifecycleStore.php';
 
     try {
         $verifier = new \Kavoryn\Billing\PaystackWebhookVerifier($paystackSecret);
@@ -96,7 +97,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
         respond(401, ['error'=>['code'=>'invalid_webhook_signature','message'=>'The payment notification could not be authenticated.','request_id'=>$requestId]]);
     }
 
-    $eventReference = $event['data']['reference'] ?? null;
+    $eventReference = $event['data']['reference'] ?? $event['data']['transaction_reference'] ?? null;
     if (!is_string($eventReference) || $eventReference === '' || strlen($eventReference) > 120) {
         $eventReference = null;
     }
@@ -154,6 +155,45 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
                 gmdate('c', strtotime($paidAt)),
             );
         }
+
+        $lifecycleApplied = false;
+        $lifecycleEvents = [
+            'invoice.payment_failed', 'subscription.not_renew', 'subscription.disable',
+            'refund.pending', 'refund.processing', 'refund.processed', 'refund.failed',
+        ];
+        if (in_array($event['event'], $lifecycleEvents, true)) {
+            $subscriptionCode = $event['data']['subscription']['subscription_code']
+                ?? $event['data']['subscription_code']
+                ?? null;
+            if (!is_string($subscriptionCode) || $subscriptionCode === '' || strlen($subscriptionCode) > 160) {
+                $subscriptionCode = null;
+            }
+            $providerStatus = $event['data']['status'] ?? null;
+            if (!is_string($providerStatus) || strlen($providerStatus) > 80) {
+                $providerStatus = null;
+            }
+            $graceHours = null;
+            if ($event['event'] === 'invoice.payment_failed') {
+                $configuredGrace = getenv('BILLING_GRACE_PERIOD_HOURS') ?: '';
+                if (!ctype_digit($configuredGrace) || (int) $configuredGrace < 1 || (int) $configuredGrace > 720) {
+                    throw new \\RuntimeException('Billing grace period is not configured.');
+                }
+                $graceHours = (int) $configuredGrace;
+            }
+            $lifecycle = new \\Kavoryn\\Billing\\SupabasePaystackLifecycleStore(
+                $supabaseUrl,
+                $supabaseSecret,
+                $serviceRoleJwt,
+            );
+            $lifecycleApplied = $lifecycle->apply(
+                $payloadSha256,
+                $event['event'],
+                $eventReference,
+                $subscriptionCode,
+                $providerStatus,
+                $graceHours,
+            );
+        }
     } catch (\Throwable) {
         // A non-2xx response asks Paystack to retry; do not acknowledge a lost receipt.
         respond(503, ['error'=>['code'=>'webhook_storage_unavailable','message'=>'Payment notification processing is temporarily unavailable.','request_id'=>$requestId]]);
@@ -163,6 +203,7 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
         'received' => true,
         'duplicate' => !$created,
         'reconciled' => $reconciled,
+        'lifecycle_applied' => $lifecycleApplied,
         'request_id' => $requestId,
     ]);
 }
