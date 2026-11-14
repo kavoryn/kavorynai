@@ -414,8 +414,7 @@ private fun HomeScreen(
                         color = Color(0xFFF2D28A), style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 }
-                Text("Understand more.
-Do more with Kavoryn.",
+                Text("Understand more.\nDo more with Kavoryn.",
                     style = MaterialTheme.typography.headlineMedium,
                     color = Color.White, fontWeight = FontWeight.Bold)
                 Text("Read documents, get clear explanations and listen in a language that works for you.",
