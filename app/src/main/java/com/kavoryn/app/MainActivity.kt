@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { HOME, DOCUMENT_CENTER, LISTEN_VOICE, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD }
+private enum class Screen { HOME, DOCUMENT_CENTER, LISTEN_VOICE, HISTORY_SETTINGS, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD }
 
 @Composable
 private fun DocumentFlow() {
@@ -73,6 +73,9 @@ private fun DocumentFlow() {
     var authLoading by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
     var authNotice by remember { mutableStateOf<String?>(null) }
+    var preferredChatLanguage by remember(context) {
+        mutableStateOf(context.getSharedPreferences("kavoryn_preferences", android.content.Context.MODE_PRIVATE).getString("preferred_chat_language", "en") ?: "en")
+    }
     var openChatAfterAuth by remember { mutableStateOf(false) }
     val authConfigured = BuildConfig.SUPABASE_URL.isNotBlank() &&
         BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()
@@ -210,6 +213,7 @@ private fun DocumentFlow() {
             error = pickerError,
             onOpenDocuments = { screen = Screen.DOCUMENT_CENTER },
             onOpenVoice = { screen = Screen.LISTEN_VOICE },
+            onOpenHistorySettings = { screen = Screen.HISTORY_SETTINGS },
             signedInEmail = authSession?.email,
             authConfigured = authConfigured,
             accountError = authError,
@@ -254,6 +258,19 @@ private fun DocumentFlow() {
             }
         )
         Screen.LISTEN_VOICE -> ListenVoiceScreen(onBack = { screen = Screen.HOME })
+        Screen.HISTORY_SETTINGS -> HistorySettingsScreen(
+            apiBaseUrl = BuildConfig.KAVORYN_API_BASE_URL,
+            accessToken = authSession?.accessToken,
+            signedInEmail = authSession?.email,
+            preferredLanguage = preferredChatLanguage,
+            onPreferredLanguageChange = { language ->
+                preferredChatLanguage = language
+                context.getSharedPreferences("kavoryn_preferences", android.content.Context.MODE_PRIVATE)
+                    .edit().putString("preferred_chat_language", language).apply()
+            },
+            onOpenSignIn = { openChatAfterAuth = false; authError = null; authNotice = null; screen = Screen.AUTH },
+            onBack = { screen = Screen.HOME }
+        )
         Screen.DOCUMENT_CENTER -> DocumentCenterScreen(
             selectedLanguage = selectedLanguage,
             onLanguageChange = { selectedLanguage = it },
@@ -315,6 +332,7 @@ private fun DocumentFlow() {
             if (session != null) ChatScreen(
                 apiBaseUrl = BuildConfig.KAVORYN_API_BASE_URL,
                 accessToken = session.accessToken,
+                initialLanguage = preferredChatLanguage,
                 onBack = { screen = Screen.HOME }
             ) else {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -392,6 +410,7 @@ private fun HomeScreen(
     error: String?,
     onOpenDocuments: () -> Unit,
     onOpenVoice: () -> Unit,
+    onOpenHistorySettings: () -> Unit,
     signedInEmail: String?,
     authConfigured: Boolean,
     accountError: String?,
@@ -530,6 +549,24 @@ private fun HomeScreen(
                         Column(Modifier.weight(1f)) {
                             Text("Listen & voice", color = ink, fontWeight = FontWeight.SemiBold)
                             Text("Listen to content and use voice tools.", color = muted,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("OPEN", color = Color(0xFF2F805E), style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold)
+                    }
+                    HorizontalDivider(color = canvas)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenHistorySettings),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFFFF0E8)) {
+                            Text("◷", modifier = Modifier.padding(12.dp), color = Color(0xFF9B6247),
+                                style = MaterialTheme.typography.titleLarge)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("History & settings", color = ink, fontWeight = FontWeight.SemiBold)
+                            Text("Review saved chats and manage preferences.", color = muted,
                                 style = MaterialTheme.typography.bodySmall)
                         }
                         Text("OPEN", color = Color(0xFF2F805E), style = MaterialTheme.typography.labelSmall,
