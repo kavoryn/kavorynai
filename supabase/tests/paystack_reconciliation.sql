@@ -225,7 +225,7 @@ begin
     raise exception 'monthly quota enforcement did not enforce the configured limit';
   end if;
 end;
-$;
+$$;
 reset role;
 
 -- Cancellation request from Paystack preserves paid access until period end.
