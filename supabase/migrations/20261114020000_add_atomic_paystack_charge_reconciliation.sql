@@ -26,7 +26,8 @@ begin
      or char_length(p_reference) not between 8 and 120
      or p_verified_status is distinct from 'success'
      or p_amount_minor is null
-     or p_amount_minor < 0
+     or p_amount_minor < 1
+     or p_currency is null
      or p_currency not in ('NGN', 'USD')
      or p_provider_transaction_id is null
      or char_length(p_provider_transaction_id) not between 1 and 120
@@ -93,7 +94,7 @@ begin
      set status = 'succeeded',
          actual_amount_minor = p_amount_minor,
          provider_transaction_id = p_provider_transaction_id,
-         paid_at = coalesce(paid_at, p_paid_at),
+         paid_at = coalesce(v_transaction.paid_at, p_paid_at),
          updated_at = pg_catalog.now()
    where id = v_transaction.id;
 
