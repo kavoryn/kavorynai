@@ -38,11 +38,14 @@ create table private.ai_processing_consents (
 -- Apply the actual production migrations, including the later reconciliation
 -- that adds NOT NULL expires_at to private.ocr_results.
 \i supabase/migrations/20261113151205_create_private_ocr_job_queue.sql
+\i supabase/migrations/20261113151218_private_document_ocr_job_queue.sql
 \i supabase/migrations/20261113151253_reconcile_existing_ocr_queue_and_add_completion.sql
 \i supabase/migrations/20261113152043_encrypted_private_ocr_result_storage.sql
+\i supabase/migrations/20261113152139_encrypted_ephemeral_document_ocr_results_and_worker_rpc.sql
 \i supabase/migrations/20261113152207_reconcile_ocr_result_storage_with_existing_encrypted_table.sql
 \i supabase/migrations/20261113152520_include_hmac_in_private_ocr_result_read_rpc.sql
 \i supabase/migrations/20261113152751_only_return_completed_ocr_results.sql
+\i supabase/migrations/20261113152835_add_ocr_job_lease_renewal_rpc.sql
 \i supabase/migrations/20261114040000_add_owner_scoped_document_deletion.sql
 \i supabase/migrations/20261114050000_fix_private_ocr_result_expiry_insert.sql
 
