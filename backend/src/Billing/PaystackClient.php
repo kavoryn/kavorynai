@@ -42,7 +42,7 @@ final class PaystackClient
             parse_url($callbackUrl, PHP_URL_SCHEME) !== 'https' ||
             !is_array($metadata) ||
             strlen(json_encode($metadata, JSON_THROW_ON_ERROR)) > 4096 ||
-            ($planCode !== null && preg_match('/\\APLN_[A-Za-z0-9_-]{6,120}\\z/', $planCode) !== 1)) {
+            ($planCode !== null && preg_match('/\APLN_[A-Za-z0-9_-]{6,120}\z/', $planCode) !== 1)) {
             throw new \InvalidArgumentException('Invalid Paystack checkout details.');
         }
 
@@ -106,7 +106,7 @@ final class PaystackClient
      */
     public function generateSubscriptionManagementLink(string $subscriptionCode): string
     {
-        if (preg_match('/\\A[A-Za-z0-9_-]{8,160}\\z/', $subscriptionCode) !== 1) {
+        if (preg_match('/\A[A-Za-z0-9_-]{8,160}\z/', $subscriptionCode) !== 1) {
             throw new \InvalidArgumentException('Invalid Paystack subscription code.');
         }
 
