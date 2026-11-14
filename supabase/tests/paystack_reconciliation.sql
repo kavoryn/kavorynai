@@ -18,6 +18,55 @@ insert into private.billing_prices (id, plan_id, currency, amount_minor, interva
 values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'NGN', 250000, 'month', true, 'PLN_kavoryn_test_01')
 on conflict (id) do nothing;
 
+-- End-to-end checkout intent -> subscription.create -> verified first charge.
+update auth.users
+   set email='billing-test@example.com',
+       email_confirmed_at=pg_catalog.now()
+ where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+set role service_role;
+select public.create_my_billing_checkout_intent(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'kavoryn-checkout-intent-001',
+  '12121212-1212-4121-8121-121212121212',
+  '13131313-1313-4131-8131-131313131313'
+);
+select public.record_paystack_webhook_receipt(
+  '14141414-1414-4141-8141-141414141414',
+  repeat('d',64), 'subscription.create', null
+);
+select public.apply_paystack_subscription_created(
+  repeat('d',64), 'SUB_kavoryn_test_123', 'billing-test@example.com',
+  'PLN_kavoryn_test_01', 'CUS_kavoryn_test_123'
+);
+select public.record_paystack_webhook_receipt(
+  '15151515-1515-4151-8151-151515151515',
+  repeat('e',64), 'charge.success', 'kavoryn-checkout-intent-001'
+);
+select public.reconcile_paystack_charge_success(
+  repeat('e',64), 'kavoryn-checkout-intent-001', 'success', 250000, 'NGN',
+  'paystack-checkout-txn-01', pg_catalog.now()
+);
+reset role;
+
+do $checkout_test$
+begin
+  if (select status from private.billing_transactions where reference='kavoryn-checkout-intent-001') <> 'succeeded' then
+    raise exception 'verified first subscription charge was not reconciled';
+  end if;
+  if not exists (
+    select 1 from private.user_subscriptions
+     where id='13131313-1313-4131-8131-131313131313'
+       and provider_subscription_code='SUB_kavoryn_test_123'
+       and status='active'
+       and current_period_end > pg_catalog.now()
+  ) then
+    raise exception 'verified first charge did not activate the linked subscription period';
+  end if;
+end;
+$checkout_test$;
+
 -- Authenticated catalog exposes only active plans and the explicitly selected currency.
 set role authenticated;
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', false);
