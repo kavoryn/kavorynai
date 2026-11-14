@@ -46,13 +46,23 @@ begin
     raise exception 'verified webhook receipt not found';
   end if;
 
+  if v_receipt.event_type <> 'charge.success'
+     or v_receipt.event_reference is distinct from p_reference then
+    if v_receipt.processing_status <> 'processed' then
+      update private.billing_webhook_receipts
+         set processing_status = 'ignored',
+             safe_error_code = 'event_not_reconcilable',
+             processed_at = pg_catalog.now()
+       where id = v_receipt.id;
+    end if;
+    return false;
+  end if;
+
   if v_receipt.processing_status = 'processed' then
     return true;
   end if;
 
-  if v_receipt.processing_status <> 'received'
-     or v_receipt.event_type <> 'charge.success'
-     or v_receipt.event_reference is distinct from p_reference then
+  if v_receipt.processing_status <> 'received' then
     update private.billing_webhook_receipts
        set processing_status = 'ignored',
            safe_error_code = 'event_not_reconcilable',
