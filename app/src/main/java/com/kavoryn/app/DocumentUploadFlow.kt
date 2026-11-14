@@ -58,6 +58,8 @@ fun DocumentUploadFlow(
     var explanation by remember { mutableStateOf<DocumentExplanation?>(null) }
     var showAiConsent by remember { mutableStateOf(false) }
     var showQuestions by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     var activeJob by remember { mutableStateOf<Job?>(null) }
 
     fun startUpload() {
@@ -167,6 +169,7 @@ fun DocumentUploadFlow(
                     result = result!!,
                     onExplain = { showAiConsent = true },
                     onAskQuestion = { showQuestions = true },
+                    onDelete = { showDeleteConfirmation = true },
                     onShareText = {
                         try {
                             val chooser = Intent.createChooser(
@@ -179,6 +182,58 @@ fun DocumentUploadFlow(
                         } catch (failure: IllegalArgumentException) {
                             error = failure.message ?: "This text cannot be shared."
                         }
+                    }
+                )
+            }
+            if (showDeleteConfirmation) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { if (!deleting) showDeleteConfirmation = false },
+                    title = { Text("Delete this document?") },
+                    text = {
+                        Text(
+                            "Kavoryn will remove this document from your account, including its stored OCR result. " +
+                                "This action cannot be undone."
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            enabled = !deleting,
+                            onClick = {
+                                deleting = true
+                                error = null
+                                scope.launch {
+                                    try {
+                                        withContext(Dispatchers.IO) {
+                                            DocumentDeleteApi(apiBaseUrl).deleteDocument(
+                                                result!!.documentId,
+                                                accessToken
+                                            )
+                                        }
+                                        showDeleteConfirmation = false
+                                        result = null
+                                        explanation = null
+                                        showQuestions = false
+                                        onBack()
+                                    } catch (cancelled: CancellationException) {
+                                        throw cancelled
+                                    } catch (failure: Exception) {
+                                        showDeleteConfirmation = false
+                                        error = failure.message
+                                            ?: "The document could not be deleted. Please try again."
+                                    } finally {
+                                        deleting = false
+                                    }
+                                }
+                            }
+                        ) {
+                            if (deleting) CircularProgressIndicator() else Text("Delete permanently")
+                        }
+                    },
+                    dismissButton = {
+                        OutlinedButton(
+                            enabled = !deleting,
+                            onClick = { showDeleteConfirmation = false }
+                        ) { Text("Cancel") }
                     }
                 )
             }
