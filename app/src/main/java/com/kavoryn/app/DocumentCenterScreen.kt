@@ -145,7 +145,7 @@ fun DocumentCenterScreen(
                     }
                 }
                 Text(
-                    "One document is processed per run in this version. You can select multiple files for review, then choose one to continue.",
+                    "One document is processed per run in this version. Choose one file for each processing run.",
                     color = muted,
                     style = MaterialTheme.typography.bodySmall
                 )
