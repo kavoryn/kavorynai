@@ -24,4 +24,9 @@ class DocumentShareIntentTest {
     fun blankDocumentTextCannotBeShared() {
         createDocumentShareIntent("  ")
     }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun oversizedDocumentTextIsRejectedInsteadOfSilentlyTruncated() {
+        createDocumentShareIntent("x".repeat(100_001))
+    }
 }
