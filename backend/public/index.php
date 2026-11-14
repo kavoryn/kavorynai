@@ -278,6 +278,42 @@ if ($method === 'GET' && $path === '/v1/billing/entitlements') {
     }
 }
 
+if ($method === 'GET' && $path === '/v1/billing/subscription-management-link') {
+    authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $publishableKey = getenv('SUPABASE_PUBLISHABLE_KEY') ?: '';
+    $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
+    if ($supabaseUrl === '' || $publishableKey === '' || $paystackSecret === '') {
+        respond(503, ['error'=>['code'=>'billing_management_not_configured','message'=>'Subscription management is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingSubscriptionStore.php';
+    require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
+    try {
+        $subscriptionStore = new \\Kavoryn\\Billing\\SupabaseBillingSubscriptionStore(
+            $supabaseUrl,
+            $publishableKey,
+        );
+        $subscriptionCode = $subscriptionStore->getMyPaystackSubscriptionCode($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+        if ($subscriptionCode === null) {
+            respond(404, ['error'=>['code'=>'manageable_subscription_not_found','message'=>'There is no active subscription available to manage.','request_id'=>$requestId]]);
+        }
+
+        $paystack = new \\Kavoryn\\Billing\\PaystackClient($paystackSecret);
+        $managementLink = $paystack->generateSubscriptionManagementLink($subscriptionCode);
+        respond(200, ['management_url'=>$managementLink,'provider'=>'paystack','request_id'=>$requestId]);
+    } catch (\\InvalidArgumentException) {
+        respond(401, ['error'=>['code'=>'unauthorized','message'=>'A valid sign-in session is required.','request_id'=>$requestId]]);
+    } catch (\\Throwable) {
+        respond(503, ['error'=>['code'=>'billing_management_unavailable','message'=>'Subscription management is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
+    }
+}
+
 if ($method === 'POST' && $path === '/v1/consents') {
     if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 8192) {
         respond(413, [
