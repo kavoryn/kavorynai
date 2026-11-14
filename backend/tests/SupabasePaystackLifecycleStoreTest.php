@@ -51,6 +51,7 @@ lifecycleExpect(!$refundStore->apply(
     null,
     'processed',
     null,
+    250000,
 ), 'Unmatched refund event must not be reported as applied.');
 
 try {
