@@ -210,6 +210,16 @@ jobs:
             }
           '
 
+          recovery_status=$(curl --silent --output /tmp/kavoryn-recovery.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/billing/payment-recovery)
+          test "$recovery_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-recovery.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
+                fwrite(STDERR, "Payment recovery must authenticate before reading billing or provider data.\\n");
+                exit(1);
+            }
+          '
+
           management_status=$(curl --silent --output /tmp/kavoryn-management.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/billing/subscription-management-link)
           test "$management_status" = "503"
           php -r '
