@@ -33,6 +33,7 @@ fun OcrResultScreen(
     result: DocumentOcrResult,
     onExplain: () -> Unit,
     onAskQuestion: () -> Unit,
+    onShareText: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val highlightedText = buildAnnotatedString {
@@ -119,6 +120,13 @@ fun OcrResultScreen(
         }
         Button(onClick = onAskQuestion, modifier = Modifier.fillMaxWidth()) {
             Text("Ask a question about this document")
+        }
+        Button(
+            onClick = onShareText,
+            enabled = result.text.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Share extracted text")
         }
     }
 }
