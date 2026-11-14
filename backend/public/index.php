@@ -293,7 +293,7 @@ if ($method === 'GET' && $path === '/v1/billing/payment-recovery') {
 
     require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingEntitlementStore.php';
     try {
-        $entitlementStore = new \\Kavoryn\\Billing\\SupabaseBillingEntitlementStore($supabaseUrl, $publishableKey);
+        $entitlementStore = new \Kavoryn\Billing\SupabaseBillingEntitlementStore($supabaseUrl, $publishableKey);
         $billing = $entitlementStore->getForBearerToken($_SERVER['HTTP_AUTHORIZATION'] ?? null);
         $subscriptionStatus = $billing['subscription_status'] ?? 'free';
         $planKey = $billing['plan_key'];
@@ -318,10 +318,10 @@ if ($method === 'GET' && $path === '/v1/billing/payment-recovery') {
             }
             require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingSubscriptionStore.php';
             require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
-            $subscriptionStore = new \\Kavoryn\\Billing\\SupabaseBillingSubscriptionStore($supabaseUrl, $publishableKey);
+            $subscriptionStore = new \Kavoryn\Billing\SupabaseBillingSubscriptionStore($supabaseUrl, $publishableKey);
             $subscriptionCode = $subscriptionStore->getMyPaystackSubscriptionCode($_SERVER['HTTP_AUTHORIZATION'] ?? null);
             if ($subscriptionCode !== null) {
-                $paystack = new \\Kavoryn\\Billing\\PaystackClient($paystackSecret);
+                $paystack = new \Kavoryn\Billing\PaystackClient($paystackSecret);
                 $response['management_url'] = $paystack->generateSubscriptionManagementLink($subscriptionCode);
                 $response['recovery_available'] = true;
                 $response['next_action'] = 'update_payment_method';
