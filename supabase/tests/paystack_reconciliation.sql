@@ -67,6 +67,43 @@ begin
 end;
 $checkout_test$;
 
+-- A second signed payload for the same Paystack transaction must not extend
+-- the paid subscription period a second time, even when the raw payload hash differs.
+set role service_role;
+do $duplicate_payment_test$
+declare
+  v_period_before timestamptz;
+  v_period_after timestamptz;
+begin
+  select current_period_end into v_period_before
+    from private.user_subscriptions
+   where id='13131313-1313-4131-8131-131313131313';
+
+  perform public.record_paystack_webhook_receipt(
+    '18181818-1818-4818-8818-181818181818',
+    repeat('6',64), 'charge.success', 'kavoryn-checkout-intent-001'
+  );
+  perform public.reconcile_paystack_charge_success(
+    repeat('6',64), 'kavoryn-checkout-intent-001', 'success', 250000, 'NGN',
+    'paystack-checkout-txn-01', pg_catalog.now()
+  );
+
+  select current_period_end into v_period_after
+    from private.user_subscriptions
+   where id='13131313-1313-4131-8131-131313131313';
+
+  if v_period_after is distinct from v_period_before then
+    raise exception 'duplicate provider transaction extended subscription period twice';
+  end if;
+  if (select count(*) from private.billing_transactions
+       where reference='kavoryn-checkout-intent-001'
+         and provider_transaction_id='paystack-checkout-txn-01') <> 1 then
+    raise exception 'duplicate provider transaction created more than one payment record';
+  end if;
+end;
+$duplicate_payment_test$;
+reset role;
+
 -- Authenticated catalog exposes only active plans and the explicitly selected currency.
 set role authenticated;
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', false);
