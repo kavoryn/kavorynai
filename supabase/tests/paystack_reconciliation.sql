@@ -136,4 +136,143 @@ begin
 end;
 $$;
 
-select 'Paystack reconciliation SQL integration tests passed.' as result;
+
+-- Recurring payment: only a reconciled payment advances the subscription period.
+insert into private.user_subscriptions (
+  id, user_id, plan_id, price_id, provider, provider_subscription_code, status
+) values (
+  '99999999-9999-4999-8999-999999999999',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'paystack', 'SUB_test_kavoryn_01', 'pending'
+);
+
+insert into private.billing_transactions (
+  id, user_id, subscription_id, price_id, provider, reference,
+  expected_amount_minor, currency, status
+) values (
+  '88888888-8888-4888-8888-888888888888',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  '99999999-9999-4999-8999-999999999999',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'paystack', 'kavoryn-renewal-test-01', 250000, 'NGN', 'pending'
+);
+
+set role service_role;
+select public.record_paystack_webhook_receipt(
+  '55555555-5555-4555-8555-555555555555',
+  repeat('e', 64), 'charge.success', 'kavoryn-renewal-test-01'
+);
+select public.reconcile_paystack_charge_success(
+  repeat('e', 64), 'kavoryn-renewal-test-01', 'success', 250000, 'NGN',
+  'paystack-txn-renewal-01', '2026-11-14T00:00:00Z'
+);
+reset role;
+
+do $
+begin
+  if (select status from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999') <> 'active' then
+    raise exception 'verified renewal did not activate subscription';
+  end if;
+  if (select current_period_end from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999')
+     <> timestamptz '2026-12-14T00:00:00Z' then
+    raise exception 'verified renewal did not advance one monthly period';
+  end if;
+end;
+$;
+
+-- Failed invoice uses the server-configured grace duration.
+set role service_role;
+select public.record_paystack_webhook_receipt(
+  '66666666-6666-4666-8666-666666666666',
+  repeat('f', 64), 'invoice.payment_failed', null
+);
+select public.apply_paystack_lifecycle_event(
+  repeat('f', 64), 'invoice.payment_failed', null, 'SUB_test_kavoryn_01',
+  'attention', 72
+);
+reset role;
+
+do $
+begin
+  if (select status from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999') <> 'past_due' then
+    raise exception 'failed invoice did not mark subscription past_due';
+  end if;
+  if (select grace_period_end from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999')
+      <= now() then
+    raise exception 'failed invoice did not establish grace period';
+  end if;
+end;
+$;
+
+-- Cancellation request from Paystack preserves paid access until period end.
+set role service_role;
+select public.record_paystack_webhook_receipt(
+  '77777777-7777-4777-8777-777777777777',
+  repeat('1', 64), 'subscription.not_renew', null
+);
+select public.apply_paystack_lifecycle_event(
+  repeat('1', 64), 'subscription.not_renew', null, 'SUB_test_kavoryn_01',
+  'non-renewing', null
+);
+reset role;
+
+do $
+begin
+  if not (select cancel_at_period_end from private.user_subscriptions where id='99999999-9999-4999-8999-999999999999') then
+    raise exception 'subscription not-renew event did not schedule cancellation';
+  end if;
+end;
+$;
+
+-- Refund pending blocks access only once processed; failed refunds restore success.
+insert into private.billing_transactions (
+  id, user_id, price_id, provider, reference, expected_amount_minor,
+  actual_amount_minor, currency, status, provider_transaction_id, paid_at
+) values (
+  '12121212-1212-4212-8212-121212121212',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'paystack', 'kavoryn-refund-test-01', 250000, 250000, 'NGN',
+  'succeeded', 'paystack-refund-txn-01', now()
+);
+
+set role service_role;
+select public.record_paystack_webhook_receipt(
+  '13131313-1313-4313-8313-131313131313',
+  repeat('2', 64), 'refund.pending', 'kavoryn-refund-test-01'
+);
+select public.apply_paystack_lifecycle_event(
+  repeat('2', 64), 'refund.pending', 'kavoryn-refund-test-01', null, 'pending', null
+);
+reset role;
+
+do $
+begin
+  if (select status from private.billing_transactions where reference='kavoryn-refund-test-01') <> 'reversal_pending' then
+    raise exception 'pending refund did not set reversal_pending';
+  end if;
+end;
+$;
+
+set role service_role;
+select public.record_paystack_webhook_receipt(
+  '14141414-1414-4414-8414-141414141414',
+  repeat('3', 64), 'refund.failed', 'kavoryn-refund-test-01'
+);
+select public.apply_paystack_lifecycle_event(
+  repeat('3', 64), 'refund.failed', 'kavoryn-refund-test-01', null, 'failed', null
+);
+reset role;
+
+do $
+begin
+  if (select status from private.billing_transactions where reference='kavoryn-refund-test-01') <> 'succeeded' then
+    raise exception 'failed refund did not restore successful transaction state';
+  end if;
+end;
+$;
+
+select 'Paystack reconciliation and lifecycle SQL integration tests passed.' as result;
+
