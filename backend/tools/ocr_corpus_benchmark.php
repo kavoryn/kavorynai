@@ -81,6 +81,7 @@ function evaluateOcrCorpus(string $path): array
     }
 
     $totals = [];
+    $seenSampleIds = [];
     $lineNumber = 0;
 
     try {
@@ -106,6 +107,11 @@ function evaluateOcrCorpus(string $path): array
                 !is_string($item['hypothesis'] ?? null)) {
                 throw new RuntimeException('Invalid corpus fields on line ' . $lineNumber . '.');
             }
+            $sampleId = $item['id'];
+            if (isset($seenSampleIds[$sampleId])) {
+                throw new RuntimeException('Duplicate sample ID on corpus line ' . $lineNumber . '.');
+            }
+            $seenSampleIds[$sampleId] = true;
 
             $referenceCharacters = ocrBenchmarkCodePoints($item['reference']);
             $hypothesisCharacters = ocrBenchmarkCodePoints($item['hypothesis']);
