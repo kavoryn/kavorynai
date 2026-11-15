@@ -23,6 +23,7 @@ import com.kavoryn.app.auth.shouldClearStoredSessionAfterRefreshFailure
 import com.kavoryn.app.auth.SupabaseAuthSession
 import com.kavoryn.app.auth.SupabaseSessionStore
 import com.kavoryn.app.auth.SupabaseSignInScreen
+import com.kavoryn.app.chat.ChatScreen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
