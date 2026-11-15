@@ -22,6 +22,28 @@ class ChatSseEventDecoderTest {
     }
 
     @Test
+    fun decodesUnicodeAndMultilineAssistantText() {
+        val received = StringBuilder()
+
+        val completed = decoder.decode("""{"type":"delta","text":"Sannu, Hausa! \\nLafiya lau?"}""") {
+            received.append(it)
+        }
+
+        assertFalse(completed)
+        assertEquals("Sannu, Hausa! \nLafiya lau?", received.toString())
+    }
+
+    @Test
+    fun providesSafeFallbackWhenErrorEventHasNoMessage() {
+        val error = assertThrows(ChatApiException::class.java) {
+            decoder.decode("""{"type":"error","code":"provider_error"}""") {}
+        }
+
+        assertEquals("provider_error", error.code)
+        assertEquals("The AI response could not be completed.", error.message)
+    }
+
+    @Test
     fun recognizesTerminalCompletionEvent() {
         assertTrue(decoder.decode("""{"type":"completed","message_id":"message-1"}""") {})
     }
