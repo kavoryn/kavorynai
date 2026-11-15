@@ -195,7 +195,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          env -u SUPABASE_URL -u SUPABASE_PUBLISHABLE_KEY -u DOCUMENT_UPLOAD_ENABLED php -S 127.0.0.1:8080 -t backend/public > /tmp/kavoryn-php-server.log 2>&1 &
+          env -u SUPABASE_URL -u SUPABASE_PUBLISHABLE_KEY -u DOCUMENT_UPLOAD_ENABLED BILLING_ENABLED=false PAYSTACK_WEBHOOK_ENABLED=false php -S 127.0.0.1:8080 -t backend/public > /tmp/kavoryn-php-server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
@@ -213,6 +213,26 @@ jobs:
                 !is_string($data["request_id"] ?? null) ||
                 $data["request_id"] === "") {
                 fwrite(STDERR, "Health response contract failed.\\n");
+                exit(1);
+            }
+          '
+
+          billing_status=$(curl --silent --output /tmp/kavoryn-billing-disabled.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/billing/catalog)
+          test "$billing_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-billing-disabled.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "billing_disabled") {
+                fwrite(STDERR, "Billing endpoints must stay disabled until the release gate passes.\\n");
+                exit(1);
+            }
+          '
+
+          webhook_status=$(curl --silent --output /tmp/kavoryn-webhook-disabled.json --write-out '%{http_code}' --request POST --header 'Content-Type: application/json' --data '{"event":"charge.success","data":{}}' http://127.0.0.1:8080/v1/webhooks/paystack)
+          test "$webhook_status" = "503"
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/kavoryn-webhook-disabled.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["error"]["code"] ?? null) !== "paystack_webhooks_disabled") {
+                fwrite(STDERR, "Paystack webhooks must stay disabled until signed-test-mode validation passes.\\n");
                 exit(1);
             }
           '
