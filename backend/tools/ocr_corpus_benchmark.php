@@ -25,11 +25,9 @@ function ocrBenchmarkCodePoints(string $text): array
 /** @return list<string> */
 function ocrBenchmarkWords(string $text): array
 {
-    $trimmed = trim($text);
-    if ($trimmed === '') {
-        return [];
-    }
-    $words = preg_split('/\s+/u', $trimmed);
+    // Treat Unicode separator characters (for example NBSP and em space) as
+    // token boundaries as well as ASCII whitespace. Keep tokens themselves exact.
+    $words = preg_split('/[\p{Z}\s]+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
     if (!is_array($words)) {
         throw new InvalidArgumentException('Input text must be valid UTF-8.');
     }
