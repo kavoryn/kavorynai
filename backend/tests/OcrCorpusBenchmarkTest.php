@@ -18,7 +18,7 @@ $rows = [
     ['id'=>'synthetic-ha-2','language'=>'ha','reference'=>'Ƙarɓi ɗalibi','hypothesis'=>'Ƙarɓi ɗalibi'],
     ['id'=>'synthetic-ar-1','language'=>'ar','reference'=>'مستند رسمي','hypothesis'=>'مستند رسمى'],
     ['id'=>'synthetic-en-1','language'=>'en','reference'=>'hello world','hypothesis'=>'hello word'],
-    ['id'=>'synthetic-mixed-1','language'=>'und','reference'=>'Kavoryn документ','hypothesis'=>'Kavoryn документ'],
+    ['id'=>'synthetic-mixed-1','language'=>'und','reference'=>'Kavoryn فاتورة','hypothesis'=>'Kavoryn فاتورة'],
 ];
 $lines = array_map(
     static fn(array $row): string => json_encode($row, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
