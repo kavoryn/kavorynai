@@ -2,7 +2,6 @@ package com.kavoryn.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,19 +13,23 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import com.kavoryn.app.speech.DocumentSpeechControls
 import com.kavoryn.app.speech.SpeechLanguage
+import com.kavoryn.app.speech.SpeechRange
 
 /**
- * Accessible original-text review. Uncertain OCR ranges are highlighted, but the
- * original characters remain unchanged so users can verify them before AI explanation.
+ * Accessible original-text review. Uncertain OCR ranges and the word currently
+ * being spoken are highlighted without rewriting the original OCR characters.
  */
 @Composable
 fun OcrResultScreen(
@@ -35,6 +38,7 @@ fun OcrResultScreen(
     onAskQuestion: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val speechRange = remember(result.documentId) { mutableStateOf<SpeechRange?>(null) }
     val highlightedText = buildAnnotatedString {
         append(result.text)
         result.uncertainSpans.forEach { span ->
@@ -49,6 +53,22 @@ fun OcrResultScreen(
                     ),
                     start = span.start,
                     end = span.endExclusive
+                )
+            }
+        }
+        speechRange.value?.let { range ->
+            if (range.start >= 0 && range.endExclusive <= result.text.length &&
+                range.start < range.endExclusive
+            ) {
+                addStyle(
+                    style = SpanStyle(
+                        background = Color(0xFFD8F0FF),
+                        color = Color(0xFF10334A),
+                        fontWeight = FontWeight.Bold,
+                        textDecoration = TextDecoration.Underline
+                    ),
+                    start = range.start,
+                    end = range.endExclusive
                 )
             }
         }
@@ -109,6 +129,7 @@ fun OcrResultScreen(
             DocumentSpeechControls(
                 text = result.text,
                 language = speechLanguage,
+                onProgress = { speechRange.value = it },
                 modifier = Modifier.fillMaxWidth()
             )
         } else {
