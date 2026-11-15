@@ -23,6 +23,8 @@ import com.kavoryn.app.auth.shouldClearStoredSessionAfterRefreshFailure
 import com.kavoryn.app.auth.SupabaseAuthSession
 import com.kavoryn.app.auth.SupabaseSessionStore
 import com.kavoryn.app.auth.SupabaseSignInScreen
+import com.kavoryn.app.auth.PasswordResetScreen
+import com.kavoryn.app.auth.parseSupabaseAuthCallback
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -34,24 +36,41 @@ private val KavorynGold = Color(0xFFC9A24B)
 private val KavorynInk = Color(0xFF1A1814)
 
 class MainActivity : ComponentActivity() {
+    private var pendingAuthCallbackUri by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingAuthCallbackUri = intent?.dataString
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(
                 primary = KavorynGold, onPrimary = KavorynInk,
                 background = KavorynBlue, surface = Color(0xFFF4F9FE),
                 onSurface = KavorynInk
             )) {
-                Surface(Modifier.fillMaxSize(), color = KavorynBlue) { DocumentFlow() }
+                Surface(Modifier.fillMaxSize(), color = KavorynBlue) {
+                    DocumentFlow(
+                        authCallbackUri = pendingAuthCallbackUri,
+                        onAuthCallbackHandled = { pendingAuthCallbackUri = null }
+                    )
+                }
             }
         }
     }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingAuthCallbackUri = intent.dataString
+    }
 }
 
-private enum class Screen { HOME, REVIEW, LOCAL_READY, AUTH, UPLOAD }
+private enum class Screen { HOME, REVIEW, LOCAL_READY, AUTH, UPLOAD, RESET_PASSWORD }
 
 @Composable
-private fun DocumentFlow() {
+private fun DocumentFlow(
+    authCallbackUri: String?,
+    onAuthCallbackHandled: () -> Unit
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var screen by remember { mutableStateOf(Screen.HOME) }
     var confirmed by remember { mutableStateOf(false) }
@@ -63,6 +82,7 @@ private fun DocumentFlow() {
     var authLoading by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
     var authNotice by remember { mutableStateOf<String?>(null) }
+    var recoveryCallback by remember { mutableStateOf<com.kavoryn.app.auth.SupabaseAuthCallback?>(null) }
     val authConfigured = BuildConfig.SUPABASE_URL.isNotBlank() &&
         BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()
     val authStore = remember(context) { SupabaseSessionStore(context) }
@@ -94,6 +114,53 @@ private fun DocumentFlow() {
                     }
                 } catch (_: Exception) {
                     authError = "Kavoryn couldn't reconnect. Your encrypted session is kept; try again when you're online."
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(authCallbackUri) {
+        val rawCallback = authCallbackUri ?: return@LaunchedEffect
+        onAuthCallbackHandled()
+
+        val callback = parseSupabaseAuthCallback(rawCallback)
+        if (callback == null) {
+            authError = "This email link is invalid or has expired. Request a new link and try again."
+            authNotice = null
+            screen = Screen.AUTH
+            return@LaunchedEffect
+        }
+
+        authError = null
+        authNotice = null
+        if (callback.type == "recovery") {
+            // Keep the short-lived recovery token in memory only; do not write it to session storage.
+            recoveryCallback = callback
+            screen = Screen.RESET_PASSWORD
+        } else {
+            authLoading = true
+            scope.launch {
+                try {
+                    val user = withContext(Dispatchers.IO) {
+                        authApi.getUser(callback.accessToken)
+                    }
+                    val verifiedSession = SupabaseAuthSession(
+                        accessToken = callback.accessToken,
+                        refreshToken = callback.refreshToken,
+                        tokenType = "bearer",
+                        expiresAtEpochSeconds = callback.expiresAtEpochSeconds,
+                        userId = user.userId,
+                        email = user.email
+                    )
+                    withContext(Dispatchers.IO) { authStore.save(verifiedSession) }
+                    authSession = verifiedSession
+                    authNotice = "Your email is confirmed. You're signed in."
+                    screen = if (selectedDocuments.isNotEmpty()) Screen.REVIEW else Screen.HOME
+                } catch (_: Exception) {
+                    authError = "Email confirmation could not be completed. Request a new link and try again."
+                    screen = Screen.AUTH
+                } finally {
+                    authLoading = false
                 }
             }
         }
@@ -256,6 +323,40 @@ private fun DocumentFlow() {
                     }
                 }
             },
+            onPasswordResetRequest = { email ->
+                authLoading = true
+                authError = null
+                authNotice = null
+                scope.launch {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            authApi.sendPasswordRecoveryEmail(email)
+                        }
+                        authNotice = "If an account matches that email, a password reset link has been sent."
+                    } catch (_: Exception) {
+                        authError = "Password reset could not be requested. Check your email address and try again later."
+                    } finally {
+                        authLoading = false
+                    }
+                }
+            },
+            onResendSignupConfirmation = { email ->
+                authLoading = true
+                authError = null
+                authNotice = null
+                scope.launch {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            authApi.resendSignupConfirmationEmail(email)
+                        }
+                        authNotice = "If that address needs confirmation, a confirmation email has been sent."
+                    } catch (_: Exception) {
+                        authError = "A confirmation email could not be requested. Try again later."
+                    } finally {
+                        authLoading = false
+                    }
+                }
+            },
             onSignUp = { email, password ->
                 authLoading = true
                 authError = null
@@ -281,6 +382,43 @@ private fun DocumentFlow() {
                 }
             }
         )
+        Screen.RESET_PASSWORD -> {
+            val recovery = recoveryCallback
+            if (recovery == null) {
+                LocalReadyScreen(false) {
+                    screen = Screen.AUTH
+                }
+            } else {
+                PasswordResetScreen(
+                    loading = authLoading,
+                    errorMessage = authError,
+                    onCancel = {
+                        recoveryCallback = null
+                        authError = null
+                        screen = Screen.AUTH
+                    },
+                    onSubmit = { newPassword ->
+                        authLoading = true
+                        authError = null
+                        scope.launch {
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    authApi.updatePassword(recovery.accessToken, newPassword)
+                                }
+                                // The recovery token is discarded rather than persisted as a regular login.
+                                recoveryCallback = null
+                                authNotice = "Your password has been updated. Sign in with your new password."
+                                screen = Screen.AUTH
+                            } catch (_: Exception) {
+                                authError = "The password could not be updated. The recovery link may have expired; request a new one."
+                            } finally {
+                                authLoading = false
+                            }
+                        }
+                    }
+                )
+            }
+        }
         Screen.REVIEW -> ReviewScreen(
             documents = selectedDocuments,
             error = pickerError,
