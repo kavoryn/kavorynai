@@ -36,6 +36,7 @@ fun ChatScreen(
     var loading by remember { mutableStateOf(false) }
     var streaming by remember { mutableStateOf(false) }
     var showConsent by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var chatUnavailable by remember { mutableStateOf(false) }
 
@@ -75,6 +76,24 @@ fun ChatScreen(
             } catch (failure: Exception) {
                 chatUnavailable = failure is ChatApiException && failure.code == "chat_disabled"
                 error = failure.message ?: "The chat could not be created."
+            } finally {
+                loading = false
+            }
+        }
+    }
+
+    fun deleteCurrentConversation() {
+        val current = conversation ?: return
+        showDeleteConfirmation = false
+        loading = true
+        error = null
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) { api.deleteConversation(current.id, accessToken) }
+                history = history.filterNot { it.id == current.id }
+                conversation = null
+            } catch (failure: Exception) {
+                error = failure.message ?: "This conversation could not be deleted."
             } finally {
                 loading = false
             }
@@ -192,7 +211,10 @@ fun ChatScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${active.provider.label} • ${active.language.uppercase()}", color = Color(0xFF68758A))
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = { conversation = null; error = null }) { Text("Conversations") }
+                TextButton(onClick = { conversation = null; error = null }, enabled = !streaming && !loading) { Text("Conversations") }
+                TextButton(onClick = { showDeleteConfirmation = true }, enabled = !streaming && !loading) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
             }
             LazyColumn(
                 modifier = Modifier.weight(1f),
@@ -237,6 +259,22 @@ fun ChatScreen(
             "Your messages are sent only to the provider you select after you confirm its processing notice. Provider keys stay on the server.",
             color = Color(0xFF68758A),
             style = MaterialTheme.typography.labelSmall
+        )
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Delete this conversation?") },
+            text = { Text("This will permanently delete this conversation and its messages from your Kavoryn chat history. This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = ::deleteCurrentConversation, enabled = !loading) {
+                    Text("Delete permanently", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) { Text("Cancel") }
+            }
         )
     }
 
