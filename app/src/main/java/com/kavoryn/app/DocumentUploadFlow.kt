@@ -164,7 +164,14 @@ fun DocumentUploadFlow(
                 OcrResultScreen(
                     result = result!!,
                     onExplain = { showAiConsent = true },
-                    onAskQuestion = { showQuestions = true }
+                    onAskQuestion = { showQuestions = true },
+                    onShareText = {
+                        try {
+                            shareDocumentText(context, result!!.text)
+                        } catch (_: Exception) {
+                            error = "The Android share menu could not be opened. Please try again."
+                        }
+                    }
                 )
             }
             if (showAiConsent && !showQuestions) {
