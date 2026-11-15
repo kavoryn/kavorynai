@@ -103,8 +103,13 @@ class ChatApi(
                             eventData = StringBuilder()
                         }
                     } else if (line.startsWith("data:")) {
+                        val dataLine = line.removePrefix("data:").trimStart()
+                        val nextLength = eventData.length + dataLine.length + if (eventData.isEmpty()) 0 else 1
+                        if (nextLength > ChatSseEventDecoder.MAX_EVENT_CHARS) {
+                            throw ChatApiException(null, "event_too_large", "The chat response contained an oversized event.")
+                        }
                         if (eventData.isNotEmpty()) eventData.append('\n')
-                        eventData.append(line.removePrefix("data:").trimStart())
+                        eventData.append(dataLine)
                     }
                 }
                 if (eventData.isNotEmpty() && handleEvent(eventData.toString(), onDelta)) completed = true
@@ -119,17 +124,8 @@ class ChatApi(
         }
     }
 
-    private fun handleEvent(raw: String, onDelta: (String) -> Unit): Boolean {
-        val event = try { JSONObject(raw) } catch (_: Exception) {
-            throw ChatApiException(null, "invalid_stream", "The chat response could not be read.")
-        }
-        when (event.optString("type")) {
-            "delta" -> onDelta(event.optString("text"))
-            "completed" -> return true
-            "error" -> throw ChatApiException(null, event.optString("code"), event.optString("message", "The AI response could not be completed."))
-        }
-        return false
-    }
+    private fun handleEvent(raw: String, onDelta: (String) -> Unit): Boolean =
+        ChatSseEventDecoder().decode(raw, onDelta)
 
     private fun request(
         path: String,
