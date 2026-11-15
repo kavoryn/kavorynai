@@ -18,7 +18,7 @@ Measure OCR quality on a fixed, permission-cleared corpus before Stage A is acce
 
 ## Required language coverage
 
-Evaluate English, Hausa, Arabic, and French separately. Include mixed-language pages where available and retain a mixed-language label in the manifest. Hausa cases must explicitly include:
+Evaluate English (`en`), Hausa (`ha`), Arabic (`ar`), and French (`fr`) separately. Include mixed-language pages where available and label them `und` so the benchmark reports a separate mixed/und aggregate instead of silently assigning them to one language. The `und` label means mixed or not confidently attributable to one supported language; it is not a fifth language-accuracy claim. Hausa cases must explicitly include:
 
 - `ɓ`, `ɗ`, `ƙ`, and `ƴ`
 - Uppercase/lowercase variants where they occur
@@ -53,7 +53,7 @@ Run:
 php backend/tools/ocr_corpus_benchmark.php /secure/local/path/ocr-corpus.jsonl
 ```
 
-The utility validates UTF-8 and language codes, computes metrics offline, and writes aggregate JSON to stdout. Keep the corpus outside the repository. It does not call Google Vision, OpenAI, Gemini, or any network service.
+The utility validates UTF-8 and language codes (`en`, `ha`, `ar`, `fr`, and `und`), computes metrics offline, and writes aggregate JSON to stdout. Samples labelled `und` are grouped separately as mixed/und; do not compare that aggregate as if it were a single-language score. Keep the corpus outside the repository. It does not call Google Vision, OpenAI, Gemini, or any network service.
 
 ## Critical-detail and uncertainty review
 
