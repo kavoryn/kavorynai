@@ -65,4 +65,27 @@ catch(ChatStorageUnavailableException) {}
 try { $store->hasConsent('not-a-uuid','gemini'); throw new RuntimeException('Invalid identity must be rejected.'); }
 catch(InvalidArgumentException) {}
 
+
+$baseMessage = [
+    'id'=>$message,'user_id'=>$user,'conversation_id'=>$conversation,'turn_id'=>$turn,
+    'role'=>'user','status'=>'completed','provider'=>'gemini',
+];
+$unicodeBoundary = $baseMessage;
+$unicodeBoundary['content'] = str_repeat('é', 24000);
+$store->saveMessage($unicodeBoundary);
+$tooManyCharacters = $baseMessage;
+$tooManyCharacters['content'] = str_repeat('é', 24001);
+try {
+    $store->saveMessage($tooManyCharacters);
+    throw new RuntimeException('Messages over the SQL character limit must be rejected in PHP.');
+} catch (InvalidArgumentException) {
+}
+$invalidUtf8 = $baseMessage;
+$invalidUtf8['content'] = "invalid\xB1";
+try {
+    $store->saveMessage($invalidUtf8);
+    throw new RuntimeException('Invalid UTF-8 message content must be rejected.');
+} catch (InvalidArgumentException) {
+}
+
 echo "Chat storage tests passed.".PHP_EOL;

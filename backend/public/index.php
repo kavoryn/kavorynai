@@ -732,6 +732,171 @@ if (str_starts_with($path, '/v1/chat/')) {
         return $data;
     };
 
+
+    if (preg_match('#^/v1/chat/conversations/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/messages$#i', $path, $messageMatch) === 1 && $method === 'POST') {
+        $input = $readJson(100000);
+        $messageText = $input['message'] ?? null;
+        if (!is_string($messageText) || trim($messageText) === '' ||
+            strlen($messageText) > 96000 || preg_match('/\A.{1,24000}\z/us', $messageText) !== 1) {
+            respond(422, ['error'=>['code'=>'invalid_chat_message','message'=>'Enter a message within the allowed size.','request_id'=>$requestId]]);
+        }
+
+        $conversationId = $messageMatch[1];
+        $conversation = $store->getConversation($user->id, $conversationId);
+        if ($conversation === null) {
+            respond(404, ['error'=>['code'=>'conversation_not_found','message'=>'The conversation was not found.','request_id'=>$requestId]]);
+        }
+        $provider = $conversation['provider'] ?? null;
+        if (!is_string($provider) || !in_array($provider, ['openai','gemini'], true)) {
+            respond(503, ['error'=>['code'=>'chat_provider_unavailable','message'=>'The selected AI provider is temporarily unavailable.','request_id'=>$requestId]]);
+        }
+        if (!$store->hasConsent($user->id, $provider)) {
+            respond(409, ['error'=>['code'=>'chat_provider_consent_required','message'=>'Confirm provider data processing before sending a message.','request_id'=>$requestId]]);
+        }
+
+        require_once dirname(__DIR__) . '/src/Ai/ProviderSseEventMapper.php';
+        require_once dirname(__DIR__) . '/src/Ai/ProviderStreamException.php';
+        require_once dirname(__DIR__) . '/src/Ai/SseEventDecoder.php';
+        require_once dirname(__DIR__) . '/src/Ai/OpenAiSseEventMapper.php';
+        require_once dirname(__DIR__) . '/src/Ai/GeminiSseEventMapper.php';
+        require_once dirname(__DIR__) . '/src/Ai/ProviderStreamRequest.php';
+        require_once dirname(__DIR__) . '/src/Ai/ProviderStreamTransport.php';
+        require_once dirname(__DIR__) . '/src/Ai/CurlSseStreamTransport.php';
+        require_once dirname(__DIR__) . '/src/Ai/OpenAiResponsesRequestFactory.php';
+        require_once dirname(__DIR__) . '/src/Ai/GeminiInteractionsRequestFactory.php';
+        require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamer.php';
+        require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamerFactory.php';
+
+        $providerEnvironment = [
+            'OPENAI_API_KEY' => getenv('OPENAI_API_KEY') ?: '',
+            'OPENAI_CHAT_MODEL' => getenv('OPENAI_CHAT_MODEL') ?: '',
+            'GEMINI_API_KEY' => getenv('GEMINI_API_KEY') ?: '',
+            'GEMINI_CHAT_MODEL' => getenv('GEMINI_CHAT_MODEL') ?: '',
+        ];
+        try {
+            $streamer = \Kavoryn\Ai\ProviderChatStreamerFactory::fromEnvironment($providerEnvironment, $provider);
+        } catch (\InvalidArgumentException) {
+            respond(503, ['error'=>['code'=>'chat_provider_unavailable','message'=>'The selected AI provider is temporarily unavailable.','request_id'=>$requestId]]);
+        }
+
+        if (!$store->consumeRateLimit($user->id, 20, 60)) {
+            respond(429, ['error'=>['code'=>'chat_rate_limited','message'=>'Please wait before sending another message.','request_id'=>$requestId]]);
+        }
+
+        $turnId = $store->newId();
+        $store->saveMessage([
+            'id'=>$store->newId(), 'user_id'=>$user->id,
+            'conversation_id'=>$conversationId, 'turn_id'=>$turnId,
+            'role'=>'user', 'content'=>$messageText, 'status'=>'completed',
+            'provider'=>$provider,
+        ]);
+
+        http_response_code(200);
+        header('Content-Type: text/event-stream; charset=utf-8');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('X-Accel-Buffering: no');
+        header('Connection: keep-alive');
+        ignore_user_abort(true);
+        @ini_set('zlib.output_compression', '0');
+        @ini_set('output_buffering', 'off');
+        while (ob_get_level() > 0) { @ob_end_flush(); }
+        ob_implicit_flush(true);
+
+        $sendSse = static function (array $payload): void {
+            echo 'data: ' . json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+            @ob_flush();
+            flush();
+        };
+
+        $assistantText = '';
+        $assistantCharacters = 0;
+        $streamCompleted = false;
+        $cancelled = false;
+        $outputTooLarge = false;
+        $streamFailed = false;
+        try {
+            $streamer->stream(
+                $provider,
+                $messageText,
+                static function (array $event) use (
+                    &$assistantText, &$assistantCharacters, &$streamCompleted, &$outputTooLarge, $sendSse
+                ): void {
+                    if (($event['type'] ?? null) === 'completed') {
+                        $streamCompleted = true;
+                        return;
+                    }
+                    if (($event['type'] ?? null) !== 'delta' || !is_string($event['text'] ?? null)) {
+                        return;
+                    }
+                    $delta = $event['text'];
+                    if ($delta === '') { return; }
+                    if (preg_match_all('/./us', $delta, $matches) === false) {
+                        throw new \RuntimeException('Invalid UTF-8 provider output.');
+                    }
+                    $deltaCharacters = count($matches[0]);
+                    if ($assistantCharacters + $deltaCharacters > 24000 ||
+                        strlen($assistantText) + strlen($delta) > 96000) {
+                        $outputTooLarge = true;
+                        throw new \LengthException('The generated response exceeded the allowed size.');
+                    }
+                    $assistantCharacters += $deltaCharacters;
+                    $assistantText .= $delta;
+                    $sendSse(['type'=>'delta','text'=>$delta]);
+                },
+                static function () use (&$cancelled): bool {
+                    if (connection_aborted() === 1) {
+                        $cancelled = true;
+                        return true;
+                    }
+                    return false;
+                },
+            );
+            if (!$streamCompleted || trim($assistantText) === '') {
+                throw new \Kavoryn\Ai\ProviderStreamException('The provider stream did not complete.');
+            }
+        } catch (\Throwable) {
+            $streamFailed = true;
+        }
+
+        $model = $provider === 'openai'
+            ? ($providerEnvironment['OPENAI_CHAT_MODEL'] ?: null)
+            : ($providerEnvironment['GEMINI_CHAT_MODEL'] ?: null);
+
+        if (!$streamFailed) {
+            try {
+                $savedAssistant = $store->saveMessage([
+                    'id'=>$store->newId(), 'user_id'=>$user->id,
+                    'conversation_id'=>$conversationId, 'turn_id'=>$turnId,
+                    'role'=>'assistant', 'content'=>$assistantText, 'status'=>'completed',
+                    'provider'=>$provider, 'model'=>$model,
+                ]);
+                $sendSse(['type'=>'completed','message_id'=>$savedAssistant['id']]);
+            } catch (\Throwable) {
+                $sendSse(['type'=>'error','code'=>'chat_storage_unavailable','message'=>'Your response could not be saved. Please try again.','request_id'=>$requestId]);
+            }
+            exit;
+        }
+
+        $terminalStatus = $cancelled ? 'cancelled' : 'failed';
+        $safePlaceholder = $cancelled ? 'The response was cancelled.' : 'The response could not be completed.';
+        try {
+            $store->saveMessage([
+                'id'=>$store->newId(), 'user_id'=>$user->id,
+                'conversation_id'=>$conversationId, 'turn_id'=>$turnId,
+                'role'=>'assistant', 'content'=>$safePlaceholder, 'status'=>$terminalStatus,
+                'provider'=>$provider, 'model'=>$model,
+            ]);
+        } catch (\Throwable) {
+            // Keep the stream error generic; do not expose storage or provider internals.
+        }
+        if (connection_aborted() !== 1) {
+            $code = $cancelled ? 'chat_cancelled' : ($outputTooLarge ? 'chat_response_too_large' : 'chat_provider_error');
+            $message = $cancelled ? 'The response was cancelled.' : ($outputTooLarge ? 'The response exceeded the allowed size.' : 'The AI response could not be completed. Please try again.');
+            $sendSse(['type'=>'error','code'=>$code,'message'=>$message,'request_id'=>$requestId]);
+        }
+        exit;
+    }
+
     try {
         if ($path === '/v1/chat/consents' && $method === 'POST') {
             $input = $readJson();

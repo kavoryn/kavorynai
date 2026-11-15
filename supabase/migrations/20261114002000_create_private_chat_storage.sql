@@ -2,6 +2,9 @@
 -- This migration only defines schema and server-only RPCs. It does not enable chat
 -- routes, deploy the API, or change any feature flags.
 
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated, service_role;
+
 create table if not exists private.chat_conversations (
   id uuid primary key,
   user_id uuid not null references auth.users(id) on delete cascade,

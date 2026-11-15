@@ -104,6 +104,21 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
                 CURLOPT_MAXREDIRS => 0,
                 CURLOPT_CONNECTTIMEOUT => $this->connectTimeoutSeconds,
                 CURLOPT_TIMEOUT => $this->totalTimeoutSeconds,
+                // Poll cancellation even while the provider is connected but has not emitted a data chunk.
+                CURLOPT_NOPROGRESS => false,
+                CURLOPT_XFERINFOFUNCTION => static function (
+                    $curl,
+                    float $downloadTotal,
+                    float $downloaded,
+                    float $uploadTotal,
+                    float $uploaded
+                ) use ($isCancelled, &$transportFailure): int {
+                    if ($isCancelled !== null && $isCancelled()) {
+                        $transportFailure = 'cancelled';
+                        return 1;
+                    }
+                    return 0;
+                },
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
