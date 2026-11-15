@@ -38,6 +38,24 @@ try {
     expectBenchmark(($report['und']['cer'] ?? null) === 0.0, 'Exact mixed-language fixtures must have zero CER.');
     expectBenchmark(!str_contains(json_encode($report, JSON_THROW_ON_ERROR), 'مستند'), 'Benchmark report must not disclose input document text.');
     expectBenchmark(!str_contains(json_encode($report, JSON_THROW_ON_ERROR), 'synthetic-ar-1'), 'Benchmark report must not disclose sample IDs.');
+
+    $duplicateRows = [
+        ['id'=>'duplicate-id','language'=>'en','reference'=>'first','hypothesis'=>'first'],
+        ['id'=>'duplicate-id','language'=>'en','reference'=>'second','hypothesis'=>'second'],
+    ];
+    $duplicateLines = array_map(
+        static fn(array $row): string => json_encode($row, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+        $duplicateRows
+    );
+    file_put_contents($path, implode(PHP_EOL, $duplicateLines) . PHP_EOL);
+    $duplicateIdRejected = false;
+    try {
+        evaluateOcrCorpus($path);
+    } catch (RuntimeException $error) {
+        $duplicateIdRejected = str_contains($error->getMessage(), 'Duplicate sample ID');
+    }
+    expectBenchmark($duplicateIdRejected, 'Duplicate sample IDs must be rejected to prevent accidental double weighting.');
+
 } finally {
     @unlink($path);
 }
