@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Kavoryn\Ocr;
 
 use Kavoryn\Upload\DocumentStorage;
+use Kavoryn\Upload\DocumentFileException;
 
 final class OcrWorker
 {
