@@ -20,6 +20,14 @@ final class DocumentStorageFactory
         }
 
         if ($driver === 'local') {
+            if (strtolower(getenv('APP_ENV') ?: 'production') === 'production' ||
+                getenv('VERCEL') === '1') {
+                throw new DocumentFileException(
+                    'storage_not_configured',
+                    'Local document storage is restricted to non-production development.',
+                );
+            }
+
             return new PrivateDocumentStorage(
                 getenv('PRIVATE_DOCUMENT_STORAGE_PATH') ?: '',
                 $publicPath,
