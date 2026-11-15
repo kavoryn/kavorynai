@@ -38,6 +38,7 @@ fun ChatScreen(
     var streaming by remember { mutableStateOf(false) }
     var showConsent by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showRevokeConsentConfirmation by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var chatUnavailable by remember { mutableStateOf(false) }
 
@@ -78,9 +79,33 @@ fun ChatScreen(
                 }
                 conversation = created
                 history = listOf(created) + history.filterNot { it.id == created.id }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (failure: Exception) {
                 chatUnavailable = failure is ChatApiException && failure.code == "chat_disabled"
                 error = failure.message ?: "The chat could not be created."
+            } finally {
+                loading = false
+            }
+        }
+    }
+
+    fun revokeCurrentProviderConsent() {
+        val current = conversation ?: return
+        showRevokeConsentConfirmation = false
+        loading = true
+        error = null
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    api.revokeProviderConsent(current.provider, accessToken)
+                }
+                provider = current.provider
+                conversation = null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                error = failure.message ?: "Provider consent could not be revoked."
             } finally {
                 loading = false
             }
@@ -97,6 +122,8 @@ fun ChatScreen(
                 withContext(Dispatchers.IO) { api.deleteConversation(current.id, accessToken) }
                 history = history.filterNot { it.id == current.id }
                 conversation = null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (failure: Exception) {
                 error = failure.message ?: "This conversation could not be deleted."
             } finally {
@@ -136,6 +163,8 @@ fun ChatScreen(
                     }
                     conversation = active.copy(messages = updated)
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (failure: Exception) {
                 error = failure.message ?: "The AI response could not be completed."
                 conversation?.let { active ->
@@ -198,7 +227,9 @@ fun ChatScreen(
                             scope.launch {
                                 try {
                                     conversation = withContext(Dispatchers.IO) { api.getConversation(item.id, accessToken) }
-                                } catch (failure: Exception) {
+                                } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
                                     error = failure.message ?: "This conversation could not be opened."
                                 } finally { loading = false }
                             }
@@ -217,6 +248,9 @@ fun ChatScreen(
                 Text("${active.provider.label} • ${active.language.uppercase()}", color = Color(0xFF68758A))
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = { conversation = null; error = null }, enabled = !streaming && !loading) { Text("Conversations") }
+                TextButton(onClick = { showRevokeConsentConfirmation = true }, enabled = !streaming && !loading) {
+                    Text("Revoke consent", color = MaterialTheme.colorScheme.error)
+                }
                 TextButton(onClick = { showDeleteConfirmation = true }, enabled = !streaming && !loading) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
@@ -264,6 +298,27 @@ fun ChatScreen(
             "Your messages are sent only to the provider you select after you confirm its processing notice. Provider keys stay on the server.",
             color = Color(0xFF68758A),
             style = MaterialTheme.typography.labelSmall
+        )
+    }
+
+    if (showRevokeConsentConfirmation) {
+        val selectedProvider = conversation?.provider?.label ?: provider.label
+        AlertDialog(
+            onDismissRequest = { showRevokeConsentConfirmation = false },
+            title = { Text("Revoke $selectedProvider consent?") },
+            text = {
+                Text(
+                    "Kavoryn will stop sending future chat messages to $selectedProvider until you explicitly agree again. Existing conversation history will remain saved; delete it separately if you want it removed."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = ::revokeCurrentProviderConsent, enabled = !loading) {
+                    Text("Revoke consent", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRevokeConsentConfirmation = false }) { Text("Cancel") }
+            }
         )
     }
 
