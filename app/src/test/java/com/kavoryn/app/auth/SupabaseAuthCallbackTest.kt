@@ -78,6 +78,35 @@ class SupabaseAuthCallbackTest {
         ))
     }
 
+
+    @Test
+    fun rejectsSpoofedAuthoritiesPortsPathsAndQueries() {
+        val fragment =
+            "access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600"
+        val invalidUris = listOf(
+            "com.kavoryn.app://attacker@auth-callback#$fragment",
+            "com.kavoryn.app://auth-callback:443#$fragment",
+            "com.kavoryn.app://auth-callback/unexpected#$fragment",
+            "com.kavoryn.app://auth-callback?next=https://example.com#$fragment"
+        )
+
+        invalidUris.forEach { uri ->
+            assertNull(parseSupabaseAuthCallback(uri, nowEpochSeconds = 1_000))
+        }
+    }
+
+    @Test
+    fun rejectsMalformedPercentEncodingAndDuplicateDecodedKeys() {
+        assertNull(parseSupabaseAuthCallback(
+            "com.kavoryn.app://auth-callback#access_token=%ZZ&refresh_token=$refresh&type=recovery&expires_in=3600",
+            nowEpochSeconds = 1_000
+        ))
+        assertNull(parseSupabaseAuthCallback(
+            "com.kavoryn.app://auth-callback#access_token=$access&%61ccess_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
+            nowEpochSeconds = 1_000
+        ))
+    }
+
     @Test
     fun rejectsCallbacksWithAnUnreasonablyLongLifetime() {
         assertNull(parseSupabaseAuthCallback(
