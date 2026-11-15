@@ -62,7 +62,7 @@ final class OcrWorker
                 ? $error->errorCode
                 : ($error instanceof OcrProviderUnavailableException
                     ? 'ocr_provider_unavailable'
-                    : 'ocr_processing_failed');
+                    : ($error instanceof DocumentFileException ? 'document_file_unavailable' : 'ocr_processing_failed'));
 
             $delay = min(900, 30 * (2 ** max(0, $job->attempt - 1)));
             $this->jobs->fail($job, $code, $delay);
