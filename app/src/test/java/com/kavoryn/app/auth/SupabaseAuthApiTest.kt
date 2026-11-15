@@ -9,6 +9,23 @@ import org.junit.Test
 
 class SupabaseAuthApiTest {
     @Test
+    fun authRedirectMustMatchTheKavorynCallback() {
+        assertEquals(
+            KAVORYN_AUTH_REDIRECT_URI,
+            validatedKavorynAuthRedirect("com.kavoryn.app://auth-callback")
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            validatedKavorynAuthRedirect("https://example.com/callback")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            validatedKavorynAuthRedirect("com.kavoryn.app://other-host")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            validatedKavorynAuthRedirect("com.kavoryn.app://auth-callback?next=https://evil.example")
+        }
+    }
+
+    @Test
     fun projectUrlMustUseHttpsAndTrailingSlashIsRemoved() {
         assertEquals(
             "https://project.supabase.co",

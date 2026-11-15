@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +36,8 @@ fun SupabaseSignInScreen(
     statusMessage: String? = null,
     onSignIn: (email: String, password: String) -> Unit,
     onSignUp: (email: String, password: String) -> Unit,
+    onPasswordResetRequest: (email: String) -> Unit,
+    onResendSignupConfirmation: (email: String) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -124,6 +127,38 @@ fun SupabaseSignInScreen(
                         strokeWidth = 2.dp
                     )
                 } else Text(if (creatingAccount) "Create account" else "Sign in")
+            }
+            if (!creatingAccount) {
+                TextButton(
+                    onClick = {
+                        val submittedEmail = email.trim()
+                        if (submittedEmail.isBlank()) {
+                            validationMessage = "Enter your email address first."
+                        } else {
+                            validationMessage = null
+                            onPasswordResetRequest(submittedEmail)
+                        }
+                    },
+                    enabled = !loading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Forgot password?")
+                }
+                TextButton(
+                    onClick = {
+                        val submittedEmail = email.trim()
+                        if (submittedEmail.isBlank()) {
+                            validationMessage = "Enter your email address first."
+                        } else {
+                            validationMessage = null
+                            onResendSignupConfirmation(submittedEmail)
+                        }
+                    },
+                    enabled = !loading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Resend confirmation email")
+                }
             }
             OutlinedButton(
                 onClick = {
