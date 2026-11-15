@@ -73,7 +73,9 @@ class SupabaseAuthApi(
         require(email.trim().isNotEmpty()) { "Email is required." }
         require(password.isNotEmpty()) { "Password is required." }
         val root = validatedSupabaseAuthRoot(projectUrl)
-        val connection = openConnection("$root/auth/v1/signup").apply {
+        val redirect = validatedKavorynAuthRedirect(KAVORYN_AUTH_REDIRECT_URI)
+        val encodedRedirect = URLEncoder.encode(redirect, Charsets.UTF_8.name())
+        val connection = openConnection("$root/auth/v1/signup?redirect_to=$encodedRedirect").apply {
             requestMethod = "POST"
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
