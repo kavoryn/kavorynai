@@ -27,7 +27,9 @@ create or replace function public.apply_paystack_lifecycle_event(
   p_subscription_code text default null,
   p_provider_status text default null,
   p_grace_period_hours integer default null,
-  p_refund_amount_minor bigint default null
+  p_refund_amount_minor bigint default null,
+  p_amount_minor bigint default null,
+  p_currency text default null
 )
 returns boolean
 language plpgsql
@@ -42,11 +44,16 @@ declare
 begin
   if p_payload_sha256 is null or p_payload_sha256 !~ '^[0-9a-f]{64}$'
      or p_event_type not in (
-       'invoice.payment_failed', 'subscription.not_renew',
+       'invoice.create', 'invoice.payment_failed', 'subscription.not_renew',
        'subscription.disable', 'refund.pending', 'refund.processing',
        'refund.processed', 'refund.failed'
      ) then
     raise exception 'invalid lifecycle event';
+  end if;
+
+  if p_event_type = 'invoice.create'
+     and (p_amount_minor is null or p_amount_minor < 1 or p_currency is null or p_currency not in ('NGN','USD')) then
+    raise exception 'invalid invoice amount';
   end if;
 
   if p_event_type = 'invoice.payment_failed'
@@ -66,7 +73,67 @@ begin
   if v_receipt.processing_status = 'processed' then return true; end if;
   if v_receipt.processing_status <> 'received' then return false; end if;
 
-  if p_event_type in ('refund.pending','refund.processing','refund.processed','refund.failed') then
+  if p_event_type = 'invoice.create' then
+    if p_reference is null or v_receipt.event_reference is distinct from p_reference
+       or p_subscription_code is null then
+      update private.billing_webhook_receipts
+         set processing_status='ignored', safe_error_code='invoice_identity_missing',
+             processed_at=pg_catalog.now()
+       where id=v_receipt.id;
+      return false;
+    end if;
+
+    select * into v_subscription
+      from private.user_subscriptions
+     where provider='paystack' and provider_subscription_code=p_subscription_code
+     for update;
+    if not found or v_subscription.status not in ('active','trialing','past_due') then
+      update private.billing_webhook_receipts
+         set processing_status='ignored', safe_error_code='subscription_not_renewable',
+             processed_at=pg_catalog.now()
+       where id=v_receipt.id;
+      return false;
+    end if;
+
+    if not exists (
+      select 1 from private.billing_prices bp
+       where bp.id=v_subscription.price_id
+         and bp.plan_id=v_subscription.plan_id
+         and bp.active=true
+         and bp.amount_minor=p_amount_minor
+         and bp.currency=p_currency
+    ) then
+      update private.billing_webhook_receipts
+         set processing_status='ignored', safe_error_code='invoice_price_mismatch',
+             processed_at=pg_catalog.now()
+       where id=v_receipt.id;
+      return false;
+    end if;
+
+    insert into private.billing_transactions (
+      id, user_id, subscription_id, price_id, provider, reference,
+      expected_amount_minor, currency, status
+    ) values (
+      pg_catalog.gen_random_uuid(), v_subscription.user_id, v_subscription.id,
+      v_subscription.price_id, 'paystack', p_reference, p_amount_minor, p_currency, 'pending'
+    )
+    on conflict (reference) do nothing;
+
+    if not exists (
+      select 1 from private.billing_transactions bt
+       where bt.reference=p_reference
+         and bt.subscription_id=v_subscription.id
+         and bt.expected_amount_minor=p_amount_minor
+         and bt.currency=p_currency
+    ) then
+      update private.billing_webhook_receipts
+         set processing_status='ignored', safe_error_code='invoice_reference_conflict',
+             processed_at=pg_catalog.now()
+       where id=v_receipt.id;
+      return false;
+    end if;
+
+  elsif p_event_type in ('refund.pending','refund.processing','refund.processed','refund.failed') then
     if p_reference is null or v_receipt.event_reference is distinct from p_reference
        or p_refund_amount_minor is null or p_refund_amount_minor < 0 then
       update private.billing_webhook_receipts
@@ -166,9 +233,9 @@ begin
 end;
 $$;
 
-revoke all on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint)
+revoke all on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint,bigint,text)
   from public, anon, authenticated;
-grant execute on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint)
+grant execute on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint,bigint,text)
   to service_role;
 
 -- Entitlement decision is computed from private server-side rows and the
@@ -193,6 +260,7 @@ as $$
     from private.user_subscriptions s
     join private.billing_plans p on p.id=s.plan_id
     where s.user_id=auth.uid()
+      and p.active=true
       and (
         (s.status in ('active','trialing') and
           (s.current_period_end is null or s.current_period_end > pg_catalog.now()))
@@ -217,7 +285,7 @@ $$;
 revoke all on function public.get_my_billing_entitlements() from public, anon;
 grant execute on function public.get_my_billing_entitlements() to authenticated, service_role;
 
-comment on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint) is
+comment on function public.apply_paystack_lifecycle_event(text,text,text,text,text,integer,bigint,bigint,text) is
   'Processes authenticated Paystack subscription/refund events idempotently; grace duration must be configured server-side.';
 comment on function public.get_my_billing_entitlements() is
   'Returns only the authenticated user entitlement derived from private subscription state.';
@@ -236,7 +304,7 @@ declare
   v_start timestamptz;
 begin
   if new.status <> 'succeeded'
-     or old.status = 'succeeded'
+     or old.status not in ('initialized','pending')
      or new.subscription_id is null
      or new.paid_at is null then
     return new;
@@ -310,3 +378,101 @@ revoke all on function public.expire_due_billing_subscriptions() from public, an
 grant execute on function public.expire_due_billing_subscriptions() to service_role;
 
 revoke all on function private.advance_subscription_period_after_paid_charge() from public, anon, authenticated, service_role;
+
+
+-- Atomic monthly usage counters. No quotas are seeded; every quota must be
+-- explicitly configured in the active plan's entitlements. Missing = denied.
+create table if not exists private.billing_usage_counters (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  quota_key text not null check (quota_key ~ '^[a-z][a-z0-9_]{1,63}$'),
+  period_start date not null,
+  used_count bigint not null default 0 check (used_count >= 0),
+  updated_at timestamptz not null default pg_catalog.now(),
+  primary key (user_id, quota_key, period_start)
+);
+alter table private.billing_usage_counters enable row level security;
+revoke all on table private.billing_usage_counters from public, anon, authenticated, service_role;
+
+create or replace function public.check_my_feature_entitlement(p_feature_key text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (public.get_my_billing_entitlements()->'entitlements'->'features'->>p_feature_key) = 'true',
+    false
+  );
+$$;
+
+revoke all on function public.check_my_feature_entitlement(text) from public, anon;
+grant execute on function public.check_my_feature_entitlement(text) to authenticated, service_role;
+
+create or replace function public.consume_my_billing_quota(
+  p_quota_key text,
+  p_amount bigint default 1
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_entitlements jsonb;
+  v_limit_text text;
+  v_limit bigint;
+  v_period date := pg_catalog.date_trunc('month', pg_catalog.now())::date;
+  v_used bigint;
+begin
+  if v_user_id is null
+     or p_quota_key is null
+     or p_quota_key !~ '^[a-z][a-z0-9_]{1,63}$'
+     or p_amount is null or p_amount < 1 or p_amount > 100000 then
+    raise exception 'invalid quota request';
+  end if;
+
+  v_entitlements := public.get_my_billing_entitlements()->'entitlements';
+  v_limit_text := v_entitlements->'quotas'->>p_quota_key;
+  if v_limit_text is null or v_limit_text !~ '^[0-9]{1,12}$' then
+    return pg_catalog.jsonb_build_object(
+      'allowed', false, 'reason', 'quota_not_configured',
+      'quota_key', p_quota_key
+    );
+  end if;
+  v_limit := v_limit_text::bigint;
+  if p_amount > v_limit then
+    return pg_catalog.jsonb_build_object(
+      'allowed', false, 'reason', 'quota_exceeded',
+      'quota_key', p_quota_key, 'used', 0, 'limit', v_limit
+    );
+  end if;
+
+  insert into private.billing_usage_counters(user_id, quota_key, period_start, used_count)
+  values (v_user_id, p_quota_key, v_period, p_amount)
+  on conflict (user_id, quota_key, period_start)
+  do update set used_count = private.billing_usage_counters.used_count + excluded.used_count,
+                updated_at = pg_catalog.now()
+    where private.billing_usage_counters.used_count + excluded.used_count <= v_limit
+  returning used_count into v_used;
+
+  if v_used is null then
+    select used_count into v_used
+      from private.billing_usage_counters
+     where user_id=v_user_id and quota_key=p_quota_key and period_start=v_period;
+    return pg_catalog.jsonb_build_object(
+      'allowed', false, 'reason', 'quota_exceeded',
+      'quota_key', p_quota_key, 'used', coalesce(v_used,0), 'limit', v_limit
+    );
+  end if;
+
+  return pg_catalog.jsonb_build_object(
+    'allowed', true, 'quota_key', p_quota_key, 'used', v_used, 'limit', v_limit,
+    'period_start', v_period
+  );
+end;
+$$;
+
+revoke all on function public.consume_my_billing_quota(text,bigint) from public, anon;
+grant execute on function public.consume_my_billing_quota(text,bigint) to authenticated, service_role;
