@@ -1,0 +1,14 @@
+# Vercel builds this OCI image as a container-backed Function.
+# Keep the runtime aligned with the backend's PHP ^8.2 requirement.
+FROM dunglas/frankenphp:1-php8.2-bookworm
+
+RUN install-php-extensions curl
+
+WORKDIR /app
+COPY . /app
+COPY Caddyfile.vercel /etc/caddy/Caddyfile
+
+# Vercel routes container traffic to port 80 by default.
+ENV SERVER_NAME=:80
+
+CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]
