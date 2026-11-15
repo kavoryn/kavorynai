@@ -49,8 +49,6 @@ fun ChatScreen(
                 history = withContext(Dispatchers.IO) { api.listConversations(accessToken) }
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (cancelled: CancellationException) {
-                throw cancelled
             } catch (failure: Exception) {
                 chatUnavailable = failure is ChatApiException && failure.code == "chat_disabled"
                 error = failure.message ?: "Chat history is unavailable."
