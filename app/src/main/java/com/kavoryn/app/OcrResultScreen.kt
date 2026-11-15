@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -33,6 +34,7 @@ fun OcrResultScreen(
     result: DocumentOcrResult,
     onExplain: () -> Unit,
     onAskQuestion: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val highlightedText = buildAnnotatedString {
@@ -119,6 +121,9 @@ fun OcrResultScreen(
         }
         Button(onClick = onAskQuestion, modifier = Modifier.fillMaxWidth()) {
             Text("Ask a question about this document")
+        }
+        OutlinedButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+            Text("Delete document securely")
         }
     }
 }

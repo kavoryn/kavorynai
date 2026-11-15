@@ -56,6 +56,8 @@ fun DocumentUploadFlow(
     var explanation by remember { mutableStateOf<DocumentExplanation?>(null) }
     var showAiConsent by remember { mutableStateOf(false) }
     var showQuestions by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     var activeJob by remember { mutableStateOf<Job?>(null) }
 
     fun startUpload() {
@@ -164,7 +166,67 @@ fun DocumentUploadFlow(
                 OcrResultScreen(
                     result = result!!,
                     onExplain = { showAiConsent = true },
-                    onAskQuestion = { showQuestions = true }
+                    onAskQuestion = { showQuestions = true },
+                    onDelete = { showDeleteConfirmation = true }
+                )
+            }
+            if (showDeleteConfirmation && result != null) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { if (!deleting) showDeleteConfirmation = false },
+                    title = { Text("Delete this document?") },
+                    text = {
+                        Text(
+                            "Kavoryn will remove this document from your account, including its stored OCR result. " +
+                                "This action cannot be undone."
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            enabled = !deleting,
+                            onClick = {
+                                val documentId = result?.documentId
+                                if (documentId == null) {
+                                    showDeleteConfirmation = false
+                                    error = "This document is no longer available in the current screen."
+                                } else {
+                                    deleting = true
+                                    error = null
+                                    activeJob = scope.launch {
+                                        try {
+                                            withContext(Dispatchers.IO) {
+                                                DocumentDeleteApi(apiBaseUrl).deleteDocument(
+                                                    documentId = documentId,
+                                                    accessToken = accessToken
+                                                )
+                                            }
+                                            showDeleteConfirmation = false
+                                            showAiConsent = false
+                                            showQuestions = false
+                                            result = null
+                                            explanation = null
+                                            onBack()
+                                        } catch (cancelled: CancellationException) {
+                                            throw cancelled
+                                        } catch (failure: Exception) {
+                                            showDeleteConfirmation = false
+                                            error = failure.message
+                                                ?: "The document could not be deleted. Please try again."
+                                        } finally {
+                                            deleting = false
+                                        }
+                                    }
+                                }
+                            }
+                        ) {
+                            if (deleting) CircularProgressIndicator() else Text("Delete permanently")
+                        }
+                    },
+                    dismissButton = {
+                        OutlinedButton(
+                            enabled = !deleting,
+                            onClick = { showDeleteConfirmation = false }
+                        ) { Text("Cancel") }
+                    }
                 )
             }
             if (showAiConsent && !showQuestions) {
