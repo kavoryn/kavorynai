@@ -100,7 +100,7 @@ function evaluateOcrCorpus(string $path): array
                 !is_string($item['id'] ?? null) ||
                 trim($item['id']) === '' ||
                 !is_string($item['language'] ?? null) ||
-                !in_array($item['language'], ['en', 'ha', 'ar', 'fr'], true) ||
+                !in_array($item['language'], ['en', 'ha', 'ar', 'fr', 'und'], true) ||
                 !is_string($item['reference'] ?? null) ||
                 trim($item['reference']) === '' ||
                 !is_string($item['hypothesis'] ?? null)) {
