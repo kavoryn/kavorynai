@@ -50,6 +50,24 @@ class SpeechTextPolicyTest {
         }
     }
 
+    @Test fun longTextSplitsAtNewlineAndTabBoundaries() {
+        val source = (1..900).joinToString("\n\t") { "Ƙarɓi" }
+        val chunks = SpeechTextPolicy.chunkRanges(source)
+
+        assertTrue(chunks.size > 1)
+        assertTrue(chunks.all { it.text.length <= SpeechTextPolicy.MAX_UTTERANCE_CHARS })
+        chunks.dropLast(1).forEach { chunk ->
+            assertTrue(
+                source[chunk.endExclusive].isWhitespace(),
+                "Each non-final chunk must end immediately before a whitespace boundary."
+            )
+        }
+        assertEquals(
+            source.filterNot { it.isWhitespace() },
+            chunks.joinToString("") { it.text }.filterNot { it.isWhitespace() }
+        )
+    }
+
     @Test fun resumeChunkingStartsAtRequestedTextOffset() {
         val source = "First paragraph.  Second paragraph starts here."
         val offset = source.indexOf("Second")
