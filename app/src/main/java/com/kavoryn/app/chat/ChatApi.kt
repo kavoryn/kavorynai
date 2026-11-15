@@ -6,6 +6,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.coroutines.CancellationException
 
 enum class ChatProvider(val wireValue: String, val label: String) {
     OPENAI("openai", "OpenAI"),
@@ -117,6 +118,8 @@ class ChatApi(
             if (!completed) throw ChatApiException(null, "incomplete_stream", "The AI response ended before completion. Please try again.")
         } catch (error: ChatApiException) {
             throw error
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (error: Exception) {
             throw ChatApiException(null, null, "The chat connection was interrupted. Please try again.")
         } finally {
