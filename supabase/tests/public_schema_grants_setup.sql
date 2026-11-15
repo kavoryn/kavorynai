@@ -28,6 +28,9 @@ insert into public.profiles (user_id, display_name) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Owner A'),
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Owner B');
 
+grant usage on schema auth to anon, authenticated;
+grant execute on function auth.uid() to anon, authenticated;
+
 -- Reproduce the current overly broad ACL on existing public tables.
 grant all on table public.audit_events, public.profiles
   to anon, authenticated, service_role;
