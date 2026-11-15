@@ -41,7 +41,7 @@ $result=$store->createIntent(
 );
 checkoutExpect($result['plan_code']==='PLN_kavoryn_test_01','Checkout plan code must come from the server-side price record.');
 checkoutExpect(str_ends_with($captured['url'],'/rpc/create_my_billing_checkout_intent'),'The trusted checkout intent RPC must be called.');
-checkoutExpect(($captured['headers']['Authorization']??'')==='Bearer service-role-test','Only the server-side service role may create the intent.');
+checkoutExpect(!isset($captured['headers']['Authorization']) && isset($captured['headers']['apikey']), 'Privileged Supabase calls must use the secret API key via apikey only.');
 $payload=json_decode($captured['body'],true,16,JSON_THROW_ON_ERROR);
 checkoutExpect(($payload['p_user_id']??null)==='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','The authenticated user identity must be passed by the API.');
 checkoutExpect(($payload['p_price_id']??null)==='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','Only the selected price ID is accepted from the client.');

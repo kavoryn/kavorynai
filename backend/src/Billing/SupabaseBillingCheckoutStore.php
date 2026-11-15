@@ -10,11 +10,11 @@ final class SupabaseBillingCheckoutStore
     public function __construct(
         private readonly string $supabaseUrl,
         private readonly string $secretKey,
-        private readonly string $serviceRoleJwt,
+        string $legacyServiceRoleJwtForCompatibility,
         private readonly mixed $http = null,
     ) {
         if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
-            $secretKey === '' || $serviceRoleJwt === '') {
+            $secretKey === '') {
             throw new \InvalidArgumentException('Billing checkout is not configured.');
         }
     }
@@ -34,7 +34,6 @@ final class SupabaseBillingCheckoutStore
         $url = rtrim($this->supabaseUrl, '/') . '/rest/v1/rpc/create_my_billing_checkout_intent';
         $headers = [
             'apikey' => $this->secretKey,
-            'Authorization' => 'Bearer ' . $this->serviceRoleJwt,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ];

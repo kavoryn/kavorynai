@@ -15,14 +15,13 @@ final class SupabasePrivateDocumentStorage implements DocumentStorage, DocumentS
     public function __construct(
         private readonly string $supabaseUrl,
         private readonly string $secretKey,
-        private readonly string $serviceRoleJwt,
+        string $legacyServiceRoleJwtForCompatibility,
         private readonly string $bucket,
         private readonly mixed $http = null,
     ) {
         if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
             !is_string(parse_url($supabaseUrl, PHP_URL_HOST)) ||
             $secretKey === '' ||
-            $serviceRoleJwt === '' ||
             preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]{1,62}\z/', $bucket) !== 1) {
             throw new DocumentFileException(
                 'storage_not_configured',
@@ -324,7 +323,6 @@ final class SupabasePrivateDocumentStorage implements DocumentStorage, DocumentS
     ): array {
         $headers = [
             'apikey' => $this->secretKey,
-            'Authorization' => 'Bearer ' . $this->serviceRoleJwt,
             'Accept' => 'application/json',
         ] + $extraHeaders;
 

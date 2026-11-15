@@ -12,7 +12,7 @@ final class SupabaseEncryptedOcrResultSink implements OcrResultSink
     public function __construct(
         private readonly string $supabaseUrl,
         private readonly string $secretKey,
-        private readonly string $serviceRoleJwt,
+        string $legacyServiceRoleJwtForCompatibility,
         private readonly string $encryptionKey,
         private readonly string $keyVersion = '1',
         private readonly mixed $http = null,
@@ -21,7 +21,7 @@ final class SupabaseEncryptedOcrResultSink implements OcrResultSink
             throw new \InvalidArgumentException('The PHP sodium extension is required for encrypted OCR results.');
         }
         if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
-            $secretKey === '' || $serviceRoleJwt === '' ||
+            $secretKey === '' ||
             strlen($encryptionKey) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES ||
             $keyVersion !== '1') {
             throw new \InvalidArgumentException('Encrypted OCR result storage is not configured.');
@@ -78,7 +78,6 @@ final class SupabaseEncryptedOcrResultSink implements OcrResultSink
         $url = rtrim($this->supabaseUrl, '/') . '/rest/v1/rpc/store_document_ocr_result';
         $headers = [
             'apikey' => $this->secretKey,
-            'Authorization' => 'Bearer ' . $this->serviceRoleJwt,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ];

@@ -56,7 +56,7 @@ expectReader($result->text === "Ƙarɓi ɗalibi", 'Reader must decrypt the origi
 expectReader($result->detectedLanguage === 'ha', 'Reader must preserve detected language.');
 expectReader(count($result->uncertainSpans) === 1, 'Reader must preserve uncertain word markers.');
 expectReader(str_ends_with($seen['url'], '/rest/v1/rpc/get_document_ocr_result'), 'Reader must use the restricted RPC.');
-expectReader(($seen['headers']['Authorization'] ?? '') === 'Bearer service-role-test', 'Reader must use server-only service credentials.');
+expectReader(!isset($seen['headers']['Authorization']) && isset($seen['headers']['apikey']), 'Privileged Supabase calls must use the secret API key via apikey only.');
 
 $badHttp = function (): array {
     return ['status' => 200, 'body' => '[]'];

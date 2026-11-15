@@ -58,10 +58,9 @@ function cleanupRequest(string $method, string $url, array $headers, ?string $bo
 
 $supabaseUrl = getenv('SUPABASE_URL') ?: '';
 $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-$serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
 
 if ($supabaseUrl === '' || parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
-    $secretKey === '' || $serviceRoleJwt === '') {
+    $secretKey === '') {
     fwrite(STDERR, "Cleanup configuration is incomplete.\n");
     exit(1);
 }
@@ -69,7 +68,6 @@ if ($supabaseUrl === '' || parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' |
 $baseUrl = rtrim($supabaseUrl, '/') . '/rest/v1/documents';
 $headers = [
     'apikey' => $secretKey,
-    'Authorization' => 'Bearer ' . $serviceRoleJwt,
     'Accept' => 'application/json',
 ];
 $deletedCount = 0;

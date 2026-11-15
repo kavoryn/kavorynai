@@ -18,7 +18,7 @@ $message='d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15';
 $calls=[];
 $mock=function(string $url,array $headers,string $body) use (&$calls,$user,$conversation,$message):array {
     $calls[]=['url'=>$url,'headers'=>$headers,'payload'=>json_decode($body,true,16,JSON_THROW_ON_ERROR)];
-    chatStoreExpect(($headers['Authorization']??null)==='Bearer service-role-test','Service role auth must remain server-side.');
+    chatStoreExpect(!isset($headers['Authorization']) && isset($headers['apikey']), 'Privileged Supabase calls must use the secret API key via apikey only.');
     $name=basename($url);
     return match($name) {
         'create_chat_conversation'=>['status'=>200,'body'=>json_encode(['id'=>$calls[array_key_last($calls)]['payload']['p_id'],'provider'=>'gemini','language'=>'ha'],JSON_THROW_ON_ERROR)],

@@ -51,12 +51,12 @@ use Kavoryn\Upload\DocumentStorageFactory;
 
 $supabaseUrl = getenv('SUPABASE_URL') ?: '';
 $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-$serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+$serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
 $googleCredentials = getenv('GOOGLE_SERVICE_ACCOUNT_JSON_PATH') ?: '';
 $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
 $keyVersion = getenv('OCR_RESULT_ENCRYPTION_KEY_VERSION') ?: '1';
 
-if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' ||
+if ($supabaseUrl === '' || $secretKey === '' ||
     $googleCredentials === '' || $encryptionKey === '') {
     fwrite(STDERR, "OCR worker configuration is incomplete.\n");
     exit(1);

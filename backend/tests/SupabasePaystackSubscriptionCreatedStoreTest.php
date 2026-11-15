@@ -32,7 +32,7 @@ subscriptionCreatedExpect($result,'Verified subscription creation event should b
 subscriptionCreatedExpect(str_ends_with($capture['url'],'/rpc/apply_paystack_subscription_created'),'Subscription event must call the restricted reconciliation RPC.');
 $payload=json_decode($capture['body'],true,16,JSON_THROW_ON_ERROR);
 subscriptionCreatedExpect(($payload['p_plan_code']??null)==='PLN_kavoryn_test_01','Merchant plan code must be included for server-side matching.');
-subscriptionCreatedExpect(($capture['headers']['Authorization']??null)==='Bearer service-role-test','Service role remains server-side.');
+subscriptionCreatedExpect(!isset($capture['headers']['Authorization']) && isset($capture['headers']['apikey']), 'Privileged Supabase calls must use the secret API key via apikey only.');
 
 try{
     $store->apply(str_repeat('a',64),'SUB_bad','buyer@example.com','PLN_kavoryn_test_01',null);
