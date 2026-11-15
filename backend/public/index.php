@@ -61,6 +61,206 @@ function authenticatedUser(string $supabaseUrl, string $publishableKey, string $
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
+if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
+    $contentLength = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($contentLength > 1048576) {
+        respond(413, ['error'=>['code'=>'webhook_too_large','message'=>'The webhook payload is too large.','request_id'=>$requestId]]);
+    }
+
+    $inputStream = fopen('php://input', 'rb');
+    $rawBody = $inputStream === false ? false : stream_get_contents($inputStream, 1048577);
+    if (is_resource($inputStream)) {
+        fclose($inputStream);
+    }
+    if (!is_string($rawBody) || $rawBody === '' || strlen($rawBody) > 1048576) {
+        respond(400, ['error'=>['code'=>'invalid_webhook','message'=>'The webhook payload is invalid.','request_id'=>$requestId]]);
+    }
+
+    $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $supabaseSecret = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    if ($paystackSecret === '' || $supabaseUrl === '' || $supabaseSecret === '' || $serviceRoleJwt === '') {
+        respond(503, ['error'=>['code'=>'webhook_not_configured','message'=>'Payment notification processing is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Billing/PaystackWebhookVerifier.php';
+    require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackWebhookStore.php';
+    require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
+    require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackReconciliationStore.php';
+    require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackLifecycleStore.php';
+    require_once dirname(__DIR__) . '/src/Billing/SupabasePaystackSubscriptionCreatedStore.php';
+
+    try {
+        $verifier = new \Kavoryn\Billing\PaystackWebhookVerifier($paystackSecret);
+        $event = $verifier->verify($rawBody, $_SERVER['HTTP_X_PAYSTACK_SIGNATURE'] ?? null);
+    } catch (\Kavoryn\Billing\InvalidPaystackWebhookException) {
+        respond(401, ['error'=>['code'=>'invalid_webhook_signature','message'=>'The payment notification could not be authenticated.','request_id'=>$requestId]]);
+    }
+
+    $eventReference = $event['data']['reference'] ?? $event['data']['transaction']['reference'] ?? $event['data']['transaction_reference'] ?? null;
+    if (!is_string($eventReference) || $eventReference === '' || strlen($eventReference) > 120) {
+        $eventReference = null;
+    }
+
+    try {
+        $store = new \Kavoryn\Billing\SupabasePaystackWebhookStore(
+            $supabaseUrl,
+            $supabaseSecret,
+            $serviceRoleJwt,
+        );
+        $receiptBytes = random_bytes(16);
+        $receiptBytes[6] = chr((ord($receiptBytes[6]) & 0x0f) | 0x40);
+        $receiptBytes[8] = chr((ord($receiptBytes[8]) & 0x3f) | 0x80);
+        $receiptHex = bin2hex($receiptBytes);
+        $receiptId = sprintf(
+            '%s-%s-%s-%s-%s',
+            substr($receiptHex, 0, 8),
+            substr($receiptHex, 8, 4),
+            substr($receiptHex, 12, 4),
+            substr($receiptHex, 16, 4),
+            substr($receiptHex, 20, 12),
+        );
+        $payloadSha256 = hash('sha256', $rawBody);
+        $created = $store->recordVerifiedReceipt(
+            $receiptId,
+            $payloadSha256,
+            $event['event'],
+            $eventReference,
+        );
+
+        $reconciled = false;
+        if ($event['event'] === 'charge.success' && $eventReference !== null) {
+            $paystack = new \Kavoryn\Billing\PaystackClient($paystackSecret);
+            $verified = $paystack->verifyTransaction($eventReference);
+            $providerTransactionId = $verified['id'] ?? null;
+            $paidAt = $verified['paid_at'] ?? null;
+            if ((!is_int($providerTransactionId) && !is_string($providerTransactionId)) ||
+                (string) $providerTransactionId === '' ||
+                !is_string($paidAt) || strtotime($paidAt) === false) {
+                throw new \RuntimeException('Verified payment details are incomplete.');
+            }
+
+            $reconciliation = new \Kavoryn\Billing\SupabasePaystackReconciliationStore(
+                $supabaseUrl,
+                $supabaseSecret,
+                $serviceRoleJwt,
+            );
+            $reconciled = $reconciliation->reconcile(
+                $payloadSha256,
+                $eventReference,
+                $verified['status'],
+                $verified['amount'],
+                $verified['currency'],
+                (string) $providerTransactionId,
+                gmdate('c', strtotime($paidAt)),
+            );
+        }
+
+        $subscriptionCreatedApplied = false;
+        if ($event['event'] === 'subscription.create') {
+            $subscriptionCode = $event['data']['subscription_code'] ?? null;
+            $customerEmail = $event['data']['customer']['email'] ?? null;
+            $planCode = $event['data']['plan']['plan_code'] ?? null;
+            $customerCode = $event['data']['customer']['customer_code'] ?? null;
+            if (!is_string($subscriptionCode) || !is_string($customerEmail) ||
+                !is_string($planCode) ||
+                ($customerCode !== null && !is_string($customerCode))) {
+                throw new \RuntimeException('Subscription creation details are incomplete.');
+            }
+            $subscriptionCreated = new \Kavoryn\Billing\SupabasePaystackSubscriptionCreatedStore(
+                $supabaseUrl,
+                $supabaseSecret,
+                $serviceRoleJwt,
+            );
+            $subscriptionCreatedApplied = $subscriptionCreated->apply(
+                $payloadSha256,
+                $subscriptionCode,
+                $customerEmail,
+                $planCode,
+                $customerCode,
+            );
+        }
+
+        $lifecycleApplied = false;
+        $lifecycleEvents = [
+            'invoice.create', 'invoice.payment_failed', 'subscription.not_renew', 'subscription.disable',
+            'refund.pending', 'refund.processing', 'refund.processed', 'refund.failed',
+        ];
+        if (in_array($event['event'], $lifecycleEvents, true)) {
+            $subscriptionCode = $event['data']['subscription']['subscription_code']
+                ?? $event['data']['subscription_code']
+                ?? null;
+            if (!is_string($subscriptionCode) || $subscriptionCode === '' || strlen($subscriptionCode) > 160) {
+                $subscriptionCode = null;
+            }
+            $providerStatus = $event['data']['status'] ?? null;
+            if (!is_string($providerStatus) || strlen($providerStatus) > 80) {
+                $providerStatus = null;
+            }
+            $graceHours = null;
+            if ($event['event'] === 'invoice.payment_failed') {
+                $configuredGrace = getenv('BILLING_GRACE_PERIOD_HOURS') ?: '';
+                if (!ctype_digit($configuredGrace) || (int) $configuredGrace < 1 || (int) $configuredGrace > 720) {
+                    throw new \RuntimeException('Billing grace period is not configured.');
+                }
+                $graceHours = (int) $configuredGrace;
+            }
+            $refundAmountMinor = null;
+            if (str_starts_with($event['event'], 'refund.')) {
+                $refundAmount = $event['data']['amount'] ?? null;
+                if (is_int($refundAmount)) {
+                    $refundAmountMinor = $refundAmount;
+                } elseif (is_string($refundAmount) && ctype_digit($refundAmount) && strlen($refundAmount) < 19) {
+                    $refundAmountMinor = (int) $refundAmount;
+                } else {
+                    throw new \RuntimeException('Refund amount is invalid.');
+                }
+            }
+            $lifecycle = new \Kavoryn\Billing\SupabasePaystackLifecycleStore(
+                $supabaseUrl,
+                $supabaseSecret,
+                $serviceRoleJwt,
+            );
+            $invoiceAmountMinor = null;
+            $invoiceCurrency = null;
+            if ($event['event'] === 'invoice.create') {
+                $invoiceAmount = $event['data']['transaction']['amount'] ?? $event['data']['amount'] ?? null;
+                $invoiceCurrencyValue = $event['data']['transaction']['currency'] ?? null;
+                if (is_int($invoiceAmount) && is_string($invoiceCurrencyValue)) {
+                    $invoiceAmountMinor = $invoiceAmount;
+                    $invoiceCurrency = $invoiceCurrencyValue;
+                } else {
+                    throw new \RuntimeException('Invoice amount or currency is invalid.');
+                }
+            }
+            $lifecycleApplied = $lifecycle->apply(
+                $payloadSha256,
+                $event['event'],
+                $eventReference,
+                $subscriptionCode,
+                $providerStatus,
+                $graceHours,
+                $refundAmountMinor,
+                $invoiceAmountMinor,
+                $invoiceCurrency,
+            );
+        }
+    } catch (\Throwable) {
+        // A non-2xx response asks Paystack to retry; do not acknowledge a lost receipt.
+        respond(503, ['error'=>['code'=>'webhook_storage_unavailable','message'=>'Payment notification processing is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    respond(200, [
+        'received' => true,
+        'duplicate' => !$created,
+        'reconciled' => $reconciled,
+        'lifecycle_applied' => $lifecycleApplied,
+        'subscription_created_applied' => $subscriptionCreatedApplied,
+        'request_id' => $requestId,
+    ]);
+}
+
 if ($method === 'GET' && ($path === '/health' || $path === '/v1/health')) {
     respond(200, [
         'status' => 'ok',
@@ -81,6 +281,229 @@ if ($method === 'GET' && $path === '/v1/me') {
         'user_id' => $user->id,
         'request_id' => $requestId,
     ]);
+}
+
+if ($method === 'POST' && $path === '/v1/billing/checkout') {
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $contentType = strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '')[0]));
+    $raw = file_get_contents('php://input');
+    if ($contentType !== 'application/json' || !is_string($raw) || strlen($raw) > 8192) {
+        respond(415, ['error'=>['code'=>'invalid_checkout_request','message'=>'Send a valid JSON checkout request.','request_id'=>$requestId]]);
+    }
+    try {
+        $input = json_decode($raw, true, 8, JSON_THROW_ON_ERROR);
+    } catch (\JsonException) {
+        respond(400, ['error'=>['code'=>'invalid_json','message'=>'The checkout request is not valid JSON.','request_id'=>$requestId]]);
+    }
+    $priceId = is_array($input) ? ($input['price_id'] ?? null) : null;
+    if (!is_string($priceId) || preg_match('/\A[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/i', $priceId) !== 1) {
+        respond(422, ['error'=>['code'=>'invalid_billing_price','message'=>'Choose a valid plan price.','request_id'=>$requestId]]);
+    }
+    if (!is_string($user->email) || filter_var($user->email, FILTER_VALIDATE_EMAIL) === false) {
+        respond(409, ['error'=>['code'=>'verified_email_required','message'=>'Add and verify an email address before subscribing.','request_id'=>$requestId]]);
+    }
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $supabaseSecret = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
+    $callbackUrl = getenv('PAYSTACK_CALLBACK_URL') ?: '';
+    if ($supabaseUrl === '' || $supabaseSecret === '' || $serviceRoleJwt === '' ||
+        $paystackSecret === '' || parse_url($callbackUrl, PHP_URL_SCHEME) !== 'https') {
+        respond(503, ['error'=>['code'=>'billing_checkout_not_configured','message'=>'Checkout is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingCheckoutStore.php';
+    require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
+    try {
+        $reference = 'kvn_' . bin2hex(random_bytes(20));
+        $uuid = static function (): string {
+            $bytes = random_bytes(16);
+            $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
+            $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+            $hex = bin2hex($bytes);
+            return sprintf('%s-%s-%s-%s-%s', substr($hex,0,8),substr($hex,8,4),substr($hex,12,4),substr($hex,16,4),substr($hex,20,12));
+        };
+        $checkoutStore = new \Kavoryn\Billing\SupabaseBillingCheckoutStore($supabaseUrl, $supabaseSecret, $serviceRoleJwt);
+        $intent = $checkoutStore->createIntent($user->id, $priceId, $reference, $uuid(), $uuid());
+        if (strtolower($intent['email']) !== strtolower($user->email)) {
+            throw new \RuntimeException('Checkout account identity mismatch.');
+        }
+        $paystack = new \Kavoryn\Billing\PaystackClient($paystackSecret);
+        $checkout = $paystack->initializeTransaction(
+            $intent['email'],
+            $intent['amount_minor'],
+            $intent['currency'],
+            $intent['reference'],
+            $callbackUrl,
+            ['product'=>'kavoryn_subscription','plan_key'=>$intent['plan_key']],
+            $intent['plan_code'],
+        );
+        respond(201, [
+            'checkout'=>[
+                'authorization_url'=>$checkout['authorization_url'],
+                'access_code'=>$checkout['access_code'],
+                'reference'=>$checkout['reference'],
+                'plan_key'=>$intent['plan_key'],
+                'plan_name'=>$intent['plan_name'],
+                'amount_minor'=>$intent['amount_minor'],
+                'currency'=>$intent['currency'],
+            ],
+            'request_id'=>$requestId,
+        ]);
+    } catch (\InvalidArgumentException) {
+        respond(422, ['error'=>['code'=>'billing_price_unavailable','message'=>'That plan price is not available. Refresh the plans and try again.','request_id'=>$requestId]]);
+    } catch (\Throwable) {
+        respond(503, ['error'=>['code'=>'billing_checkout_unavailable','message'=>'Checkout could not be started. Please try again later.','request_id'=>$requestId]]);
+    }
+}
+
+if ($method === 'GET' && $path === '/v1/billing/catalog') {
+    authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $currency = $_GET['currency'] ?? 'NGN';
+    if (!is_string($currency) || !in_array($currency, ['NGN', 'USD'], true)) {
+        respond(422, ['error'=>['code'=>'invalid_billing_currency','message'=>'Choose NGN or USD explicitly.','request_id'=>$requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingCatalogStore.php';
+    try {
+        $catalogStore = new \Kavoryn\Billing\SupabaseBillingCatalogStore(
+            getenv('SUPABASE_URL') ?: '',
+            getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        );
+        $catalog = $catalogStore->getForBearerToken($_SERVER['HTTP_AUTHORIZATION'] ?? null, $currency);
+        respond(200, ['catalog'=>$catalog,'request_id'=>$requestId]);
+    } catch (\InvalidArgumentException) {
+        respond(401, ['error'=>['code'=>'unauthorized','message'=>'A valid sign-in session is required.','request_id'=>$requestId]]);
+    } catch (\Throwable) {
+        respond(503, ['error'=>['code'=>'billing_catalog_unavailable','message'=>'Plan information is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+}
+
+if ($method === 'GET' && $path === '/v1/billing/entitlements') {
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingEntitlementStore.php';
+    try {
+        $store = new \Kavoryn\Billing\SupabaseBillingEntitlementStore(
+            getenv('SUPABASE_URL') ?: '',
+            getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        );
+        $entitlements = $store->getForBearerToken($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+        respond(200, ['user_id'=>$user->id,'billing'=>$entitlements,'request_id'=>$requestId]);
+    } catch (\InvalidArgumentException) {
+        respond(401, ['error'=>['code'=>'unauthorized','message'=>'A valid sign-in session is required.','request_id'=>$requestId]]);
+    } catch (\Throwable) {
+        respond(503, ['error'=>['code'=>'billing_entitlements_unavailable','message'=>'Billing information is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+}
+
+if ($method === 'GET' && $path === '/v1/billing/payment-recovery') {
+    authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $publishableKey = getenv('SUPABASE_PUBLISHABLE_KEY') ?: '';
+    if ($supabaseUrl === '' || $publishableKey === '') {
+        respond(503, ['error'=>['code'=>'billing_recovery_not_configured','message'=>'Payment recovery is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingEntitlementStore.php';
+    try {
+        $entitlementStore = new \Kavoryn\Billing\SupabaseBillingEntitlementStore($supabaseUrl, $publishableKey);
+        $billing = $entitlementStore->getForBearerToken($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+        $subscriptionStatus = $billing['subscription_status'] ?? 'free';
+        $planKey = $billing['plan_key'];
+        $response = [
+            'plan_key' => $planKey,
+            'subscription_status' => $subscriptionStatus,
+            'current_period_end' => $billing['current_period_end'] ?? null,
+            'grace_period_end' => $billing['grace_period_end'] ?? null,
+            'cancel_at_period_end' => ($billing['cancel_at_period_end'] ?? false) === true,
+            'recovery_available' => false,
+            'next_action' => $subscriptionStatus === 'past_due' ? 'contact_support' : (
+                $subscriptionStatus === 'free' || $subscriptionStatus === 'expired' || $subscriptionStatus === 'cancelled'
+                    ? 'choose_plan'
+                    : 'none'
+            ),
+        ];
+
+        if ($subscriptionStatus === 'past_due') {
+            $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
+            if ($paystackSecret === '') {
+                respond(503, ['error'=>['code'=>'billing_recovery_not_configured','message'=>'Payment recovery is temporarily unavailable.','request_id'=>$requestId]]);
+            }
+            require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingSubscriptionStore.php';
+            require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
+            $subscriptionStore = new \Kavoryn\Billing\SupabaseBillingSubscriptionStore($supabaseUrl, $publishableKey);
+            $subscriptionCode = $subscriptionStore->getMyPaystackSubscriptionCode($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+            if ($subscriptionCode !== null) {
+                $paystack = new \Kavoryn\Billing\PaystackClient($paystackSecret);
+                $response['management_url'] = $paystack->generateSubscriptionManagementLink($subscriptionCode);
+                $response['recovery_available'] = true;
+                $response['next_action'] = 'update_payment_method';
+            }
+        }
+
+        respond(200, ['billing_recovery'=>$response,'request_id'=>$requestId]);
+    } catch (\InvalidArgumentException) {
+        respond(401, ['error'=>['code'=>'unauthorized','message'=>'A valid sign-in session is required.','request_id'=>$requestId]]);
+    } catch (\Throwable) {
+        respond(503, ['error'=>['code'=>'billing_recovery_unavailable','message'=>'Payment recovery is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
+    }
+}
+
+if ($method === 'GET' && $path === '/v1/billing/subscription-management-link') {
+    authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $publishableKey = getenv('SUPABASE_PUBLISHABLE_KEY') ?: '';
+    $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
+    if ($supabaseUrl === '' || $publishableKey === '' || $paystackSecret === '') {
+        respond(503, ['error'=>['code'=>'billing_management_not_configured','message'=>'Subscription management is temporarily unavailable.','request_id'=>$requestId]]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Billing/SupabaseBillingSubscriptionStore.php';
+    require_once dirname(__DIR__) . '/src/Billing/PaystackClient.php';
+    try {
+        $subscriptionStore = new \Kavoryn\Billing\SupabaseBillingSubscriptionStore(
+            $supabaseUrl,
+            $publishableKey,
+        );
+        $subscriptionCode = $subscriptionStore->getMyPaystackSubscriptionCode($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+        if ($subscriptionCode === null) {
+            respond(404, ['error'=>['code'=>'manageable_subscription_not_found','message'=>'There is no active subscription available to manage.','request_id'=>$requestId]]);
+        }
+
+        $paystack = new \Kavoryn\Billing\PaystackClient($paystackSecret);
+        $managementLink = $paystack->generateSubscriptionManagementLink($subscriptionCode);
+        respond(200, ['management_url'=>$managementLink,'provider'=>'paystack','request_id'=>$requestId]);
+    } catch (\InvalidArgumentException) {
+        respond(401, ['error'=>['code'=>'unauthorized','message'=>'A valid sign-in session is required.','request_id'=>$requestId]]);
+    } catch (\Throwable) {
+        respond(503, ['error'=>['code'=>'billing_management_unavailable','message'=>'Subscription management is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
+    }
 }
 
 if ($method === 'POST' && $path === '/v1/consents') {
