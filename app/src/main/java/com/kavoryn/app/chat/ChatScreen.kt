@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -45,6 +46,8 @@ fun ChatScreen(
             loading = true
             try {
                 history = withContext(Dispatchers.IO) { api.listConversations(accessToken) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (failure: Exception) {
                 chatUnavailable = failure is ChatApiException && failure.code == "chat_disabled"
                 error = failure.message ?: "Chat history is unavailable."
