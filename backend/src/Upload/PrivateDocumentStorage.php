@@ -137,7 +137,7 @@ final class PrivateDocumentStorage implements DocumentStorage, DocumentStorageMa
         $root = $this->resolvePrivateRoot();
         $deleted = 0;
 
-        foreach (new \\DirectoryIterator($root) as $entry) {
+        foreach (new \DirectoryIterator($root) as $entry) {
             if ($entry->isDot() || !$entry->isFile()) continue;
             $key = $entry->getFilename();
             if (!preg_match('/^[a-f0-9]{32}\.(pdf|jpg|png|webp)$/', $key) ||
