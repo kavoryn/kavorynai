@@ -44,6 +44,14 @@ class ChatApi(
         )
     }
 
+    fun revokeProviderConsent(provider: ChatProvider, accessToken: String) {
+        request(
+            path = "/v1/chat/consents/${provider.wireValue}",
+            method = "DELETE",
+            accessToken = accessToken
+        )
+    }
+
     fun createConversation(
         provider: ChatProvider,
         language: String,
@@ -151,6 +159,8 @@ class ChatApi(
             return if (response.isNullOrBlank()) JSONObject() else JSONObject(response)
         } catch (error: ChatApiException) {
             throw error
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             throw ChatApiException(null, null, "Kavoryn Chat is temporarily unavailable. Please try again.")
         } finally {
