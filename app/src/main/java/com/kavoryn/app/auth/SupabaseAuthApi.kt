@@ -4,6 +4,7 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 data class SupabaseAuthSession(
     val accessToken: String,
@@ -13,6 +14,27 @@ data class SupabaseAuthSession(
     val userId: String,
     val email: String?
 )
+
+data class SupabaseAuthUser(
+    val userId: String,
+    val email: String?
+)
+
+const val KAVORYN_AUTH_REDIRECT_URI = "com.kavoryn.app://auth-callback"
+
+internal fun validatedKavorynAuthRedirect(value: String): String {
+    val uri = java.net.URI(value)
+    require(
+        uri.scheme == "com.kavoryn.app" &&
+            uri.host == "auth-callback" &&
+            uri.userInfo == null &&
+            uri.port == -1 &&
+            (uri.rawPath.isNullOrEmpty() || uri.rawPath == "/") &&
+            uri.rawQuery == null &&
+            uri.rawFragment == null
+    ) { "The authentication redirect must use the Kavoryn app callback." }
+    return uri.toASCIIString()
+}
 
 data class SupabaseSignUpResult(
     val userId: String,
@@ -80,6 +102,75 @@ class SupabaseAuthApi(
         }
     }
 
+    /**
+     * Ask Supabase Auth to send a password-recovery email. The response is
+     * deliberately treated as generic by the UI to avoid account enumeration.
+     */
+    fun sendPasswordRecoveryEmail(
+        email: String,
+        redirectTo: String = KAVORYN_AUTH_REDIRECT_URI
+    ) {
+        val normalizedEmail = email.trim()
+        require(normalizedEmail.isNotBlank()) { "Email is required." }
+        val redirect = validatedKavorynAuthRedirect(redirectTo)
+        val encodedRedirect = URLEncoder.encode(redirect, Charsets.UTF_8.name())
+        requestAuthJson(
+            path = "/auth/v1/recover?redirect_to=$encodedRedirect",
+            method = "POST",
+            body = JSONObject().put("email", normalizedEmail),
+            action = "Password reset"
+        )
+    }
+
+    /** Resend only the email-signup confirmation message; never returns user details. */
+    fun resendSignupConfirmationEmail(
+        email: String,
+        redirectTo: String = KAVORYN_AUTH_REDIRECT_URI
+    ) {
+        val normalizedEmail = email.trim()
+        require(normalizedEmail.isNotBlank()) { "Email is required." }
+        val redirect = validatedKavorynAuthRedirect(redirectTo)
+        val encodedRedirect = URLEncoder.encode(redirect, Charsets.UTF_8.name())
+        requestAuthJson(
+            path = "/auth/v1/resend?redirect_to=$encodedRedirect",
+            method = "POST",
+            body = JSONObject().put("type", "signup").put("email", normalizedEmail),
+            action = "Confirmation email"
+        )
+    }
+
+    /** Update the password using the short-lived bearer token from a recovery link. */
+    fun updatePassword(accessToken: String, newPassword: String) {
+        require(accessToken.isNotBlank()) { "A password-recovery session is required." }
+        require(newPassword.length >= 8) { "Use a password with at least 8 characters." }
+        requestAuthJson(
+            path = "/auth/v1/user",
+            method = "PUT",
+            body = JSONObject().put("password", newPassword),
+            action = "Password update",
+            accessToken = accessToken
+        )
+    }
+
+    /** Resolve a verified signup callback into server-confirmed account identity. */
+    fun getUser(accessToken: String): SupabaseAuthUser {
+        require(accessToken.isNotBlank()) { "A verified sign-in session is required." }
+        val body = requestAuthJson(
+            path = "/auth/v1/user",
+            method = "GET",
+            body = null,
+            action = "Email confirmation",
+            accessToken = accessToken
+        )
+        val json = JSONObject(body.toString(Charsets.UTF_8))
+        val userId = json.optString("id")
+        require(userId.isNotBlank()) { "Supabase Auth returned an incomplete user profile." }
+        return SupabaseAuthUser(
+            userId = userId,
+            email = json.optString("email").takeIf { it.isNotBlank() }
+        )
+    }
+
     fun refreshSession(refreshToken: String): SupabaseAuthSession {
         require(refreshToken.isNotBlank()) { "A refresh token is required." }
         return postToken(
@@ -107,6 +198,50 @@ class SupabaseAuthApi(
         } catch (_: Exception) {
             throw SupabaseAuthException(
                 null, null, "Sign-out failed. Check your connection and try again."
+            )
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun requestAuthJson(
+        path: String,
+        method: String,
+        body: JSONObject?,
+        action: String,
+        accessToken: String? = null
+    ): ByteArray {
+        val root = validatedSupabaseAuthRoot(projectUrl)
+        require(path.startsWith("/auth/v1/") && !path.contains("..")) {
+            "Invalid Supabase Auth endpoint."
+        }
+        val connection = openConnection(root + path).apply {
+            requestMethod = method
+            if (accessToken != null) {
+                setRequestProperty("Authorization", "Bearer $accessToken")
+            }
+            if (body != null) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
+        }
+        try {
+            if (body != null) {
+                connection.outputStream.use {
+                    it.write(body.toString().toByteArray(Charsets.UTF_8))
+                }
+            }
+            val status = connection.responseCode
+            val bytes = readBoundedResponse(connection, status)
+            if (status !in 200..299) throw authError(status, bytes, action)
+            return bytes
+        } catch (error: SupabaseAuthException) {
+            throw error
+        } catch (error: IllegalArgumentException) {
+            throw error
+        } catch (_: Exception) {
+            throw SupabaseAuthException(
+                null, null, "$action could not be completed. Check your connection and try again."
             )
         } finally {
             connection.disconnect()
