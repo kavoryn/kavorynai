@@ -35,7 +35,6 @@ fun DocumentProcessingConsentDialog(
     onDismiss: () -> Unit
 ) {
     var consentChecked by rememberSaveable { mutableStateOf(false) }
-    val documentLabel = if (documentCount == 1) "document" else "documents"
     val uploadDescription = if (documentCount == 1) {
         "your selected document"
     } else {
@@ -62,7 +61,7 @@ fun DocumentProcessingConsentDialog(
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
-                    "Only upload $documentLabel you are authorised to share.",
+                    "Only upload documents you are authorised to share.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Row(
@@ -78,7 +77,7 @@ fun DocumentProcessingConsentDialog(
                 ) {
                     Checkbox(
                         checked = consentChecked,
-                        onCheckedChange = { consentChecked = it }
+                        onCheckedChange = null
                     )
                     Text(
                         "I understand and agree to upload $uploadDescription for OCR processing.",
