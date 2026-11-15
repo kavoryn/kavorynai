@@ -29,12 +29,40 @@ class SpeechTextPolicyTest {
         val source = (1..900).joinToString(" ") { "document" }
         val chunks = SpeechTextPolicy.chunks(source)
         assertTrue(chunks.all { it.length <= SpeechTextPolicy.MAX_UTTERANCE_CHARS })
-        assertEquals(source.replace(Regex("\\s+"), " "), chunks.joinToString(" ").replace(Regex("\\s+"), " "))
+        assertEquals(
+            source.replace(Regex("\\s+"), " "),
+            chunks.joinToString(" ").replace(Regex("\\s+"), " ")
+        )
     }
 
-    @Test fun rateIsBounded() {
+    @Test fun chunkRangesRetainOffsetsIntoTheOriginalText() {
+        val source = (1..900).joinToString(" ") { "document" }
+        val chunks = SpeechTextPolicy.chunkRanges(source)
+        assertTrue(chunks.isNotEmpty())
+        chunks.forEach { chunk ->
+            assertEquals(source.substring(chunk.startIndex, chunk.endExclusive), chunk.text)
+            assertTrue(chunk.endExclusive > chunk.startIndex)
+            assertTrue(chunk.text.length <= SpeechTextPolicy.MAX_UTTERANCE_CHARS)
+        }
+        chunks.zipWithNext().forEach { (first, second) ->
+            assertTrue(first.endExclusive <= second.startIndex)
+            assertTrue(source.substring(first.endExclusive, second.startIndex).all { it.isWhitespace() })
+        }
+    }
+
+    @Test fun resumeChunkingStartsAtRequestedTextOffset() {
+        val source = "First paragraph.  Second paragraph starts here."
+        val offset = source.indexOf("Second")
+        val chunks = SpeechTextPolicy.chunkRanges(source, offset)
+        assertEquals(offset, chunks.first().startIndex)
+        assertTrue(chunks.first().text.startsWith("Second"))
+    }
+
+    @Test fun rateIsBoundedAndNonFiniteValuesUseNormalSpeed() {
         assertEquals(0.5f, SpeechTextPolicy.normalizeRate(0.1f))
         assertEquals(1.5f, SpeechTextPolicy.normalizeRate(2f))
         assertEquals(1f, SpeechTextPolicy.normalizeRate(1f))
+        assertEquals(1f, SpeechTextPolicy.normalizeRate(Float.NaN))
+        assertEquals(1f, SpeechTextPolicy.normalizeRate(Float.POSITIVE_INFINITY))
     }
 }
