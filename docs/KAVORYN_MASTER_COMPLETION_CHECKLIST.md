@@ -47,8 +47,10 @@ Do not change a status based on an assumption. Add a test link, report, commit, 
 - [x] Encrypted OCR result storage and owner-authenticated result retrieval exist in backend.
 - [x] Bounded OCR queue/worker lease and retry foundations exist; worker remains disabled.
 - [ ] Run fixed, permissioned/synthetic real-document corpus across all four Phase 1 languages.
-- [ ] Measure OCR baseline/error rate before setting final targets.
-- [ ] Specifically test Hausa characters: ɓ, ɗ, ƙ, ƴ.
+- [x] Add mocked-provider regression coverage for preserving Hausa characters ɓ, ɗ, ƙ, ƴ and mixed Hausa/Arabic text with Unicode-safe uncertainty offsets.
+- [x] Add offline per-language CER/WER benchmark tooling, synthetic tests, and a privacy-safe fixed-corpus protocol.
+- [ ] Measure real OCR baseline/error rate on a fixed, permission-cleared document corpus before setting final targets.
+- [ ] Specifically validate Hausa characters: ɓ, ɗ, ƙ, ƴ on real scanned documents and manually verified ground truth.
 - [ ] Verify multi-page provider behavior, tables, forms, columns, and complex page layouts.
 - [ ] Measure OCR confidence calibration and ensure uncertain words/spans are visibly and audibly identified.
 - [ ] Verify no OCR result can be read by a different user or after expiry/deletion.
