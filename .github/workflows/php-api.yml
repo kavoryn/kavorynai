@@ -108,6 +108,9 @@ jobs:
 
       - name: Document upload tests
         run: php backend/tests/document_upload_test.php
+      - name: Supabase private document storage tests
+        run: php backend/tests/SupabasePrivateDocumentStorageTest.php
+
 
       - name: Supabase document registry tests
         run: php backend/tests/supabase_document_registry_test.php
