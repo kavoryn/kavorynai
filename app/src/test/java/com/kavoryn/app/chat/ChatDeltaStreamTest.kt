@@ -4,6 +4,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChatDeltaStreamTest {
@@ -16,7 +17,7 @@ class ChatDeltaStreamTest {
         }
 
         listOf("Sannu", ", ", "Kavoryn", " AI", " 👋").forEach { delta ->
-            assert(deltas.trySend(delta).isSuccess)
+            assertTrue(deltas.trySend(delta).isSuccess)
         }
         deltas.close()
         consumer.join()
