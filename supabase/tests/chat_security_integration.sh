@@ -72,6 +72,42 @@ select public.save_chat_message(
  'user','private owner message','completed','openai'
 );
 
+-- Revocation is provider-scoped, takes effect immediately, and is idempotent.
+select public.record_chat_provider_consent(
+ '12121212-1212-4121-8121-121212121212',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+ 'gemini','chat-policy-test'
+);
+do $consent_revocation$
+begin
+  if not public.has_chat_provider_consent(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','openai'
+  ) then
+    raise exception 'Expected active OpenAI consent before revocation';
+  end if;
+  if public.revoke_chat_provider_consent(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','openai'
+  ) <> 1 then
+    raise exception 'OpenAI consent revocation should revoke exactly one active grant';
+  end if;
+  if public.has_chat_provider_consent(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','openai'
+  ) then
+    raise exception 'Revoked OpenAI consent must no longer authorize processing';
+  end if;
+  if public.revoke_chat_provider_consent(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','openai'
+  ) <> 0 then
+    raise exception 'Repeated OpenAI consent revocation should be idempotent';
+  end if;
+  if not public.has_chat_provider_consent(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','gemini'
+  ) then
+    raise exception 'Revoking OpenAI consent must not revoke Gemini consent';
+  end if;
+end
+$consent_revocation$;
+
 do $isolation$
 declare
   v_result jsonb;
