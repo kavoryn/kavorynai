@@ -52,7 +52,7 @@ $sink->store($job, $result);
 
 expectSink(is_array($seen), 'Expected a Supabase RPC request.');
 expectSink(str_ends_with($seen['url'], '/rest/v1/rpc/store_document_ocr_result'), 'Result must use the service-only RPC.');
-expectSink(($seen['headers']['Authorization'] ?? '') === 'Bearer service-role-test', 'RPC must use the service role.');
+expectSink(!isset($seen['headers']['Authorization']) && isset($seen['headers']['apikey']), 'Privileged Supabase calls must use the secret API key via apikey only.');
 expectSink(!str_contains(json_encode($seen['body']), 'Ƙarɓi ɗalibi'), 'Plain OCR text must never be sent to Supabase.');
 expectSink(($seen['body']['p_encryption_key_version'] ?? null) === '1', 'Expected encryption key version 1.');
 

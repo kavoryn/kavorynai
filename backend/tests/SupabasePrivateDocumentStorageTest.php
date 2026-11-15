@@ -45,7 +45,7 @@ $http = static function (
     ?string $body,
 ) use ($fixture, $oldOrphan, $recentOrphan, $oldReferenced, &$uploadedKey, &$deletedPrefixes, &$objectRequests): array {
     supabaseStorageExpect(($headers['apikey'] ?? '') === 'sb_secret_test_only', 'Storage requests must use the server-only API key.');
-    supabaseStorageExpect(($headers['Authorization'] ?? '') === 'Bearer service-role-test-only', 'Storage requests must use the server-side service role JWT.');
+    supabaseStorageExpect(!isset($headers['Authorization']) && isset($headers['apikey']), 'Privileged Supabase calls must use the secret API key via apikey only.');
 
     if ($method === 'GET' && str_ends_with($url, '/storage/v1/bucket/private-documents')) {
         return ['status' => 200, 'body' => '{"id":"private-documents","name":"private-documents","public":false}'];

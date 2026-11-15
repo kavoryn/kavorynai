@@ -10,11 +10,11 @@ final class SupabasePaystackSubscriptionCreatedStore
     public function __construct(
         private readonly string $supabaseUrl,
         private readonly string $secretKey,
-        private readonly string $serviceRoleJwt,
+        string $legacyServiceRoleJwtForCompatibility,
         private readonly mixed $http = null,
     ) {
         if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
-            $secretKey === '' || $serviceRoleJwt === '') {
+            $secretKey === '') {
             throw new \InvalidArgumentException('Subscription event processing is not configured.');
         }
     }
@@ -37,7 +37,6 @@ final class SupabasePaystackSubscriptionCreatedStore
         $url = rtrim($this->supabaseUrl, '/') . '/rest/v1/rpc/apply_paystack_subscription_created';
         $headers = [
             'apikey' => $this->secretKey,
-            'Authorization' => 'Bearer ' . $this->serviceRoleJwt,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ];

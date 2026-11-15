@@ -102,8 +102,8 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
     $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $supabaseSecret = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
-    if ($paystackSecret === '' || $supabaseUrl === '' || $supabaseSecret === '' || $serviceRoleJwt === '') {
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
+    if ($paystackSecret === '' || $supabaseUrl === '' || $supabaseSecret === '') {
         respond(503, ['error'=>['code'=>'webhook_not_configured','message'=>'Payment notification processing is temporarily unavailable.','request_id'=>$requestId]]);
     }
 
@@ -333,10 +333,10 @@ if ($method === 'POST' && $path === '/v1/billing/checkout') {
 
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $supabaseSecret = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
     $callbackUrl = getenv('PAYSTACK_CALLBACK_URL') ?: '';
-    if ($supabaseUrl === '' || $supabaseSecret === '' || $serviceRoleJwt === '' ||
+    if ($supabaseUrl === '' || $supabaseSecret === '' ||
         $paystackSecret === '' || parse_url($callbackUrl, PHP_URL_SCHEME) !== 'https') {
         respond(503, ['error'=>['code'=>'billing_checkout_not_configured','message'=>'Checkout is temporarily unavailable.','request_id'=>$requestId]]);
     }
@@ -596,8 +596,8 @@ if ($method === 'POST' && $path === '/v1/consents') {
     }
 
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
-    if ($secretKey === '' || $serviceRoleJwt === '') {
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
+    if ($secretKey === '') {
         respond(503, [
             'error' => [
                 'code' => 'consent_storage_not_configured',
@@ -749,9 +749,9 @@ if ($method === 'POST' && $path === '/v1/documents') {
     $storageDriver = strtolower(trim(getenv('DOCUMENT_STORAGE_DRIVER') ?: 'supabase'));
     $storageBucket = getenv('PRIVATE_DOCUMENT_STORAGE_BUCKET') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
-    if ($secretKey === '' || $serviceRoleJwt === '' || $supabaseUrl === '' ||
+    if ($secretKey === '' || $supabaseUrl === '' ||
         !in_array($storageDriver, ['supabase', 'local'], true) ||
         ($storageDriver === 'supabase' && $storageBucket === '')) {
         respond(503, [
@@ -912,9 +912,9 @@ if ($method === 'POST' && preg_match(
 
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
-    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $encryptionKey === '') {
+    if ($supabaseUrl === '' || $secretKey === '' || $encryptionKey === '') {
         respond(503, ['error' => ['code' => 'document_explanation_not_configured', 'message' => 'Document explanation is temporarily unavailable.', 'request_id' => $requestId]]);
     }
 
@@ -1005,9 +1005,9 @@ if ($method === 'POST' && preg_match(
     }
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
-    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $encryptionKey === '') {
+    if ($supabaseUrl === '' || $secretKey === '' || $encryptionKey === '') {
         respond(503, ['error' => ['code' => 'document_qa_not_configured', 'message' => 'Document questions are temporarily unavailable.', 'request_id' => $requestId]]);
     }
 
@@ -1088,9 +1088,9 @@ if ($method === 'GET' && preg_match(
 
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
-    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $encryptionKey === '') {
+    if ($supabaseUrl === '' || $secretKey === '' || $encryptionKey === '') {
         respond(503, [
             'error' => [
                 'code' => 'ocr_result_storage_not_configured',
@@ -1151,9 +1151,9 @@ if (str_starts_with($path, '/v1/chat/')) {
     );
 
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
-    if ($secretKey === '' || $serviceRoleJwt === '' || $supabaseUrl === '') {
+    if ($secretKey === '' || $supabaseUrl === '') {
         respond(503, ['error'=>['code'=>'chat_storage_not_configured','message'=>'Chat is temporarily unavailable.','request_id'=>$requestId]]);
     }
 
@@ -1409,6 +1409,107 @@ if (str_starts_with($path, '/v1/chat/')) {
         respond(422, ['error'=>['code'=>'invalid_chat_request','message'=>'The chat request is invalid.','request_id'=>$requestId]]);
     }
 }
+
+
+if ($method === 'DELETE' && preg_match(
+    '#^/v1/documents/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$#i',
+    $path,
+    $deleteMatches,
+)) {
+    if (strtolower(getenv('DOCUMENT_DELETE_ENABLED') ?: 'false') !== 'true') {
+        respond(503, [
+            'error' => [
+                'code' => 'document_delete_disabled',
+                'message' => 'Secure document deletion is not enabled on this server yet.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
+    $storageDriver = strtolower(trim(getenv('DOCUMENT_STORAGE_DRIVER') ?: 'supabase'));
+    $storageBucket = getenv('PRIVATE_DOCUMENT_STORAGE_BUCKET') ?: '';
+    if ($supabaseUrl === '' || $secretKey === '' ||
+        !in_array($storageDriver, ['supabase', 'local'], true) ||
+        ($storageDriver === 'supabase' && $storageBucket === '')) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_delete_not_configured',
+                'message' => 'Secure document deletion is temporarily unavailable.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    require_once dirname(__DIR__) . '/src/Upload/DocumentFileException.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentStorageMaintenance.php';
+    require_once dirname(__DIR__) . '/src/Upload/PrivateDocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/SupabasePrivateDocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentStorageFactory.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentDeletionService.php';
+    require_once dirname(__DIR__) . '/src/Upload/SupabaseDocumentDeletionStore.php';
+
+    try {
+        $store = new \Kavoryn\Upload\SupabaseDocumentDeletionStore(
+            $supabaseUrl,
+            $secretKey,
+            $serviceRoleJwt,
+        );
+        $storage = \Kavoryn\Upload\DocumentStorageFactory::fromEnvironment(__DIR__);
+        $service = new \Kavoryn\Upload\DocumentDeletionService($store, $storage);
+        $deleted = $service->delete($deleteMatches[1], $user->id);
+    } catch (\Kavoryn\Upload\DocumentDeletionUnavailableException) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_delete_unavailable',
+                'message' => 'The document is no longer accessible, but private-object cleanup is still pending. Please retry.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    } catch (\Kavoryn\Upload\DocumentFileException) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_delete_storage_unavailable',
+                'message' => 'Secure document deletion is temporarily unavailable. Please retry.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    } catch (\InvalidArgumentException) {
+        respond(400, [
+            'error' => [
+                'code' => 'invalid_document_id',
+                'message' => 'The document identifier is invalid.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    if (!$deleted) {
+        respond(404, [
+            'error' => [
+                'code' => 'document_not_found',
+                'message' => 'The document was not found for this account.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    respond(200, [
+        'document_id' => $deleteMatches[1],
+        'deleted' => true,
+        'request_id' => $requestId,
+    ]);
+}
+
 
 respond(404, [
     'error' => [
