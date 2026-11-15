@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -141,23 +142,36 @@ fun ChatScreen(
         streaming = true
         error = null
         scope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    api.streamMessage(current.id, message, accessToken) { delta ->
-                        scope.launch {
-                            val active = conversation ?: return@launch
+            val deltas = Channel<String>(Channel.UNLIMITED)
+            val renderJob = launch {
+                consumeChatDeltasInOrder(deltas) { delta ->
+                    val active = conversation
+                    if (active != null && active.id == current.id) {
+                        val index = active.messages.indexOfFirst {
+                            it.id == assistantMessage.id && it.status == "streaming"
+                        }
+                        if (index >= 0) {
                             val updated = active.messages.toMutableList()
-                            val last = updated.lastOrNull()
-                            if (last?.role == "assistant" && last.status == "streaming") {
-                                updated[updated.lastIndex] = last.copy(content = last.content + delta)
-                                conversation = active.copy(messages = updated)
-                            }
+                            val previous = updated[index]
+                            updated[index] = previous.copy(content = previous.content + delta)
+                            conversation = active.copy(messages = updated)
                         }
                     }
                 }
-                conversation?.let { active ->
+            }
+            try {
+                withContext(Dispatchers.IO) {
+                    api.streamMessage(current.id, message, accessToken) { delta ->
+                        if (deltas.trySend(delta).isFailure) {
+                            throw CancellationException("Chat response is no longer being displayed.")
+                        }
+                    }
+                }
+                conversation?.takeIf { it.id == current.id }?.let { active ->
                     val updated = active.messages.map {
-                        if (it.role == "assistant" && it.status == "streaming") it.copy(status = "completed") else it
+                        if (it.id == assistantMessage.id && it.status == "streaming") {
+                            it.copy(status = "completed")
+                        } else it
                     }
                     conversation = active.copy(messages = updated)
                 }
@@ -165,13 +179,17 @@ fun ChatScreen(
                 throw cancelled
             } catch (failure: Exception) {
                 error = failure.message ?: "The AI response could not be completed."
-                conversation?.let { active ->
+                conversation?.takeIf { it.id == current.id }?.let { active ->
                     val updated = active.messages.map {
-                        if (it.role == "assistant" && it.status == "streaming") it.copy(status = "failed") else it
+                        if (it.id == assistantMessage.id && it.status == "streaming") {
+                            it.copy(status = "failed")
+                        } else it
                     }
                     conversation = active.copy(messages = updated)
                 }
             } finally {
+                deltas.close()
+                renderJob.join()
                 streaming = false
             }
         }
