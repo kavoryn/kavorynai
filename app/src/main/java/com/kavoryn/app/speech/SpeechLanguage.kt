@@ -48,7 +48,15 @@ object SpeechTextPolicy {
         while (start < text.length) {
             var end = minOf(start + MAX_UTTERANCE_CHARS, text.length)
             if (end < text.length) {
-                val boundary = text.lastIndexOf(' ', end)
+                // OCR text can contain paragraph breaks, tabs and other whitespace.
+                // Split at the last whitespace boundary, not only an ASCII space.
+                var boundary = -1
+                for (index in end downTo (start + 1)) {
+                    if (text[index].isWhitespace()) {
+                        boundary = index
+                        break
+                    }
+                }
                 if (boundary > start) end = boundary
                 else if (end > start &&
                     Character.isHighSurrogate(text[end - 1]) &&
