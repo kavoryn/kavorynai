@@ -25,7 +25,7 @@ class ChatSseEventDecoderTest {
     fun decodesUnicodeAndMultilineAssistantText() {
         val received = StringBuilder()
 
-        val completed = decoder.decode("""{"type":"delta","text":"Sannu, Hausa! \\nLafiya lau?"}""") {
+        val completed = decoder.decode("""{"type":"delta","text":"Sannu, Hausa! \nLafiya lau?"}""") {
             received.append(it)
         }
 
