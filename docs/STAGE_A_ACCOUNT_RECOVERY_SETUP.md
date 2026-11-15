@@ -72,6 +72,7 @@ Use a dedicated test account and test mailbox—not a real customer's account or
 6. Update the password, then sign in with the new password.
 7. Verify expired, malformed, unsupported, and reused recovery links are rejected.
 8. Verify resend and recovery rate limits do not expose whether an account exists.
+9. While the recovery form is open, rotate the device or background and restore the app; the flow should remain usable. After successful reset or cancel, recreate the Activity and confirm the old callback does not reopen the reset screen. On a temporary network failure, confirm the recovery form remains available for retry.
 
 ## Outstanding configuration and release gates
 
