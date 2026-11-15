@@ -58,8 +58,8 @@ class SpeechTextPolicyTest {
         assertTrue(chunks.all { it.text.length <= SpeechTextPolicy.MAX_UTTERANCE_CHARS })
         chunks.dropLast(1).forEach { chunk ->
             assertTrue(
-                source[chunk.endExclusive].isWhitespace(),
-                "Each non-final chunk must end immediately before a whitespace boundary."
+                "Each non-final chunk must end immediately before a whitespace boundary.",
+                source[chunk.endExclusive].isWhitespace()
             )
         }
         assertEquals(
