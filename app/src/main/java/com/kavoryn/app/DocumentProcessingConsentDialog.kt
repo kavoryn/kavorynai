@@ -35,27 +35,34 @@ fun DocumentProcessingConsentDialog(
     onDismiss: () -> Unit
 ) {
     var consentChecked by rememberSaveable { mutableStateOf(false) }
+    val documentLabel = if (documentCount == 1) "document" else "documents"
+    val uploadDescription = if (documentCount == 1) {
+        "your selected document"
+    } else {
+        "your $documentCount selected documents"
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Permission to process your document") },
+        title = { Text("Before we process your document") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    if (documentCount == 1) {
-                        "Kavoryn will securely upload your selected document to its processing service."
-                    } else {
-                        "Kavoryn will securely upload your $documentCount selected documents to its processing service."
-                    }
+                    "What will be sent: Kavoryn will securely upload $uploadDescription " +
+                        "to its document-processing service."
                 )
                 Text(
-                    "The document will be processed by the OCR service to extract text. " +
-                        "The extracted text is stored encrypted for a limited period so you can review it."
+                    "Why: the OCR service extracts text so you can review it. " +
+                        "The extracted text is stored encrypted for a limited period."
                 )
                 Text("Requested output language: $language")
                 Text(
-                    "Do not upload documents unless you have permission to share them. " +
-                        "You can cancel now; no upload starts until you explicitly agree.",
+                    "Your choice: nothing is uploaded until you check the box and agree. " +
+                        "Choose Cancel to leave without starting this upload.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Only upload $documentLabel you are authorised to share.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Row(
@@ -74,7 +81,7 @@ fun DocumentProcessingConsentDialog(
                         onCheckedChange = { consentChecked = it }
                     )
                     Text(
-                        "I understand and agree to upload this document for OCR processing.",
+                        "I understand and agree to upload $uploadDescription for OCR processing.",
                         modifier = Modifier.padding(start = 8.dp)
                     )
                 }
