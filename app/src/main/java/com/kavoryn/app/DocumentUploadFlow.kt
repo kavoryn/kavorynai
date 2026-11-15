@@ -2,7 +2,6 @@ package com.kavoryn.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -118,31 +117,10 @@ fun DocumentUploadFlow(
 
     when {
         explanation != null -> {
-            Column(
-                Modifier.fillMaxSize().padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Text("Document explanation", style = MaterialTheme.typography.headlineMedium)
-                Text(explanation!!.summary, style = MaterialTheme.typography.titleMedium)
-                Text(explanation!!.detailedExplanation)
-                if (explanation!!.keyFacts.isNotEmpty()) {
-                    Text("Key facts", style = MaterialTheme.typography.titleSmall)
-                    explanation!!.keyFacts.forEach { fact ->
-                        Text("• ${fact.label}: ${fact.value}")
-                        if (fact.sourceQuote.isNotBlank()) {
-                            Text("Source: “${fact.sourceQuote}”", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-                if (explanation!!.actions.isNotEmpty()) {
-                    Text("Suggested next steps", style = MaterialTheme.typography.titleSmall)
-                    explanation!!.actions.forEach { Text("• $it") }
-                }
-                Spacer(Modifier.weight(1f))
-                OutlinedButton(onClick = { explanation = null }, Modifier.fillMaxWidth()) {
-                    Text("Back to document")
-                }
-            }
+            DocumentExplanationScreen(
+                explanation = explanation!!,
+                onBackToDocument = { explanation = null }
+            )
         }
         result != null -> {
             if (showQuestions) {
@@ -181,7 +159,8 @@ fun DocumentUploadFlow(
                                         documentId = result!!.documentId,
                                         accessToken = accessToken,
                                         provider = provider,
-                                        language = outputLanguage
+                                        language = outputLanguage,
+                                        originalOcrText = result!!.text
                                     )
                                 }
                                 explanation = response
