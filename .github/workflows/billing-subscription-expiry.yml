@@ -1,8 +1,8 @@
 name: Billing subscription expiry
 
 on:
-  schedule:
-    - cron: "17 * * * *"
+  # Manual only in preview/integration. Re-enable an hourly schedule after the
+  # production billing release gate and trusted scheduler secrets are approved.
   workflow_dispatch:
 
 permissions:
