@@ -61,6 +61,29 @@ function authenticatedUser(string $supabaseUrl, string $publishableKey, string $
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
+$billingEnabled = strtolower(getenv('BILLING_ENABLED') ?: 'false') === 'true';
+$paystackWebhookEnabled = strtolower(getenv('PAYSTACK_WEBHOOK_ENABLED') ?: 'false') === 'true';
+
+if (str_starts_with($path, '/v1/billing/') && !$billingEnabled) {
+    respond(503, [
+        'error' => [
+            'code' => 'billing_disabled',
+            'message' => 'Billing is not enabled on this environment yet.',
+            'request_id' => $requestId,
+        ],
+    ]);
+}
+
+if ($path === '/v1/webhooks/paystack' && (!$billingEnabled || !$paystackWebhookEnabled)) {
+    respond(503, [
+        'error' => [
+            'code' => 'paystack_webhooks_disabled',
+            'message' => 'Payment notifications are not enabled on this environment yet.',
+            'request_id' => $requestId,
+        ],
+    ]);
+}
+
 if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
     $contentLength = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
     if ($contentLength > 1048576) {
