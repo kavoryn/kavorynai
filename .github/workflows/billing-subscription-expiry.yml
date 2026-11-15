@@ -1,0 +1,66 @@
+name: Billing subscription expiry
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: billing-subscription-expiry
+  cancel-in-progress: false
+
+jobs:
+  expire-due-subscriptions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate scheduler configuration
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
+            echo "::error::Required Supabase scheduler secrets are not configured."
+            exit 1
+          fi
+          if [[ ! "${SUPABASE_URL}" =~ ^https://[a-zA-Z0-9.-]+$ ]]; then
+            echo "::error::SUPABASE_URL must be an HTTPS origin without a path."
+            exit 1
+          fi
+
+      - name: Expire subscriptions whose paid period and grace period ended
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+
+          http_status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST "${SUPABASE_URL%/}/rest/v1/rpc/expire_due_billing_subscriptions" \
+            --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header 'Content-Type: application/json' \
+            --header 'Accept: application/json' \
+            --data '{}')"
+
+          if [[ "$http_status" != "200" ]]; then
+            echo "::error::Subscription expiry RPC failed (HTTP $http_status)."
+            cat "$response_file"
+            exit 1
+          fi
+
+          if ! jq -e 'type == "number" and . >= 0 and floor == .' "$response_file" >/dev/null; then
+            echo "::error::Subscription expiry RPC returned an unexpected response."
+            exit 1
+          fi
+
+          expired_count="$(jq -r '.' "$response_file")"
+          echo "Subscription expiry run completed; subscriptions expired: $expired_count"
