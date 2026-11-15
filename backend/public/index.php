@@ -780,6 +780,7 @@ if ($method === 'POST' && $path === '/v1/documents') {
     require_once dirname(__DIR__) . '/src/Upload/DocumentUploadService.php';
 
     try {
+        $documentStorage = Kavoryn\Upload\DocumentStorageFactory::fromEnvironment(__DIR__);
         $rateLimiter = new Kavoryn\Upload\SupabaseDocumentRateLimiter(
             $supabaseUrl,
             $secretKey,
@@ -789,7 +790,7 @@ if ($method === 'POST' && $path === '/v1/documents') {
 
         $service = new Kavoryn\Upload\DocumentUploadService(
             new Kavoryn\Upload\DocumentFileInspector(),
-            new Kavoryn\Upload\PrivateDocumentStorage($storagePath, __DIR__),
+            $documentStorage,
             new Kavoryn\Upload\SupabaseDocumentRegistry($supabaseUrl, $secretKey, $serviceRoleJwt),
         );
         $registration = $service->upload(
