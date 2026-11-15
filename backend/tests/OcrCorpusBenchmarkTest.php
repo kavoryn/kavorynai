@@ -19,6 +19,7 @@ $rows = [
     ['id'=>'synthetic-ar-1','language'=>'ar','reference'=>'مستند رسمي','hypothesis'=>'مستند رسمى'],
     ['id'=>'synthetic-en-1','language'=>'en','reference'=>'hello world','hypothesis'=>'hello word'],
     ['id'=>'synthetic-mixed-1','language'=>'und','reference'=>'Kavoryn فاتورة','hypothesis'=>'Kavoryn فاتورة'],
+    ['id'=>'synthetic-fr-1','language'=>'fr','reference'=>'économie publique','hypothesis'=>'economie publique'],
 ];
 $lines = array_map(
     static fn(array $row): string => json_encode($row, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
@@ -36,6 +37,8 @@ try {
     expectBenchmark(($report['en']['word_errors'] ?? null) === 1, 'English word substitutions must count as one word error.');
     expectBenchmark(($report['und']['samples'] ?? null) === 1, 'Mixed-language samples must have their own und aggregate bucket.');
     expectBenchmark(($report['und']['cer'] ?? null) === 0.0, 'Exact mixed-language fixtures must have zero CER.');
+    expectBenchmark(($report['fr']['samples'] ?? null) === 1, 'French samples must be grouped by language.');
+    expectBenchmark(($report['fr']['character_errors'] ?? null) === 1, 'French diacritic loss must count as a character error.');
     expectBenchmark(!str_contains(json_encode($report, JSON_THROW_ON_ERROR), 'مستند'), 'Benchmark report must not disclose input document text.');
     expectBenchmark(!str_contains(json_encode($report, JSON_THROW_ON_ERROR), 'synthetic-ar-1'), 'Benchmark report must not disclose sample IDs.');
 
