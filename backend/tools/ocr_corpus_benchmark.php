@@ -160,16 +160,23 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
-$corpusPath = $argv[1] ?? '';
-if ($corpusPath === '' || in_array($corpusPath, ['-h', '--help'], true)) {
-    fwrite(STDERR, "Usage: php backend/tools/ocr_corpus_benchmark.php /path/to/permission-cleared-corpus.jsonl\n");
-    exit($corpusPath === '' ? 2 : 0);
-}
+if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
+    if (PHP_SAPI !== 'cli') {
+        http_response_code(404);
+        exit;
+    }
 
-try {
-    $report = evaluateOcrCorpus($corpusPath);
-    echo json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
-} catch (Throwable $error) {
-    fwrite(STDERR, $error->getMessage() . PHP_EOL);
-    exit(1);
+    $corpusPath = $argv[1] ?? '';
+    if ($corpusPath === '' || in_array($corpusPath, ['-h', '--help'], true)) {
+        fwrite(STDERR, "Usage: php backend/tools/ocr_corpus_benchmark.php /path/to/permission-cleared-corpus.jsonl\n");
+        exit($corpusPath === '' ? 2 : 0);
+    }
+
+    try {
+        $report = evaluateOcrCorpus($corpusPath);
+        echo json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
+    } catch (Throwable $error) {
+        fwrite(STDERR, $error->getMessage() . PHP_EOL);
+        exit(1);
+    }
 }
