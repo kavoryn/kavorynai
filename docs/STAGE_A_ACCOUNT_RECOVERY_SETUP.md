@@ -20,6 +20,24 @@ com.kavoryn.app://auth-callback
 
 Do not add wildcards. The callback must match exactly.
 
+## Deep-link security limitation
+
+The current Preview implementation uses the custom callback scheme `com.kavoryn.app://auth-callback`. This is acceptable only as a controlled implementation/test foundation, not as the final public-release deep-link design.
+
+Android documents that multiple installed apps can register the same custom URI scheme. The user may see a chooser, or Android may route the link to the app selected as the default handler. Therefore, this custom scheme does not prove that a sensitive signup or password-recovery link will be delivered only to Kavoryn.
+
+Before a small-group or public release, replace this transport with a verified HTTPS Android App Link on a domain Kavoryn controls:
+- Add an HTTPS callback intent filter with `android:autoVerify="true"`.
+- Publish the Android Digital Asset Links file at `https://<controlled-domain>/.well-known/assetlinks.json`, using the correct Android application ID and signing-certificate SHA-256 fingerprint.
+- Configure the matching HTTPS callback URL in Supabase Auth Redirect URLs and update the callback parser/tests.
+- Verify Android domain association on physical devices and test the link-routing behavior.
+
+This migration requires separate domain/hosting ownership work. It is **not** done by this PR, and this PR must not change the existing `kavorynai.com.ng` business website or its DNS. Until verified App Links are configured, restrict callback testing to a dedicated test device/account and do not treat the custom scheme as launch-ready.
+
+References:
+- Android deep-link routing and custom-scheme behavior: https://developer.android.com/training/app-links/create-deeplinks
+- Android verified App Links setup: https://developer.android.com/training/app-links/add-applinks
+
 ## Email delivery
 
 Password reset and signup confirmation depend on Supabase Auth email delivery. The default email service is intended for trying the flow and has strict sending limits; a production launch should use a verified custom SMTP provider and appropriate rate limits. Do not assume successful API response means an email reached the inbox.
