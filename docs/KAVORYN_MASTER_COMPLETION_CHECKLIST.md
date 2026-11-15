@@ -199,7 +199,8 @@ Do not change a status based on an assumption. Add a test link, report, commit, 
 ## 5. Accounts, onboarding and account lifecycle
 - [x] Supabase email/password sign-in and registration foundations exist.
 - [x] Encrypted Android session storage backed by Android Keystore exists.
-- [ ] Complete email verification and password-reset user journeys, including expiry/replay/rate limits.
+- [x] Add Android password-reset request, signup-confirmation resend, callback validation, email-confirmation session handling, and password-update UI foundations.
+- [ ] Complete real Supabase email delivery and callback verification: redirect allowlist, email templates/SMTP, physical-device links, expiry/replay/rate limits, and end-to-end password change.
 - [ ] Decide whether Google Sign-In is in MVP; if enabled, configure OAuth and redirect protection.
 - [ ] Decide Guest Mode and registration timing.
 - [ ] Avoid account-existence leaks in authentication errors where appropriate.
