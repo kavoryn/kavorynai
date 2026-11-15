@@ -171,26 +171,17 @@ private fun DocumentFlow() {
         pendingCamera = null
     }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isNotEmpty()) {
-            val accepted = mutableListOf<SelectedDocument>()
-            val rejected = mutableListOf<String>()
-            uris.forEach { uri ->
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (_: SecurityException) { /* Temporary picker grant remains usable. */ }
-                when (val result = readDocumentMetadata(context, uri)) {
-                    is DocumentMetadataResult.Valid -> accepted.add(result.document)
-                    is DocumentMetadataResult.Invalid -> rejected.add(result.reason)
-                }
-            }
-            cleanupTemporaryScans(context, selectedDocuments)
-            selectedDocuments = accepted
-            confirmed = false
-            pickerError = rejected.firstOrNull()
-            screen = if (accepted.isNotEmpty()) Screen.REVIEW else Screen.HOME
+    // The current processing contract accepts one document per run. Use the
+    // single-document picker so users cannot select a batch that the upload
+    // flow must reject later.
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: SecurityException) { /* Temporary picker grant remains usable. */ }
+            acceptUri(uri)
         }
     }
 
