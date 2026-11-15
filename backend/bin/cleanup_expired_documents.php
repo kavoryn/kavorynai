@@ -2,11 +2,18 @@
 
 declare(strict_types=1);
 
+umask(0077);
+
 require_once dirname(__DIR__) . '/src/Upload/DocumentFileException.php';
 require_once dirname(__DIR__) . '/src/Upload/InspectedDocument.php';
+require_once dirname(__DIR__) . '/src/Upload/DocumentStorage.php';
+require_once dirname(__DIR__) . '/src/Upload/DocumentStorageMaintenance.php';
 require_once dirname(__DIR__) . '/src/Upload/PrivateDocumentStorage.php';
+require_once dirname(__DIR__) . '/src/Upload/SupabasePrivateDocumentStorage.php';
+require_once dirname(__DIR__) . '/src/Upload/DocumentStorageFactory.php';
 
-use Kavoryn\Upload\PrivateDocumentStorage;
+use Kavoryn\Upload\DocumentStorageFactory;
+use Kavoryn\Upload\DocumentStorageMaintenance;
 
 function cleanupRequest(string $method, string $url, array $headers, ?string $body = null): array
 {
@@ -31,6 +38,7 @@ function cleanupRequest(string $method, string $url, array $headers, ?string $bo
         CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2,
+        CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
     ]);
     if ($body !== null) {
         curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
@@ -51,11 +59,9 @@ function cleanupRequest(string $method, string $url, array $headers, ?string $bo
 $supabaseUrl = getenv('SUPABASE_URL') ?: '';
 $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
 $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
-$storagePath = getenv('PRIVATE_DOCUMENT_STORAGE_PATH') ?: '';
 
 if ($supabaseUrl === '' || parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
-    $secretKey === '' || $serviceRoleJwt === '' || $storagePath === '' ||
-    !str_starts_with($storagePath, DIRECTORY_SEPARATOR)) {
+    $secretKey === '' || $serviceRoleJwt === '') {
     fwrite(STDERR, "Cleanup configuration is incomplete.\n");
     exit(1);
 }
@@ -66,10 +72,15 @@ $headers = [
     'Authorization' => 'Bearer ' . $serviceRoleJwt,
     'Accept' => 'application/json',
 ];
-$storage = new PrivateDocumentStorage($storagePath, dirname(__DIR__) . '/public');
 $deletedCount = 0;
+$orphanedObjectsDeleted = 0;
 
 try {
+    $storage = DocumentStorageFactory::fromEnvironment(dirname(__DIR__) . '/public');
+    if (!$storage instanceof DocumentStorageMaintenance) {
+        throw new RuntimeException('Configured storage driver does not support safe cleanup.');
+    }
+
     do {
         $cutoff = rawurlencode((new DateTimeImmutable('now'))->format(DATE_ATOM));
         $query = '?select=id,storage_key&expires_at=lt.' . $cutoff .
@@ -80,7 +91,7 @@ try {
         }
 
         $records = json_decode($response['body'], true, 32, JSON_THROW_ON_ERROR);
-        if (!is_array($records)) {
+        if (!is_array($records) || !array_is_list($records)) {
             throw new RuntimeException('Invalid cleanup response.');
         }
 
@@ -88,12 +99,12 @@ try {
             if (!is_array($record) ||
                 !is_string($record['id'] ?? null) ||
                 !is_string($record['storage_key'] ?? null) ||
-                !preg_match('/^[0-9a-f-]{36}$/i', $record['id'])) {
+                !preg_match('/\A[0-9a-f-]{36}\z/i', $record['id'])) {
                 throw new RuntimeException('Invalid expired document record.');
             }
 
-            // Delete the private file first. If the database update then fails,
-            // the next cron run safely retries the missing-file deletion.
+            // Delete the durable private object first. If the database update
+            // then fails, the next cleanup run safely retries the missing object.
             $storage->delete($record['storage_key']);
             $deletedAt = (new DateTimeImmutable('now'))->format(DATE_ATOM);
             $patchUrl = $baseUrl . '?id=eq.' . rawurlencode($record['id']);
@@ -117,8 +128,9 @@ try {
         }
     } while (count($records) === 100);
 
-    // Remove old staged files that never acquired a database row after an
-    // interrupted registration request. Never touch recent or referenced files.
+    // Build the current reference set after expired document rows have been
+    // marked deleted. Keep just-deleted object keys in this run's set to avoid
+    // trying to delete them a second time during orphan cleanup.
     $referenced = [];
     $offset = 0;
     do {
@@ -128,7 +140,7 @@ try {
             throw new RuntimeException('Could not list registered document keys.');
         }
         $rows = json_decode($response['body'], true, 32, JSON_THROW_ON_ERROR);
-        if (!is_array($rows)) {
+        if (!is_array($rows) || !array_is_list($rows)) {
             throw new RuntimeException('Invalid registered document key response.');
         }
         foreach ($rows as $row) {
@@ -140,28 +152,11 @@ try {
         $offset += $count;
     } while ($count === 1000);
 
-    $publicRoot = realpath(dirname(__DIR__) . '/public');
-    $privateRoot = realpath($storagePath);
-    if ($publicRoot === false) {
-        throw new RuntimeException('Public web root could not be verified.');
-    }
-    if ($privateRoot !== false) {
-        $publicPrefix = rtrim($publicRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        if ($privateRoot === $publicRoot || str_starts_with($privateRoot . DIRECTORY_SEPARATOR, $publicPrefix)) {
-            throw new RuntimeException('Private storage must be outside the public web root.');
-        }
-        foreach (new DirectoryIterator($privateRoot) as $entry) {
-            if ($entry->isDot() || !$entry->isFile()) continue;
-            $key = $entry->getFilename();
-            if (!preg_match('/^[a-f0-9]{32}\\.(pdf|jpg|png|webp)$/', $key) ||
-                $entry->getMTime() >= time() - 3600 ||
-                isset($referenced[$key])) {
-                continue;
-            }
-            $storage->delete($key);
-            $deletedCount++;
-        }
-    }
+    $orphanedObjectsDeleted = $storage->deleteUnreferencedOlderThan(
+        array_keys($referenced),
+        time() - 3600,
+    );
+
     // Purge encrypted OCR output after its document retention window ends.
     $ocrResultCleanup = cleanupRequest(
         'POST',
@@ -192,10 +187,11 @@ try {
         throw new RuntimeException('Invalid rate-limit cleanup response.');
     }
 } catch (Throwable $error) {
-    fwrite(STDERR, "Document cleanup failed: " . $error->getMessage() . PHP_EOL);
+    fwrite(STDERR, "Document cleanup failed: " . get_class($error) . PHP_EOL);
     exit(1);
 }
 
 echo 'Expired documents deleted: ' . $deletedCount .
+    '; orphaned private objects deleted: ' . $orphanedObjectsDeleted .
     '; expired OCR results deleted: ' . $ocrResultsDeleted .
     '; expired rate-limit buckets deleted: ' . $rateLimitDeleted . PHP_EOL;
