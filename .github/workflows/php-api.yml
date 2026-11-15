@@ -7,6 +7,8 @@ on:
       - "backend/**"
       - "supabase/migrations/**"
       - "supabase/tests/**"
+      - "docs/STAGE_A_OCR_BENCHMARK_PLAN.md"
+      - "docs/KAVORYN_MASTER_COMPLETION_CHECKLIST.md"
       - ".github/workflows/php-api.yml"
       - ".github/workflows/billing-subscription-expiry.yml"
   pull_request:
