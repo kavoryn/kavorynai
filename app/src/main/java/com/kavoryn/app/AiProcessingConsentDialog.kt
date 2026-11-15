@@ -55,8 +55,12 @@ fun AiProcessingConsentDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Kavoryn will send the extracted text from this document to the AI provider " +
-                        "you choose. The provider processes that text to create an explanation."
+                    "What will be sent: only the text already extracted from this document. " +
+                        "The original document file is not sent in this explanation request."
+                )
+                Text(
+                    "Why: the AI provider you choose uses that text to prepare a summary, " +
+                        "a detailed explanation, suggested next steps and key facts."
                 )
                 Text("Choose an AI provider", style = MaterialTheme.typography.titleSmall)
                 Column(Modifier.selectableGroup()) {
@@ -97,9 +101,13 @@ fun AiProcessingConsentDialog(
                     }
                 }
                 Text(
-                    "Kavoryn records your choice, provider, language and document reference " +
-                        "for consent auditing. This explanation endpoint does not save the AI " +
-                        "response. Only share documents you are authorised to share.",
+                    "What is recorded: Kavoryn records your consent choice, provider, language " +
+                        "and document reference for auditing. This endpoint does not save the AI response."
+                )
+                Text(
+                    "Your choice: no text is sent to the selected AI provider unless you agree. " +
+                        "Choose Cancel to return without requesting an explanation. Only share documents " +
+                        "you are authorised to share.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Row(
@@ -118,7 +126,8 @@ fun AiProcessingConsentDialog(
                     )
                     Text(
                         "I agree to send this document's extracted text to " +
-                            selectedProvider.displayName + " for this explanation.",
+                            selectedProvider.displayName + " for this explanation in " +
+                            selectedLanguage.displayName + ".",
                         modifier = Modifier.padding(start = 8.dp)
                     )
                 }
