@@ -1,0 +1,164 @@
+name: Backend container smoke
+
+on:
+  pull_request:
+    branches: [integration/preview]
+    paths:
+      - "Dockerfile.vercel"
+      - ".dockerignore"
+      - "backend/**"
+      - ".github/workflows/backend-container-smoke.yml"
+  push:
+    branches:
+      - integration/preview
+      - fix/vercel-container-php-preview
+    paths:
+      - "Dockerfile.vercel"
+      - ".dockerignore"
+      - "backend/**"
+      - ".github/workflows/backend-container-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Create disposable ignored-file sentinels
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p backend/tests backend/storage backend/tmp
+          printf 'not-a-secret-test-value' > backend/.env
+          printf 'test-sentinel' > backend/tests/.container-context-sentinel
+          printf 'storage-sentinel' > backend/storage/.container-context-sentinel
+          printf 'temporary-sentinel' > backend/tmp/.container-context-sentinel
+
+      - name: Build backend-root Vercel PHP container
+        run: docker build --pull --file backend/Dockerfile.vercel --tag kavoryn-api-backend-root:ci backend
+
+      - name: Build repository-root Vercel PHP container
+        run: docker build --pull --file Dockerfile.vercel --tag kavoryn-api-repo-root:ci .
+
+      - name: Verify both images exclude local secrets, tests and state
+        shell: bash
+        run: |
+          set -euo pipefail
+          for image in kavoryn-api-backend-root:ci kavoryn-api-repo-root:ci; do
+            docker run --rm "$image" sh -eu -c '
+              test -f /app/public/index.php
+              test -f /app/src/Auth/SupabaseUserVerifier.php
+              test -f /app/.env.example
+              test ! -e /app/.env
+              test ! -e /app/tests/.container-context-sentinel
+              test ! -e /app/storage/.container-context-sentinel
+              test ! -e /app/tmp/.container-context-sentinel
+            '
+          done
+
+      - name: Verify backend-root container HTTP routing and fail-closed defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --detach \
+            --name kavoryn-api-backend-root \
+            --publish 127.0.0.1:8080:80 \
+            --env BILLING_ENABLED=false \
+            --env PAYSTACK_WEBHOOK_ENABLED=false \
+            --env CHAT_ENABLED=false \
+            --env DOCUMENT_UPLOAD_ENABLED=false \
+            --env OCR_WORKER_ENABLED=false \
+            --env DOCUMENT_QA_ENABLED=false \
+            --env DOCUMENT_DELETE_ENABLED=false \
+            kavoryn-api-backend-root:ci
+
+          cleanup() {
+            docker logs kavoryn-api-backend-root || true
+            docker rm --force kavoryn-api-backend-root >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8080/v1/health > /tmp/kavoryn-backend-health.json; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = "true"
+
+          jq -e '.status == "ok" and .service == "kavoryn-api" and (.request_id | type == "string" and length > 0)' /tmp/kavoryn-backend-health.json
+
+          root_status=$(curl --silent --output /tmp/kavoryn-backend-root.json --write-out '%{http_code}' http://127.0.0.1:8080/)
+          test "$root_status" = "404"
+          jq -e '.error.code == "not_found"' /tmp/kavoryn-backend-root.json
+
+          auth_status=$(curl --silent --output /tmp/kavoryn-backend-auth.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/me)
+          test "$auth_status" = "503"
+          jq -e '.error.code == "authentication_not_configured"' /tmp/kavoryn-backend-auth.json
+
+          source_status=$(curl --silent --output /tmp/kavoryn-backend-source.txt --write-out '%{http_code}' http://127.0.0.1:8080/src/Auth/SupabaseUserVerifier.php)
+          test "$source_status" = "404"
+          if grep -q '<?php' /tmp/kavoryn-backend-source.txt; then
+            echo "PHP source was exposed by the backend-root container." >&2
+            exit 1
+          fi
+
+      - name: Verify repository-root container HTTP routing and fail-closed defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --detach \
+            --name kavoryn-api-repo-root \
+            --publish 127.0.0.1:8081:80 \
+            --env BILLING_ENABLED=false \
+            --env PAYSTACK_WEBHOOK_ENABLED=false \
+            --env CHAT_ENABLED=false \
+            --env DOCUMENT_UPLOAD_ENABLED=false \
+            --env OCR_WORKER_ENABLED=false \
+            --env DOCUMENT_QA_ENABLED=false \
+            --env DOCUMENT_DELETE_ENABLED=false \
+            kavoryn-api-repo-root:ci
+
+          cleanup() {
+            docker logs kavoryn-api-repo-root || true
+            docker rm --force kavoryn-api-repo-root >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8081/v1/health > /tmp/kavoryn-repo-health.json; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = "true"
+
+          jq -e '.status == "ok" and .service == "kavoryn-api" and (.request_id | type == "string" and length > 0)' /tmp/kavoryn-repo-health.json
+
+          root_status=$(curl --silent --output /tmp/kavoryn-repo-root.json --write-out '%{http_code}' http://127.0.0.1:8081/)
+          test "$root_status" = "404"
+          jq -e '.error.code == "not_found"' /tmp/kavoryn-repo-root.json
+
+          auth_status=$(curl --silent --output /tmp/kavoryn-repo-auth.json --write-out '%{http_code}' http://127.0.0.1:8081/v1/me)
+          test "$auth_status" = "503"
+          jq -e '.error.code == "authentication_not_configured"' /tmp/kavoryn-repo-auth.json
+
+          source_status=$(curl --silent --output /tmp/kavoryn-repo-source.txt --write-out '%{http_code}' http://127.0.0.1:8081/src/Auth/SupabaseUserVerifier.php)
+          test "$source_status" = "404"
+          if grep -q '<?php' /tmp/kavoryn-repo-source.txt; then
+            echo "PHP source was exposed by the repository-root container." >&2
+            exit 1
+          fi

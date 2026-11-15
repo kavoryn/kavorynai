@@ -1,0 +1,15 @@
+# The repository-root Vercel build needs only the backend directory.
+**
+!backend/
+!backend/**
+
+# Never include backend secrets, local state, tests, or temporary files in the image.
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/.git/
+backend/tests/
+backend/storage/
+backend/tmp/
+backend/*.log
+backend/phpunit.xml
