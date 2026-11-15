@@ -122,7 +122,7 @@ fun AiProcessingConsentDialog(
                 ) {
                     Checkbox(
                         checked = consentChecked,
-                        onCheckedChange = { consentChecked = it }
+                        onCheckedChange = null
                     )
                     Text(
                         "I agree to send this document's extracted text to " +
