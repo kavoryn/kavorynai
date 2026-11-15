@@ -46,10 +46,14 @@ class DocumentExplanationApi(
         documentId: String,
         accessToken: String,
         provider: ExplanationProvider,
-        language: ExplanationLanguage
+        language: ExplanationLanguage,
+        originalOcrText: String
     ): DocumentExplanation {
         require(UUID_REGEX.matches(documentId)) { "A valid document ID is required." }
         require(accessToken.isNotBlank()) { "A signed-in session is required." }
+        require(originalOcrText.isNotBlank() && originalOcrText.length <= MAX_SOURCE_TEXT_CHARS) {
+            "The original OCR text is unavailable for source verification."
+        }
         val root = baseUrl.trimEnd('/')
         require(root.startsWith("https://", ignoreCase = true)) {
             "The Kavoryn API must use HTTPS."
@@ -65,6 +69,7 @@ class DocumentExplanationApi(
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Cache-Control", "no-store")
+            setRequestProperty("Pragma", "no-cache")
         }
 
         try {
@@ -102,8 +107,9 @@ class DocumentExplanationApi(
                 }
                 output.toByteArray()
             }
-            val json = JSONObject(responseBytes.toString(Charsets.UTF_8))
+            val responseBody = responseBytes.toString(Charsets.UTF_8)
             if (status !in 200..299) {
+                val json = JSONObject(responseBody)
                 val error = json.optJSONObject("error")
                 throw DocumentExplanationApiException(
                     status,
@@ -113,15 +119,12 @@ class DocumentExplanationApi(
                 )
             }
 
-            return DocumentExplanation(
-                documentId = json.getString("document_id"),
+            return parseDocumentExplanationResponse(
+                responseBody = responseBody,
+                expectedDocumentId = documentId,
+                originalOcrText = originalOcrText,
                 provider = provider,
-                language = language,
-                summary = json.getString("summary"),
-                detailedExplanation = json.getString("detailed_explanation"),
-                actions = json.getJSONArray("actions").toStringList(),
-                keyFacts = json.getJSONArray("key_facts").toKeyFacts(),
-                requestId = json.optString("request_id").takeIf { it.isNotBlank() }
+                language = language
             )
         } catch (error: DocumentExplanationApiException) {
             throw error
@@ -135,25 +138,97 @@ class DocumentExplanationApi(
         }
     }
 
-    private fun JSONArray.toStringList(): List<String> =
-        (0 until length()).mapNotNull { index ->
-            optString(index).takeIf { it.isNotBlank() }
-        }
-
-    private fun JSONArray.toKeyFacts(): List<ExplanationKeyFact> =
-        (0 until length()).mapNotNull { index ->
-            val item = optJSONObject(index) ?: return@mapNotNull null
-            ExplanationKeyFact(
-                label = item.optString("label"),
-                value = item.optString("value"),
-                sourceQuote = item.optString("source_quote")
-            )
-        }
-
     private companion object {
         const val MAX_RESPONSE_BYTES = 1024 * 1024
+        const val MAX_SOURCE_TEXT_CHARS = 200_000
         val UUID_REGEX = Regex(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
         )
     }
 }
+
+/**
+ * Parses explanation JSON and checks every key-fact quote against the original OCR text.
+ * This is a second client-side guard: the backend also validates exact source quotes.
+ */
+internal fun parseDocumentExplanationResponse(
+    responseBody: String,
+    expectedDocumentId: String,
+    originalOcrText: String,
+    provider: ExplanationProvider,
+    language: ExplanationLanguage
+): DocumentExplanation {
+    require(UUID_REGEX.matches(expectedDocumentId)) { "Expected document ID is invalid." }
+    require(originalOcrText.isNotBlank()) { "Original OCR text is required." }
+
+    val json = JSONObject(responseBody)
+    val responseDocumentId = json.getString("document_id")
+    require(responseDocumentId == expectedDocumentId) {
+        "The explanation belongs to a different document."
+    }
+
+    val summary = json.getString("summary").trim()
+    val detail = json.getString("detailed_explanation").trim()
+    require(summary.isNotEmpty() && summary.length <= 2_500) { "The explanation summary is invalid." }
+    require(detail.isNotEmpty() && detail.length <= 12_000) { "The detailed explanation is invalid." }
+
+    val actionsJson = json.getJSONArray("actions")
+    require(actionsJson.length() <= MAX_ACTIONS) { "The explanation contains too many suggested actions." }
+    val actions = actionsJson.toStringList()
+    require(actionsJson.length() == actions.size && actions.all { it.length <= MAX_ACTION_CHARS }) {
+        "A suggested action is invalid."
+    }
+
+    val factsJson = json.getJSONArray("key_facts")
+    require(factsJson.length() <= MAX_KEY_FACTS) { "The explanation contains too many key details." }
+    val facts = factsJson.toKeyFacts(originalOcrText)
+    require(factsJson.length() == facts.size) { "A key detail could not be verified." }
+
+    return DocumentExplanation(
+        documentId = responseDocumentId,
+        provider = provider,
+        language = language,
+        summary = summary,
+        detailedExplanation = detail,
+        actions = actions,
+        keyFacts = facts,
+        requestId = json.optString("request_id").takeIf { it.isNotBlank() }
+    )
+}
+
+private fun JSONArray.toStringList(): List<String> =
+    (0 until length()).map { index ->
+        getString(index).trim().also {
+            require(it.isNotEmpty()) { "A suggested action is empty." }
+        }
+    }
+
+private fun JSONArray.toKeyFacts(originalOcrText: String): List<ExplanationKeyFact> =
+    (0 until length()).map { index ->
+        val item = getJSONObject(index)
+        val label = item.getString("label").trim()
+        val value = item.getString("value").trim()
+        val sourceQuote = item.getString("source_quote")
+        require(label.isNotEmpty() && label.length <= MAX_FACT_LABEL_CHARS) {
+            "A key-detail label is invalid."
+        }
+        require(value.isNotEmpty() && value.length <= MAX_FACT_VALUE_CHARS) {
+            "A key-detail value is invalid."
+        }
+        require(sourceQuote.isNotBlank() && sourceQuote.length <= MAX_SOURCE_QUOTE_CHARS &&
+            originalOcrText.contains(sourceQuote)
+        ) {
+            "A key detail does not match the original OCR text."
+        }
+        ExplanationKeyFact(label, value, sourceQuote)
+    }
+
+private const val MAX_ACTIONS = 12
+private const val MAX_ACTION_CHARS = 500
+private const val MAX_KEY_FACTS = 20
+private const val MAX_FACT_LABEL_CHARS = 100
+private const val MAX_FACT_VALUE_CHARS = 700
+private const val MAX_SOURCE_QUOTE_CHARS = 700
+private val UUID_REGEX = Regex(
+    "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+)
