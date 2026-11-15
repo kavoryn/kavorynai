@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/src/Upload/DocumentFileException.php';
+require_once dirname(__DIR__) . '/src/Upload/InspectedDocument.php';
+require_once dirname(__DIR__) . '/src/Upload/DocumentStorage.php';
+require_once dirname(__DIR__) . '/src/Upload/DocumentStorageMaintenance.php';
+require_once dirname(__DIR__) . '/src/Upload/PrivateDocumentStorage.php';
 require_once dirname(__DIR__) . '/src/Ocr/OcrRequest.php';
 require_once dirname(__DIR__) . '/src/Ocr/OcrResult.php';
 require_once dirname(__DIR__) . '/src/Ocr/OcrProvider.php';
@@ -18,6 +23,8 @@ use Kavoryn\Ocr\OcrRequest;
 use Kavoryn\Ocr\OcrResult;
 use Kavoryn\Ocr\OcrResultSink;
 use Kavoryn\Ocr\OcrWorker;
+use Kavoryn\Upload\InspectedDocument;
+use Kavoryn\Upload\PrivateDocumentStorage;
 
 function ocrWorkerExpect(bool $condition, string $message): void
 {
@@ -25,6 +32,13 @@ function ocrWorkerExpect(bool $condition, string $message): void
         fwrite(STDERR, $message . PHP_EOL);
         exit(1);
     }
+}
+
+function ocrTempDir(string $label): string
+{
+    $path = sys_get_temp_dir() . '/kavoryn-' . $label . '-' . bin2hex(random_bytes(5));
+    if (!mkdir($path, 0700, true)) throw new RuntimeException('Could not create OCR test directory.');
+    return $path;
 }
 
 final class TestOcrJobStore implements OcrJobStore
@@ -45,8 +59,17 @@ final class TestOcrJobStore implements OcrJobStore
 final class TestOcrProvider implements OcrProvider
 {
     public bool $called = false;
-    public function recognize(OcrRequest $request): OcrResult {
+    public bool $fileReadableDuringRecognition = false;
+    public bool $ownerOnlyPermissionsDuringRecognition = false;
+    public ?string $observedPath = null;
+
+    public function recognize(OcrRequest $request): OcrResult
+    {
         $this->called = true;
+        $this->observedPath = $request->filePath;
+        $this->fileReadableDuringRecognition = is_file($request->filePath) && is_readable($request->filePath);
+        $permissions = is_file($request->filePath) ? (fileperms($request->filePath) & 0777) : 0;
+        $this->ownerOnlyPermissionsDuringRecognition = $permissions === 0600;
         if ($request->heartbeat !== null) ($request->heartbeat)();
         return new OcrResult("Ƙarɓi ɗalibi", [], 'ha');
     }
@@ -75,55 +98,79 @@ function testOcrJob(string $key = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png'): OcrJo
     );
 }
 
-$root = sys_get_temp_dir() . '/kavoryn-ocr-' . bin2hex(random_bytes(5));
-mkdir($root, 0700, true);
-$key = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png';
-file_put_contents($root . '/' . $key, 'fixture');
+$base = ocrTempDir('ocr-success');
+$root = $base . '/private';
+$public = $base . '/public';
+mkdir($root, 0700);
+mkdir($public, 0700);
+$source = $base . '/source.png';
+file_put_contents($source, 'fixture');
+$document = new InspectedDocument('image/png', 'png', 7, hash('sha256', 'fixture'));
+$storage = new PrivateDocumentStorage($root, $public);
+$key = $storage->store($source, $document);
 $jobs = new TestOcrJobStore(testOcrJob($key));
 $provider = new TestOcrProvider();
 $sink = new TestOcrResultSink();
 
 try {
-    $worker = new OcrWorker($jobs, $provider, $sink, $root);
+    $worker = new OcrWorker($jobs, $provider, $sink, $storage);
     ocrWorkerExpect($worker->processOne('worker-test-0001'), 'Worker should process one available job.');
-    ocrWorkerExpect($provider->called, 'Worker must call the OCR provider for a readable private file.');
+    ocrWorkerExpect($provider->called, 'Worker must call the OCR provider for a downloaded private file.');
+    ocrWorkerExpect($provider->fileReadableDuringRecognition, 'Temporary file must exist during OCR recognition.');
+    ocrWorkerExpect($provider->ownerOnlyPermissionsDuringRecognition, 'Temporary OCR file must have mode 0600.');
     ocrWorkerExpect($sink->stored, 'Worker must persist OCR result before completion.');
     ocrWorkerExpect($jobs->completed, 'Worker must complete the job after result persistence.');
     ocrWorkerExpect($jobs->renewals === 1, 'Worker must renew the lease while the provider is processing.');
     ocrWorkerExpect($jobs->failures === [], 'Successful OCR processing must not record a failure.');
+    ocrWorkerExpect(is_string($provider->observedPath) && !file_exists($provider->observedPath), 'Temporary OCR file must be removed after processing.');
 } finally {
-    unlink($root . '/' . $key);
+    $storage->delete($key);
+    @unlink($source);
+    rmdir($root);
+    rmdir($public);
+    rmdir($base);
 }
-rmdir($root);
 
-$root = sys_get_temp_dir() . '/kavoryn-ocr-' . bin2hex(random_bytes(5));
-mkdir($root, 0700, true);
+$base = ocrTempDir('ocr-missing');
+$root = $base . '/private';
+$public = $base . '/public';
+mkdir($root, 0700);
+mkdir($public, 0700);
+$storage = new PrivateDocumentStorage($root, $public);
 $jobs = new TestOcrJobStore(testOcrJob());
 $provider = new TestOcrProvider();
 $sink = new TestOcrResultSink();
 
 try {
-    $worker = new OcrWorker($jobs, $provider, $sink, $root);
+    $worker = new OcrWorker($jobs, $provider, $sink, $storage);
     ocrWorkerExpect($worker->processOne('worker-test-0001'), 'Worker should claim and record a missing-file failure.');
     ocrWorkerExpect(!$provider->called, 'Provider must not receive a missing file.');
     ocrWorkerExpect(!$jobs->completed, 'Missing files must not complete jobs.');
-    ocrWorkerExpect(($jobs->failures[0][0] ?? null) === 'document_file_unavailable', 'Missing file must record a safe error code.');
+    ocrWorkerExpect(($jobs->failures[0][0] ?? null) === 'document_file_unavailable', 'Missing object must record a safe error code.');
 } finally {
     rmdir($root);
+    rmdir($public);
+    rmdir($base);
 }
 
-$root = sys_get_temp_dir() . '/kavoryn-ocr-' . bin2hex(random_bytes(5));
-mkdir($root, 0700, true);
+$base = ocrTempDir('ocr-empty');
+$root = $base . '/private';
+$public = $base . '/public';
+mkdir($root, 0700);
+mkdir($public, 0700);
+$storage = new PrivateDocumentStorage($root, $public);
 $jobs = new TestOcrJobStore(null);
 $provider = new TestOcrProvider();
 $sink = new TestOcrResultSink();
 
 try {
-    $worker = new OcrWorker($jobs, $provider, $sink, $root);
+    $worker = new OcrWorker($jobs, $provider, $sink, $storage);
     ocrWorkerExpect(!$worker->processOne('worker-test-0001'), 'Empty queue should report no work.');
     ocrWorkerExpect(!$provider->called && !$jobs->completed, 'Empty queue must not invoke provider or completion.');
 } finally {
     rmdir($root);
+    rmdir($public);
+    rmdir($base);
 }
 
-echo "OCR worker tests passed (success path, persistence-before-completion, missing private file, and empty queue)." . PHP_EOL;
+echo "OCR worker tests passed (private storage download, owner-only temporary file, cleanup, failure path, and empty queue)." . PHP_EOL;
