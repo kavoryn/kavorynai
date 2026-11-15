@@ -1,0 +1,22 @@
+# Vercel Container runtime for the Kavoryn PHP API.
+# Vercel project Root Directory must be set to this backend/ directory.
+FROM dunglas/frankenphp:1-php8.2-bookworm
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN install-php-extensions curl
+
+WORKDIR /app
+COPY . /app
+COPY Caddyfile.vercel /etc/caddy/Caddyfile
+
+# Fail the image build if a required PHP extension or PDF utility is missing.
+RUN php -r 'foreach (["curl", "fileinfo", "sodium"] as $extension) { if (!extension_loaded($extension)) { fwrite(STDERR, $extension . " extension is required\\n"); exit(1); } }' \
+    && command -v pdfinfo >/dev/null
+
+ENV SERVER_NAME=:80
+EXPOSE 80
+
+CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]
