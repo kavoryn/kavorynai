@@ -160,12 +160,17 @@ fun ChatScreen(
                 }
             }
             try {
-                withContext(Dispatchers.IO) {
-                    api.streamMessage(current.id, message, accessToken) { delta ->
-                        if (deltas.trySend(delta).isFailure) {
-                            throw CancellationException("Chat response is no longer being displayed.")
+                try {
+                    withContext(Dispatchers.IO) {
+                        api.streamMessage(current.id, message, accessToken) { delta ->
+                            if (deltas.trySend(delta).isFailure) {
+                                throw CancellationException("Chat response is no longer being displayed.")
+                            }
                         }
                     }
+                } finally {
+                    deltas.close()
+                    renderJob.join()
                 }
                 conversation?.takeIf { it.id == current.id }?.let { active ->
                     val updated = active.messages.map {
@@ -188,8 +193,6 @@ fun ChatScreen(
                     conversation = active.copy(messages = updated)
                 }
             } finally {
-                deltas.close()
-                renderJob.join()
                 streaming = false
             }
         }
