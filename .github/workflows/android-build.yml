@@ -7,6 +7,8 @@ on:
 jobs:
   assemble:
     runs-on: ubuntu-latest
+    # Use only the Preview environment so Production credentials are never exposed to this build.
+    environment: preview
     env:
       # Supabase URL and publishable key are public client configuration, but
       # are injected at build time so the repository never hard-codes them.
