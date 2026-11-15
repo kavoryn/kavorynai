@@ -10,7 +10,7 @@ final class DocumentUploadService
 
     public function __construct(
         private readonly DocumentFileInspector $inspector,
-        private readonly PrivateDocumentStorage $storage,
+        private readonly DocumentStorage $storage,
         private readonly DocumentRegistry $registry,
     ) {}
 

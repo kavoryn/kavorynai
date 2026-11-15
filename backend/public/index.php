@@ -746,11 +746,14 @@ if ($method === 'POST' && $path === '/v1/documents') {
         ]);
     }
 
-    $storagePath = getenv('PRIVATE_DOCUMENT_STORAGE_PATH') ?: '';
+    $storageDriver = strtolower(trim(getenv('DOCUMENT_STORAGE_DRIVER') ?: 'supabase'));
+    $storageBucket = getenv('PRIVATE_DOCUMENT_STORAGE_BUCKET') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
     $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
-    if ($storagePath === '' || $secretKey === '' || $serviceRoleJwt === '' || $supabaseUrl === '') {
+    if ($secretKey === '' || $serviceRoleJwt === '' || $supabaseUrl === '' ||
+        !in_array($storageDriver, ['supabase', 'local'], true) ||
+        ($storageDriver === 'supabase' && $storageBucket === '')) {
         respond(503, [
             'error' => [
                 'code' => 'upload_storage_not_configured',
@@ -763,7 +766,11 @@ if ($method === 'POST' && $path === '/v1/documents') {
     require_once dirname(__DIR__) . '/src/Upload/DocumentFileException.php';
     require_once dirname(__DIR__) . '/src/Upload/InspectedDocument.php';
     require_once dirname(__DIR__) . '/src/Upload/DocumentFileInspector.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentStorageMaintenance.php';
     require_once dirname(__DIR__) . '/src/Upload/PrivateDocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/SupabasePrivateDocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentStorageFactory.php';
     require_once dirname(__DIR__) . '/src/Upload/DocumentRegistration.php';
     require_once dirname(__DIR__) . '/src/Upload/DocumentRegistry.php';
     require_once dirname(__DIR__) . '/src/Upload/DocumentRegistryUnavailableException.php';
@@ -773,6 +780,7 @@ if ($method === 'POST' && $path === '/v1/documents') {
     require_once dirname(__DIR__) . '/src/Upload/DocumentUploadService.php';
 
     try {
+        $documentStorage = Kavoryn\Upload\DocumentStorageFactory::fromEnvironment(__DIR__);
         $rateLimiter = new Kavoryn\Upload\SupabaseDocumentRateLimiter(
             $supabaseUrl,
             $secretKey,
@@ -782,7 +790,7 @@ if ($method === 'POST' && $path === '/v1/documents') {
 
         $service = new Kavoryn\Upload\DocumentUploadService(
             new Kavoryn\Upload\DocumentFileInspector(),
-            new Kavoryn\Upload\PrivateDocumentStorage($storagePath, __DIR__),
+            $documentStorage,
             new Kavoryn\Upload\SupabaseDocumentRegistry($supabaseUrl, $secretKey, $serviceRoleJwt),
         );
         $registration = $service->upload(
@@ -814,7 +822,7 @@ if ($method === 'POST' && $path === '/v1/documents') {
         ]);
     } catch (\Kavoryn\Upload\DocumentFileException $error) {
         $status = in_array($error->errorCode, ['file_too_large'], true) ? 413 : 422;
-        if (in_array($error->errorCode, ['storage_unavailable', 'storage_not_configured', 'storage_permissions_failed', 'storage_write_failed', 'unsafe_storage_path', 'server_configuration_error'], true)) {
+        if (in_array($error->errorCode, ['storage_unavailable', 'storage_not_configured', 'storage_permissions_failed', 'storage_write_failed', 'unsafe_storage_path', 'server_configuration_error', 'storage_bucket_unavailable', 'storage_bucket_not_private', 'storage_delete_failed'], true)) {
             $status = 503;
         }
         respond($status, [

@@ -5,6 +5,8 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/src/Upload/DocumentFileException.php';
 require_once dirname(__DIR__) . '/src/Upload/InspectedDocument.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentFileInspector.php';
+require_once dirname(__DIR__) . '/src/Upload/DocumentStorage.php';
+require_once dirname(__DIR__) . '/src/Upload/DocumentStorageMaintenance.php';
 require_once dirname(__DIR__) . '/src/Upload/PrivateDocumentStorage.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentRegistration.php';
 require_once dirname(__DIR__) . '/src/Upload/DocumentRegistry.php';

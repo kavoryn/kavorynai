@@ -17,6 +17,13 @@ if (strtolower(getenv('OCR_WORKER_ENABLED') ?: 'false') !== 'true') {
 
 $base = dirname(__DIR__);
 $required = [
+    'src/Upload/DocumentFileException.php',
+    'src/Upload/InspectedDocument.php',
+    'src/Upload/DocumentStorage.php',
+    'src/Upload/DocumentStorageMaintenance.php',
+    'src/Upload/PrivateDocumentStorage.php',
+    'src/Upload/SupabasePrivateDocumentStorage.php',
+    'src/Upload/DocumentStorageFactory.php',
     'src/Ocr/OcrRequest.php',
     'src/Ocr/OcrResult.php',
     'src/Ocr/OcrProvider.php',
@@ -40,22 +47,23 @@ use Kavoryn\Ocr\GoogleServiceAccountTokenProvider;
 use Kavoryn\Ocr\OcrWorker;
 use Kavoryn\Ocr\SupabaseEncryptedOcrResultSink;
 use Kavoryn\Ocr\SupabaseOcrJobStore;
+use Kavoryn\Upload\DocumentStorageFactory;
 
 $supabaseUrl = getenv('SUPABASE_URL') ?: '';
 $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
 $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
-$storagePath = getenv('PRIVATE_DOCUMENT_STORAGE_PATH') ?: '';
 $googleCredentials = getenv('GOOGLE_SERVICE_ACCOUNT_JSON_PATH') ?: '';
 $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
 $keyVersion = getenv('OCR_RESULT_ENCRYPTION_KEY_VERSION') ?: '1';
 
 if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' ||
-    $storagePath === '' || $googleCredentials === '' || $encryptionKey === '') {
+    $googleCredentials === '' || $encryptionKey === '') {
     fwrite(STDERR, "OCR worker configuration is incomplete.\n");
     exit(1);
 }
 
 try {
+    $storage = DocumentStorageFactory::fromEnvironment($base . '/public');
     $jobs = new SupabaseOcrJobStore($supabaseUrl, $secretKey, $serviceRoleJwt);
     $sink = new SupabaseEncryptedOcrResultSink(
         $supabaseUrl,
@@ -72,7 +80,7 @@ try {
         null,
         getenv('GOOGLE_VISION_ENDPOINT') ?: 'https://eu-vision.googleapis.com/v1/images:annotate',
     );
-    $worker = new OcrWorker($jobs, $provider, $sink, $storagePath);
+    $worker = new OcrWorker($jobs, $provider, $sink, $storage);
 
     $maxJobs = (int) (getenv('OCR_WORKER_MAX_JOBS') ?: 3);
     $maxJobs = max(1, min(10, $maxJobs));

@@ -4,18 +4,17 @@ declare(strict_types=1);
 
 namespace Kavoryn\Ocr;
 
+use Kavoryn\Upload\DocumentStorage;
+use Kavoryn\Upload\DocumentFileException;
+
 final class OcrWorker
 {
     public function __construct(
         private readonly OcrJobStore $jobs,
         private readonly OcrProvider $provider,
         private readonly OcrResultSink $results,
-        private readonly string $privateStoragePath,
-    ) {
-        if ($privateStoragePath === '' || !str_starts_with($privateStoragePath, DIRECTORY_SEPARATOR)) {
-            throw new \InvalidArgumentException('An absolute private document storage path is required.');
-        }
-    }
+        private readonly DocumentStorage $storage,
+    ) {}
 
     public function processOne(string $workerId): bool
     {
@@ -24,9 +23,26 @@ final class OcrWorker
             return false;
         }
 
+        $temporaryPath = null;
         try {
-            $filePath = $this->resolveFile($job->storageKey);
-            if (!is_file($filePath) || !is_readable($filePath)) {
+            $temporaryDirectory = realpath(sys_get_temp_dir());
+            if ($temporaryDirectory === false || !str_starts_with($temporaryDirectory, DIRECTORY_SEPARATOR)) {
+                throw new OcrJobProcessingException('temporary_storage_unavailable');
+            }
+
+            $temporaryPath = rtrim($temporaryDirectory, DIRECTORY_SEPARATOR) .
+                DIRECTORY_SEPARATOR . 'kavoryn-ocr-' . bin2hex(random_bytes(16));
+            // Enforce owner-only creation permissions before the file exists,
+            // then restore the process umask immediately after materialization.
+            $previousUmask = umask(0077);
+            try {
+                $this->storage->copyToLocalFile($job->storageKey, $temporaryPath);
+            } finally {
+                umask($previousUmask);
+            }
+
+            if (!is_file($temporaryPath) || !is_readable($temporaryPath) ||
+                (fileperms($temporaryPath) & 0777) !== 0600) {
                 throw new OcrJobProcessingException('document_file_unavailable');
             }
 
@@ -37,14 +53,13 @@ final class OcrWorker
             };
 
             $result = $this->provider->recognize(new OcrRequest(
-                $filePath,
+                $temporaryPath,
                 $job->mimeType,
                 $job->language,
                 $heartbeat,
             ));
 
-            // The result sink must enforce the approved retention/encryption policy.
-            // Never mark a job successful before durable result storage succeeds.
+            // Durable encrypted result storage must succeed before the job completes.
             $this->results->store($job, $result);
 
             if (!$this->jobs->complete($job)) {
@@ -53,36 +68,22 @@ final class OcrWorker
         } catch (\Throwable $error) {
             $code = $error instanceof OcrJobProcessingException
                 ? $error->errorCode
-                : ($error instanceof OcrProviderUnavailableException ? 'ocr_provider_unavailable' : 'ocr_processing_failed');
+                : ($error instanceof OcrProviderUnavailableException
+                    ? 'ocr_provider_unavailable'
+                    : ($error instanceof DocumentFileException ? 'document_file_unavailable' : 'ocr_processing_failed'));
 
             $delay = min(900, 30 * (2 ** max(0, $job->attempt - 1)));
             $this->jobs->fail($job, $code, $delay);
             if ($error instanceof OcrJobProcessingException && $error->errorCode === 'job_lease_lost') {
                 throw $error;
             }
+        } finally {
+            if (is_string($temporaryPath) && is_file($temporaryPath)) {
+                @unlink($temporaryPath);
+            }
         }
 
         return true;
-    }
-
-    private function resolveFile(string $storageKey): string
-    {
-        if (!preg_match('/^[a-f0-9]{32}\.(pdf|jpg|png|webp)$/', $storageKey)) {
-            throw new OcrJobProcessingException('invalid_storage_key');
-        }
-
-        $root = realpath($this->privateStoragePath);
-        if ($root === false || !is_dir($root)) {
-            throw new OcrJobProcessingException('private_storage_unavailable');
-        }
-
-        $path = $root . DIRECTORY_SEPARATOR . $storageKey;
-        $resolved = realpath($path);
-        if ($resolved === false || dirname($resolved) !== $root || !is_file($resolved) || !is_readable($resolved)) {
-            throw new OcrJobProcessingException('document_file_unavailable');
-        }
-
-        return $resolved;
     }
 }
 
