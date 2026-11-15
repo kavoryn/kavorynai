@@ -44,6 +44,22 @@ try {
     expectBenchmark(ocrBenchmarkEditDistance(['one', 'two'], ['two']) === 1, 'Word deletion must count as one edit.');
     expectBenchmark(ocrBenchmarkEditDistance(['a', 'b'], ['x', 'a', 'b']) === 1, 'Character insertion must count as one edit.');
     expectBenchmark(ocrBenchmarkEditDistance(['a', 'b'], ['b']) === 1, 'Character deletion must count as one edit.');
+    expectBenchmark(ocrBenchmarkEditDistance(['one'], []) === 1, 'A complete word deletion must count as one edit.');
+    expectBenchmark(
+        ocrBenchmarkWords("alpha\u{00A0}beta\u{2003}gamma") === ['alpha', 'beta', 'gamma'],
+        'Unicode no-break and em spaces must separate WER tokens.'
+    );
+    expectBenchmark(
+        ocrBenchmarkWords("\u{00A0}\u{2003}") === [],
+        'Unicode-whitespace-only text must produce no WER tokens.'
+    );
+    $invalidUtf8Rejected = false;
+    try {
+        ocrBenchmarkCodePoints("\xFF");
+    } catch (InvalidArgumentException) {
+        $invalidUtf8Rejected = true;
+    }
+    expectBenchmark($invalidUtf8Rejected, 'Invalid UTF-8 text must be rejected.');
     expectBenchmark(($report['und']['samples'] ?? null) === 1, 'Mixed-language samples must have their own und aggregate bucket.');
     expectBenchmark(($report['und']['cer'] ?? null) === 0.0, 'Exact mixed-language fixtures must have zero CER.');
     expectBenchmark(($report['fr']['samples'] ?? null) === 1, 'French samples must be grouped by language.');
@@ -67,6 +83,42 @@ try {
         $duplicateIdRejected = str_contains($error->getMessage(), 'Duplicate sample ID');
     }
     expectBenchmark($duplicateIdRejected, 'Duplicate sample IDs must be rejected to prevent accidental double weighting.');
+
+    file_put_contents($path, "{\"id\":\"unsupported-language\",\"language\":\"xx\",\"reference\":\"text\",\"hypothesis\":\"text\"}" . PHP_EOL);
+    $unsupportedLanguageRejected = false;
+    try {
+        evaluateOcrCorpus($path);
+    } catch (RuntimeException $error) {
+        $unsupportedLanguageRejected = str_contains($error->getMessage(), 'Invalid corpus fields');
+    }
+    expectBenchmark($unsupportedLanguageRejected, 'Unsupported language tags must be rejected.');
+
+    file_put_contents($path, "{\"id\":\"malformed-json\"");
+    $malformedJsonRejected = false;
+    try {
+        evaluateOcrCorpus($path);
+    } catch (RuntimeException $error) {
+        $malformedJsonRejected = str_contains($error->getMessage(), 'Invalid JSON on corpus line');
+    }
+    expectBenchmark($malformedJsonRejected, 'Malformed JSONL rows must be rejected with a line-only error.');
+
+    file_put_contents($path, "{\"id\":\"invalid-utf8\",\"language\":\"en\",\"reference\":\"ok\",\"hypothesis\":\"\xFF\"}" . PHP_EOL);
+    $invalidUtf8JsonRejected = false;
+    try {
+        evaluateOcrCorpus($path);
+    } catch (RuntimeException $error) {
+        $invalidUtf8JsonRejected = str_contains($error->getMessage(), 'Invalid JSON on corpus line');
+    }
+    expectBenchmark($invalidUtf8JsonRejected, 'Invalid UTF-8 in JSONL must be rejected without echoing input content.');
+
+    file_put_contents($path, PHP_EOL . "  " . PHP_EOL);
+    $emptyCorpusRejected = false;
+    try {
+        evaluateOcrCorpus($path);
+    } catch (RuntimeException $error) {
+        $emptyCorpusRejected = str_contains($error->getMessage(), 'no samples');
+    }
+    expectBenchmark($emptyCorpusRejected, 'An empty corpus must be rejected.');
 
 } finally {
     @unlink($path);
