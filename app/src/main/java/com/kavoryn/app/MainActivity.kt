@@ -1,5 +1,6 @@
 package com.kavoryn.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -38,6 +39,16 @@ private val KavorynInk = Color(0xFF1A1814)
 class MainActivity : ComponentActivity() {
     private var pendingAuthCallbackUri by mutableStateOf<String?>(null)
 
+    /**
+     * Consume the sensitive callback URI after its flow reaches a terminal state.
+     * Clearing the Activity intent prevents the same email token from being
+     * replayed automatically after Activity recreation.
+     */
+    private fun clearPendingAuthCallback() {
+        pendingAuthCallbackUri = null
+        setIntent(Intent(this, MainActivity::class.java))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingAuthCallbackUri = intent?.dataString
@@ -50,7 +61,7 @@ class MainActivity : ComponentActivity() {
                 Surface(Modifier.fillMaxSize(), color = KavorynBlue) {
                     DocumentFlow(
                         authCallbackUri = pendingAuthCallbackUri,
-                        onAuthCallbackHandled = { pendingAuthCallbackUri = null }
+                        onAuthCallbackHandled = { clearPendingAuthCallback() }
                     )
                 }
             }
@@ -121,10 +132,10 @@ private fun DocumentFlow(
 
     LaunchedEffect(authCallbackUri) {
         val rawCallback = authCallbackUri ?: return@LaunchedEffect
-        onAuthCallbackHandled()
 
         val callback = parseSupabaseAuthCallback(rawCallback)
         if (callback == null) {
+            onAuthCallbackHandled()
             authError = "This email link is invalid or has expired. Request a new link and try again."
             authNotice = null
             screen = Screen.AUTH
@@ -153,10 +164,12 @@ private fun DocumentFlow(
                         email = user.email
                     )
                     withContext(Dispatchers.IO) { authStore.save(verifiedSession) }
+                    onAuthCallbackHandled()
                     authSession = verifiedSession
                     authNotice = "Your email is confirmed. You're signed in."
                     screen = if (selectedDocuments.isNotEmpty()) Screen.REVIEW else Screen.HOME
                 } catch (_: Exception) {
+                    onAuthCallbackHandled()
                     authError = "Email confirmation could not be completed. Request a new link and try again."
                     screen = Screen.AUTH
                 } finally {
@@ -394,6 +407,7 @@ private fun DocumentFlow(
                     errorMessage = authError,
                     onCancel = {
                         recoveryCallback = null
+                        onAuthCallbackHandled()
                         authError = null
                         screen = Screen.AUTH
                     },
@@ -407,6 +421,7 @@ private fun DocumentFlow(
                                 }
                                 // The recovery token is discarded rather than persisted as a regular login.
                                 recoveryCallback = null
+                                onAuthCallbackHandled()
                                 authNotice = "Your password has been updated. Sign in with your new password."
                                 screen = Screen.AUTH
                             } catch (_: Exception) {
