@@ -101,7 +101,7 @@ function evaluateOcrCorpus(string $path): array
                 !is_string($item['language'] ?? null) ||
                 !in_array($item['language'], ['en', 'ha', 'ar', 'fr', 'und'], true) ||
                 !is_string($item['reference'] ?? null) ||
-                trim($item['reference']) === '' ||
+                preg_match('/^[\p{Z}\s]*$/u', $item['reference']) === 1 ||
                 !is_string($item['hypothesis'] ?? null)) {
                 throw new RuntimeException('Invalid corpus fields on line ' . $lineNumber . '.');
             }
