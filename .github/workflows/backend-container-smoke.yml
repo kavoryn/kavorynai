@@ -1,0 +1,81 @@
+name: Backend container smoke
+
+on:
+  pull_request:
+    branches: [integration/preview]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-container-smoke.yml"
+  push:
+    branches:
+      - integration/preview
+      - fix/vercel-container-php-preview
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-container-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build Vercel PHP container
+        run: docker build --pull --file backend/Dockerfile.vercel --tag kavoryn-api-container-smoke:ci backend
+
+      - name: Verify HTTP routing and fail-closed defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --detach \
+            --name kavoryn-api-container-smoke \
+            --publish 127.0.0.1:8080:80 \
+            --env BILLING_ENABLED=false \
+            --env PAYSTACK_WEBHOOK_ENABLED=false \
+            --env CHAT_ENABLED=false \
+            --env DOCUMENT_UPLOAD_ENABLED=false \
+            --env OCR_WORKER_ENABLED=false \
+            --env DOCUMENT_QA_ENABLED=false \
+            --env DOCUMENT_DELETE_ENABLED=false \
+            kavoryn-api-container-smoke:ci
+
+          cleanup() {
+            docker logs kavoryn-api-container-smoke || true
+            docker rm --force kavoryn-api-container-smoke >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8080/v1/health > /tmp/kavoryn-container-health.json; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = "true"
+
+          jq -e '.status == "ok" and .service == "kavoryn-api" and (.request_id | type == "string" and length > 0)' /tmp/kavoryn-container-health.json
+
+          root_status=$(curl --silent --output /tmp/kavoryn-container-root.json --write-out '%{http_code}' http://127.0.0.1:8080/)
+          test "$root_status" = "404"
+          jq -e '.error.code == "not_found"' /tmp/kavoryn-container-root.json
+
+          auth_status=$(curl --silent --output /tmp/kavoryn-container-auth.json --write-out '%{http_code}' http://127.0.0.1:8080/v1/me)
+          test "$auth_status" = "503"
+          jq -e '.error.code == "authentication_not_configured"' /tmp/kavoryn-container-auth.json
+
+          source_status=$(curl --silent --output /tmp/kavoryn-container-source.txt --write-out '%{http_code}' http://127.0.0.1:8080/src/Auth/SupabaseUserVerifier.php)
+          test "$source_status" = "404"
+          if grep -q '<?php' /tmp/kavoryn-container-source.txt; then
+            echo "PHP source was exposed by the container." >&2
+            exit 1
+          fi
