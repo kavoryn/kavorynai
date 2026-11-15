@@ -80,7 +80,7 @@ final class PrivateDocumentStorage implements DocumentStorage, DocumentStorageMa
 
     public function copyToLocalFile(string $storageKey, string $destinationPath): void
     {
-        if (!preg_match('/^[a-f0-9]{32}\\.(pdf|jpg|png|webp)$/', $storageKey)) {
+        if (!preg_match('/^[a-f0-9]{32}\.(pdf|jpg|png|webp)$/', $storageKey)) {
             throw new DocumentFileException('invalid_storage_key', 'The private storage key is invalid.');
         }
         if ($destinationPath === '' || !str_starts_with($destinationPath, DIRECTORY_SEPARATOR)) {
@@ -115,7 +115,7 @@ final class PrivateDocumentStorage implements DocumentStorage, DocumentStorageMa
                 $copied !== filesize($source)) {
                 throw new DocumentFileException('storage_write_failed', 'The private document could not be materialized safely.');
             }
-        } catch (\\Throwable $error) {
+        } catch (\Throwable $error) {
             fclose($input);
             fclose($output);
             @unlink($destinationPath);
@@ -130,7 +130,7 @@ final class PrivateDocumentStorage implements DocumentStorage, DocumentStorageMa
     public function deleteUnreferencedOlderThan(array $referencedStorageKeys, int $olderThanEpoch): int
     {
         if ($olderThanEpoch < 1) {
-            throw new \\InvalidArgumentException('A valid orphan cleanup cutoff is required.');
+            throw new \InvalidArgumentException('A valid orphan cleanup cutoff is required.');
         }
 
         $referenced = array_fill_keys($referencedStorageKeys, true);
@@ -140,7 +140,7 @@ final class PrivateDocumentStorage implements DocumentStorage, DocumentStorageMa
         foreach (new \\DirectoryIterator($root) as $entry) {
             if ($entry->isDot() || !$entry->isFile()) continue;
             $key = $entry->getFilename();
-            if (!preg_match('/^[a-f0-9]{32}\\.(pdf|jpg|png|webp)$/', $key) ||
+            if (!preg_match('/^[a-f0-9]{32}\.(pdf|jpg|png|webp)$/', $key) ||
                 $entry->getMTime() >= $olderThanEpoch ||
                 isset($referenced[$key])) {
                 continue;
