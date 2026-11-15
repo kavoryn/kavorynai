@@ -12,7 +12,7 @@ Measure OCR quality on a fixed, permission-cleared corpus before Stage A is acce
 - Prefer public, synthetic, or carefully redacted examples. Remove names, addresses, phone numbers, account numbers, signatures, QR/barcodes, and other personal data unless there is explicit authority and a documented need to retain them.
 - Do not commit document images, PDFs, raw OCR output, or ground-truth text into this repository.
 - Keep corpus files in an access-controlled local location; restrict access to the people performing the evaluation.
-- Give each sample a random, non-identifying ID. Do not use customer IDs, filenames, or document numbers.
+- Give each sample a random, non-identifying ID. Do not use customer IDs, filenames, or document numbers. The benchmark rejects duplicate sample IDs so a repeated record cannot silently double-weight a sample.
 - Freeze a versioned manifest and record its SHA-256 separately from any private content before comparing providers or changing OCR configuration.
 - Use independently checked ground truth. Have a second reviewer verify critical characters and fields; adjudicate disagreements before scoring.
 
