@@ -1,9 +1,9 @@
-name: Android build
+name: Final Android APK (manual only)
+# Deliberately manual-only: the release APK is deferred until all agreed
+# backend, privacy, security, integration, and accessibility gates are complete.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
+
 jobs:
   assemble:
     runs-on: ubuntu-latest
