@@ -32,7 +32,14 @@ final class OcrWorker
 
             $temporaryPath = rtrim($temporaryDirectory, DIRECTORY_SEPARATOR) .
                 DIRECTORY_SEPARATOR . 'kavoryn-ocr-' . bin2hex(random_bytes(16));
-            $this->storage->copyToLocalFile($job->storageKey, $temporaryPath);
+            // Enforce owner-only creation permissions before the file exists,
+            // then restore the process umask immediately after materialization.
+            $previousUmask = umask(0077);
+            try {
+                $this->storage->copyToLocalFile($job->storageKey, $temporaryPath);
+            } finally {
+                umask($previousUmask);
+            }
 
             if (!is_file($temporaryPath) || !is_readable($temporaryPath) ||
                 (fileperms($temporaryPath) & 0777) !== 0600) {
