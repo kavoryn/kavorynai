@@ -93,6 +93,19 @@ try {
     }
     expectBenchmark($unsupportedLanguageRejected, 'Unsupported language tags must be rejected.');
 
+    $unicodeWhitespaceReference = json_encode(
+        ['id'=>'whitespace-only','language'=>'en','reference'=>"\u{2003}",'hypothesis'=>''],
+        JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+    );
+    file_put_contents($path, $unicodeWhitespaceReference . PHP_EOL);
+    $whitespaceReferenceRejected = false;
+    try {
+        evaluateOcrCorpus($path);
+    } catch (RuntimeException $error) {
+        $whitespaceReferenceRejected = str_contains($error->getMessage(), 'Invalid corpus fields');
+    }
+    expectBenchmark($whitespaceReferenceRejected, 'Unicode-whitespace-only references must be rejected.');
+
     file_put_contents($path, "{\"id\":\"malformed-json\"");
     $malformedJsonRejected = false;
     try {
