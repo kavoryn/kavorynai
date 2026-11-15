@@ -201,6 +201,7 @@ Do not change a status based on an assumption. Add a test link, report, commit, 
 - [x] Encrypted Android session storage backed by Android Keystore exists.
 - [x] Add Android password-reset request, signup-confirmation resend, callback validation, email-confirmation session handling, and password-update UI foundations.
 - [ ] Complete real Supabase email delivery and callback verification: redirect allowlist, email templates/SMTP, physical-device links, expiry/replay/rate limits, and end-to-end password change.
+- [ ] Replace the unverified custom URI callback with a verified HTTPS Android App Link before small-group/public release; publish and validate `assetlinks.json` on a controlled domain.
 - [ ] Decide whether Google Sign-In is in MVP; if enabled, configure OAuth and redirect protection.
 - [ ] Decide Guest Mode and registration timing.
 - [ ] Avoid account-existence leaks in authentication errors where appropriate.
