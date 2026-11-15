@@ -47,6 +47,7 @@ use Kavoryn\Ocr\GoogleServiceAccountTokenProvider;
 use Kavoryn\Ocr\OcrWorker;
 use Kavoryn\Ocr\SupabaseEncryptedOcrResultSink;
 use Kavoryn\Ocr\SupabaseOcrJobStore;
+use Kavoryn\Upload\DocumentStorageFactory;
 
 $supabaseUrl = getenv('SUPABASE_URL') ?: '';
 $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
