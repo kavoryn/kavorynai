@@ -1377,9 +1377,6 @@ if (str_starts_with($path, '/v1/chat/')) {
                 (isset($input['title']) && !is_string($input['title']))) {
                 respond(422, ['error'=>['code'=>'invalid_conversation','message'=>'Choose a supported provider and language.','request_id'=>$requestId]]);
             }
-            if (!$store->hasConsent($user->id, $input['provider'])) {
-                respond(409, ['error'=>['code'=>'chat_provider_consent_required','message'=>'Confirm provider data processing before creating a chat.','request_id'=>$requestId]]);
-            }
             $conversation = $store->createConversation($user->id, $input['provider'], $input['language'], $input['title'] ?? null);
             respond(201, ['conversation'=>$conversation,'request_id'=>$requestId]);
         }
