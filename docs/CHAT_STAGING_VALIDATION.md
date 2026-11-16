@@ -7,27 +7,27 @@ This runbook is for a disposable, authenticated staging environment only. It is 
 Before running any provider-backed test:
 
 - Use a dedicated Supabase staging project or isolated Supabase development branch with disposable test accounts and no real user documents.
-- Confirm the backend Preview deployment points to the exact reviewed Git commit and uses staging-only environment variables.
-- Keep \`CHAT_ENABLED\` disabled in Production. Enable it only in the isolated staging environment after the migration has been reviewed and applied there.
+- Confirm the backend Preview deployment points to the exact reviewed Git commit and uses staging-only environment variables. Current candidate: `https://kavoryn-qab6l4d5b-kavoryn.vercel.app`, commit `253b6be0aa99e428f070bd6dd0547e336913d0db`, branch `feat/atomic-chat-turn-idempotency` (Vercel state: READY; authenticated runtime behavior is not yet verified).
+- Keep `CHAT_ENABLED` disabled in Production and staging until server-side credentials are configured and the security gates are reviewed. Do not enable it merely because the deployment is READY.
 - Confirm server-side OpenAI/Gemini credentials are configured only in the backend environment; never place provider keys in Android resources, logs, or client responses.
 - Confirm provider consent is recorded explicitly for each test account/provider.
-- Confirm provider-side storage remains disabled (\`store: false\`) for OpenAI. Do not enable Gemini stateful retention for this runbook.
+- Confirm provider-side storage remains disabled (`store: false`) for OpenAI. Do not enable Gemini stateful retention for this runbook.
 - Record deployment URL, Git SHA, migration versions, test account IDs (non-production only), and UTC test time in the staging report. Do not record access tokens or secret values.
 
 ## Test sequence
 
 ### 1. Health, auth, and feature gating
 
-1. Verify \`GET /health\` returns healthy.
-2. Verify unauthenticated \`POST /v1/chat/conversations\` and message requests return 401.
-3. Verify chat routes remain unavailable while \`CHAT_ENABLED=false\`.
+1. Verify `GET /health` returns healthy.
+2. Verify unauthenticated `POST /v1/chat/conversations` and message requests return 401.
+3. Verify chat routes remain unavailable while `CHAT_ENABLED=false`.
 4. Verify a valid staging user can create an empty conversation without provider consent.
 5. Verify a user cannot read, message, or delete another user's conversation.
 
 ### 2. Consent boundary
 
 1. Create an OpenAI conversation before consent; this must not call a provider.
-2. Attempt to send a message without OpenAI consent; expect \`chat_provider_consent_required\` and verify no provider request occurred.
+2. Attempt to send a message without OpenAI consent; expect `chat_provider_consent_required` and verify no provider request occurred.
 3. Grant explicit OpenAI consent and send a test message.
 4. Revoke OpenAI consent and verify the next new message is blocked.
 5. Repeat the consent flow for Gemini separately.
@@ -43,10 +43,10 @@ Before running any provider-backed test:
 
 ### 4. Idempotency and concurrency
 
-1. Send a message with a new UUID \`client_turn_id\`; verify one user row and one completed assistant row share the server \`turn_id\`.
-2. Replay the exact same request with the same \`client_turn_id\`; verify the saved answer is streamed with \`replayed=true\` and no second provider call occurs.
-3. Replay the same \`client_turn_id\` with different content; expect \`chat_turn_id_conflict\`.
-4. Submit two different client turn IDs concurrently to one conversation; verify only one provider generation starts and the other receives \`chat_turn_in_progress\`.
+1. Send a message with a new UUID `client_turn_id`; verify one user row and one completed assistant row share the server `turn_id`.
+2. Replay the exact same request with the same `client_turn_id`; verify the saved answer is streamed with `replayed=true` and no second provider call occurs.
+3. Replay the same `client_turn_id` with different content; expect `chat_turn_id_conflict`.
+4. Submit two different client turn IDs concurrently to one conversation; verify only one provider generation starts and the other receives `chat_turn_in_progress`.
 5. Verify a completed turn can be replayed when provider credentials are temporarily unavailable, without a provider call.
 6. Verify failed/cancelled turns are terminal and a deliberate new attempt requires a new client turn ID.
 7. Verify rate limiting applies to new claimed turns and a completed replay does not consume another provider quota.
@@ -55,7 +55,7 @@ Before running any provider-backed test:
 
 1. Send one Gemini turn with explicit Gemini consent; verify the first response succeeds.
 2. Replay that exact first turn with the same client ID; verify the saved answer is returned without another provider call.
-3. Send a second distinct Gemini turn in the same conversation; expect \`chat_multi_turn_not_supported\`.
+3. Send a second distinct Gemini turn in the same conversation; expect `chat_multi_turn_not_supported`.
 4. Verify no prior Gemini interaction ID or provider-side stateful storage is used.
 5. Do not mark Gemini multi-turn as supported until an encrypted, bounded local Interactions step ledger or a separately approved retention design is implemented and tested.
 
@@ -72,13 +72,16 @@ Before running any provider-backed test:
 - All relevant PHP, Android, and disposable PostgreSQL CI checks pass on the exact commit under test.
 - Every test above has a recorded pass/fail result; failures have linked issues and owners.
 - No cross-user data access, duplicate provider invocation, unconsented provider call, or unexpected provider-side retention is observed.
-- OpenAI multi-turn works with bounded local context and \`store: false\`.
+- OpenAI multi-turn works with bounded local context and `store: false`.
 - Gemini remains explicitly single-turn unless a separately approved safe history implementation is complete.
 - The staging deployment, database, and environment are confirmed isolated from Production.
 
-## Current known blockers (2026-11-16)
+## Current staging status (2026-11-16)
 
-- The live Supabase project has no chat migrations applied; this is intentional. Do not apply the chat migrations to it for staging.
-- No Supabase development branches are currently present on the connected project.
-- No Vercel deployment exists for the current idempotency PR head. A generic READY deployment for an older SHA is not evidence that the current backend container is running.
-- Authenticated staging end-to-end testing therefore remains pending. CI success is not a substitute for this runbook.
+- A separate Supabase staging project `kavoryn-chat-staging` (project ref `czaholjpagapvglswssd`, region `eu-west-1`) is active. Four chat migrations from commit `253b6be0aa99e428f070bd6dd0547e336913d0db` are applied there: private chat storage, private chat operations, bounded context RPC, and atomic chat-turn idempotency.
+- The live Supabase project has no chat migrations applied; this is intentional. Do not apply these migrations to Production for staging.
+- A Vercel Preview deployment exists for the exact PR #71 head commit `253b6be0aa99e428f070bd6dd0547e336913d0db` and is in READY state. Branch-specific Preview variables currently include only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`, both pointing to the isolated staging project.
+- Backend server credentials `SUPABASE_SECRET_KEY` and `SUPABASE_SERVICE_ROLE_KEY`, plus provider credentials `OPENAI_API_KEY` and `GEMINI_API_KEY`, still require secure configuration for this Preview branch. Never paste secret values into GitHub, chat, logs, or Android code.
+- The runtime error-log query returned no matching records in its successful 30-minute window; this is not proof that the routes were exercised or that the service is healthy.
+- `CHAT_ENABLED` and document/OCR feature flags remain off. Authenticated staging end-to-end testing is pending until the required secrets are configured and the route, auth, consent, and provider tests above are executed.
+- PR #71 and this runbook PR remain Draft/open/unmerged. CI success is not a substitute for the staging runbook.
