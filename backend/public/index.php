@@ -1213,8 +1213,10 @@ if (str_starts_with($path, '/v1/chat/')) {
             respond(409, ['error'=>['code'=>'chat_provider_consent_required','message'=>'Confirm provider data processing before sending a message.','request_id'=>$requestId]]);
         }
 
+        preg_match_all('/./us', $messageText, $messageCharacters);
+        $historyCharacterLimit = max(1, min(32000, 44000 - count($messageCharacters[0])));
         try {
-            $history = $store->getRecentContext($user->id, $conversationId, 30, 32000);
+            $history = $store->getRecentContext($user->id, $conversationId, 30, $historyCharacterLimit);
         } catch (\Kavoryn\Ai\ChatStorageUnavailableException) {
             respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
         }
