@@ -26,6 +26,7 @@ SQL
 
 psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114002000_create_private_chat_storage.sql
 psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114003000_add_private_chat_operations.sql
+psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261116010000_add_bounded_chat_context_rpc.sql
 
 psql -v ON_ERROR_STOP=1 <<'SQL'
 insert into auth.users(id,email) values
@@ -38,7 +39,9 @@ begin
   if has_function_privilege('anon','public.get_chat_conversation(uuid,uuid)','EXECUTE')
      or has_function_privilege('authenticated','public.get_chat_conversation(uuid,uuid)','EXECUTE')
      or has_function_privilege('anon','public.save_chat_message(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,integer)','EXECUTE')
-     or has_function_privilege('authenticated','public.save_chat_message(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,integer)','EXECUTE') then
+     or has_function_privilege('authenticated','public.save_chat_message(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,integer)','EXECUTE')
+     or has_function_privilege('anon','public.get_recent_chat_context(uuid,uuid,integer,integer)','EXECUTE')
+     or has_function_privilege('authenticated','public.get_recent_chat_context(uuid,uuid,integer,integer)','EXECUTE') then
     raise exception 'Untrusted roles must not execute private chat RPCs';
   end if;
   if has_table_privilege('service_role','private.chat_conversations','SELECT')
@@ -47,7 +50,8 @@ begin
     raise exception 'Service role must use the server-only RPC boundary, not direct table access';
   end if;
   if not has_function_privilege('service_role','public.get_chat_conversation(uuid,uuid)','EXECUTE')
-     or not has_function_privilege('service_role','public.save_chat_message(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,integer)','EXECUTE') then
+     or not has_function_privilege('service_role','public.save_chat_message(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,integer)','EXECUTE')
+     or not has_function_privilege('service_role','public.get_recent_chat_context(uuid,uuid,integer,integer)','EXECUTE') then
     raise exception 'service_role must be able to execute the chat RPCs';
   end if;
 end
@@ -71,10 +75,26 @@ select public.save_chat_message(
  'ffffffff-ffff-4fff-8fff-ffffffffffff',
  'user','private owner message','completed','openai'
 );
+select public.save_chat_message(
+ '12121212-1212-4212-8212-121212121212',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+ 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+ 'assistant','private assistant reply','completed','openai'
+);
+-- An unfinished turn must never be included in model context.
+select public.save_chat_message(
+ '13131313-1313-4313-8313-131313131313',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+ 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ '14141414-1414-4414-8414-141414141414',
+ 'user','unfinished user turn','completed','openai'
+);
 
 do $isolation$
 declare
   v_result jsonb;
+  v_context jsonb;
   v_deleted boolean;
 begin
   if public.get_chat_conversation(
@@ -82,6 +102,27 @@ begin
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
   ) is not null then
     raise exception 'Cross-user conversation read was not isolated';
+  end if;
+
+  v_context := public.get_recent_chat_context(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    30,32000
+  );
+  if jsonb_array_length(v_context) <> 2
+     or v_context->0->>'role' <> 'user'
+     or v_context->0->>'content' <> 'private owner message'
+     or v_context->1->>'role' <> 'assistant'
+     or v_context->1->>'content' <> 'private assistant reply' then
+    raise exception 'Recent context must contain only complete turns in chronological order';
+  end if;
+
+  if public.get_recent_chat_context(
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    30,32000
+  ) <> '[]'::jsonb then
+    raise exception 'Cross-user context returned another user messages';
   end if;
 
   v_result := public.list_chat_conversations('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',30);
