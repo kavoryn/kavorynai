@@ -41,7 +41,9 @@ begin
      or has_function_privilege('anon','public.save_chat_message(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,integer)','EXECUTE')
      or has_function_privilege('authenticated','public.save_chat_message(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,integer)','EXECUTE')
      or has_function_privilege('anon','public.get_recent_chat_context(uuid,uuid,integer,integer)','EXECUTE')
-     or has_function_privilege('authenticated','public.get_recent_chat_context(uuid,uuid,integer,integer)','EXECUTE') then
+     or has_function_privilege('authenticated','public.get_recent_chat_context(uuid,uuid,integer,integer)','EXECUTE')
+     or has_function_privilege('anon','public.get_chat_conversation_metadata(uuid,uuid)','EXECUTE')
+     or has_function_privilege('authenticated','public.get_chat_conversation_metadata(uuid,uuid)','EXECUTE') then
     raise exception 'Untrusted roles must not execute private chat RPCs';
   end if;
   if has_table_privilege('service_role','private.chat_conversations','SELECT')
@@ -51,7 +53,8 @@ begin
   end if;
   if not has_function_privilege('service_role','public.get_chat_conversation(uuid,uuid)','EXECUTE')
      or not has_function_privilege('service_role','public.save_chat_message(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,integer)','EXECUTE')
-     or not has_function_privilege('service_role','public.get_recent_chat_context(uuid,uuid,integer,integer)','EXECUTE') then
+     or not has_function_privilege('service_role','public.get_recent_chat_context(uuid,uuid,integer,integer)','EXECUTE')
+     or not has_function_privilege('service_role','public.get_chat_conversation_metadata(uuid,uuid)','EXECUTE') then
     raise exception 'service_role must be able to execute the chat RPCs';
   end if;
 end
@@ -95,6 +98,7 @@ do $isolation$
 declare
   v_result jsonb;
   v_context jsonb;
+  v_metadata jsonb;
   v_deleted boolean;
 begin
   if public.get_chat_conversation(
@@ -102,6 +106,21 @@ begin
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
   ) is not null then
     raise exception 'Cross-user conversation read was not isolated';
+  end if;
+
+  v_metadata := public.get_chat_conversation_metadata(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  );
+  if v_metadata->>'id' <> 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+     or v_metadata->>'provider' <> 'openai' then
+    raise exception 'Owner-scoped metadata lookup returned invalid details';
+  end if;
+  if public.get_chat_conversation_metadata(
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  ) is not null then
+    raise exception 'Cross-user metadata lookup was not isolated';
   end if;
 
   v_context := public.get_recent_chat_context(
