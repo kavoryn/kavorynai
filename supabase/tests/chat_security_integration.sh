@@ -141,6 +141,19 @@ begin
   v_replay := public.claim_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '41414141-4141-4141-8141-414141414141',
+    '42424242-4242-4242-8242-424242424242',
+    '43434343-4343-4343-8343-434343434343',
+    'A different concurrent turn','openai'
+  );
+  if v_replay->>'outcome' <> 'processing'
+     or v_replay->>'turn_id' <> v_claim->>'turn_id' then
+    raise exception 'A conversation must not start a second concurrent generation';
+  end if;
+
+  v_replay := public.claim_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     '15151515-1515-4515-8515-151515151515',
     '18181818-1818-4818-8818-181818181818',
     '19191919-1919-4919-8919-191919191919',
