@@ -75,9 +75,10 @@ chatStoreExpect(($completed['status']??null)==='completed','Atomic turn completi
 $failedClientTurn='a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a18';
 $store->claimTurn($user,$conversation,$failedClientTurn,'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a19','c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a20','Another message','gemini');
 chatStoreExpect($store->failTurn($user,$conversation,$failedClientTurn,'failed')===true,'Turn failure operation must return its update result.');
-$last=$calls[array_key_last($calls)];
-chatStoreExpect(($last['payload']['p_user_id']??null)===$user,'Every operation must bind the verified user ID.');
-chatStoreExpect(str_contains($last['url'],'delete_chat_conversation'),'Delete must use the owner-scoped RPC.');
+$deleteCalls=array_values(array_filter($calls,static fn(array $call):bool=>str_contains($call['url'],'delete_chat_conversation')));
+$lastDelete=$deleteCalls[array_key_last($deleteCalls)];
+chatStoreExpect(($lastDelete['payload']['p_user_id']??null)===$user,'Delete must bind the verified user ID.');
+chatStoreExpect(str_contains($lastDelete['url'],'delete_chat_conversation'),'Delete must use the owner-scoped RPC.');
 
 $failed=new SupabaseChatStore('https://example.supabase.co','secret-test','service-role-test',static fn()=>['status'=>500,'body'=>'{}']);
 try { $failed->hasConsent($user,'openai'); throw new RuntimeException('Storage failure must fail closed.'); }
