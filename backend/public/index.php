@@ -1218,10 +1218,6 @@ if (str_starts_with($path, '/v1/chat/')) {
         } catch (\Kavoryn\Ai\ChatStorageUnavailableException) {
             respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
         }
-        if ($provider === 'gemini' && $history !== []) {
-            respond(409, ['error'=>['code'=>'chat_multi_turn_not_supported','message'=>'Gemini multi-turn chat is not available yet. Start a new conversation or choose OpenAI for conversation history.','request_id'=>$requestId]]);
-        }
-
         require_once dirname(__DIR__) . '/src/Ai/ProviderSseEventMapper.php';
         require_once dirname(__DIR__) . '/src/Ai/ProviderStreamException.php';
         require_once dirname(__DIR__) . '/src/Ai/SseEventDecoder.php';
@@ -1266,6 +1262,9 @@ if (str_starts_with($path, '/v1/chat/')) {
         }
 
         $claimOutcome = $claim['outcome'];
+        if ($claimOutcome === 'multi_turn_not_supported') {
+            respond(409, ['error'=>['code'=>'chat_multi_turn_not_supported','message'=>'Gemini multi-turn chat is not available yet. Start a new conversation or choose OpenAI for conversation history.','request_id'=>$requestId]]);
+        }
         if ($claimOutcome === 'conflict') {
             respond(409, ['error'=>['code'=>'chat_turn_id_conflict','message'=>'This turn ID was already used for a different message.','request_id'=>$requestId]]);
         }
