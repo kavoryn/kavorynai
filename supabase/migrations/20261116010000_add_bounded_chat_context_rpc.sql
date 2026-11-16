@@ -63,3 +63,31 @@ revoke all on function public.get_recent_chat_context(uuid, uuid, integer, integ
   from public, anon, authenticated;
 grant execute on function public.get_recent_chat_context(uuid, uuid, integer, integer)
   to service_role;
+
+
+-- Message submission needs only ownership and provider metadata. Avoid loading the
+-- full transcript into PHP before the bounded context RPC is called.
+create or replace function public.get_chat_conversation_metadata(
+  p_user_id uuid,
+  p_conversation_id uuid
+) returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $function$
+  select pg_catalog.jsonb_build_object(
+    'id', c.id,
+    'provider', c.provider,
+    'language', c.language
+  )
+  from private.chat_conversations c
+  where c.id = p_conversation_id
+    and c.user_id = p_user_id
+    and c.deleted_at is null;
+$function$;
+
+revoke all on function public.get_chat_conversation_metadata(uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.get_chat_conversation_metadata(uuid, uuid)
+  to service_role;
