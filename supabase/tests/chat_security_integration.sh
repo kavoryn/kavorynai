@@ -82,6 +82,16 @@ select public.create_chat_conversation(
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
  'Owner private conversation','openai','en'
 );
+select public.create_chat_conversation(
+ 'd2d2d2d2-d2d2-42d2-82d2-d2d2d2d2d2d2',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+ 'Gemini single-turn conversation','gemini','en'
+);
+select public.record_chat_provider_consent(
+ 'c2c2c2c2-c2c2-42c2-82c2-c2c2c2c2c2c2',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+ 'gemini','chat-policy-test'
+);
 select public.save_chat_message(
  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -114,6 +124,7 @@ declare
   v_completed jsonb;
   v_user_count integer;
   v_assistant_count integer;
+  v_gemini jsonb;
 begin
   v_claim := public.claim_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -212,6 +223,47 @@ begin
   );
   if v_replay->>'outcome' <> 'failed' then
     raise exception 'Failed turn retry must not start provider work again';
+  end if;
+
+  v_gemini := public.claim_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'd2d2d2d2-d2d2-42d2-82d2-d2d2d2d2d2d2',
+    '31313131-3131-4131-8131-313131313131',
+    '32323232-3232-4232-8232-323232323232',
+    '33333333-3333-4333-8333-333333333333',
+    'First Gemini turn','gemini'
+  );
+  if v_gemini->>'outcome' <> 'claimed' then
+    raise exception 'First Gemini turn should be claimed';
+  end if;
+  perform public.complete_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'd2d2d2d2-d2d2-42d2-82d2-d2d2d2d2d2d2',
+    '31313131-3131-4131-8131-313131313131',
+    '34343434-3434-4434-8434-343434343434',
+    'First Gemini answer','gemini','gemini-test'
+  );
+  v_replay := public.claim_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'd2d2d2d2-d2d2-42d2-82d2-d2d2d2d2d2d2',
+    '31313131-3131-4131-8131-313131313131',
+    '35353535-3535-4535-8535-353535353535',
+    '36363636-3636-4636-8636-363636363636',
+    'First Gemini turn','gemini'
+  );
+  if v_replay->>'outcome' <> 'completed' then
+    raise exception 'Completed Gemini retry must replay before multi-turn restriction';
+  end if;
+  v_gemini := public.claim_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'd2d2d2d2-d2d2-42d2-82d2-d2d2d2d2d2d2',
+    '37373737-3737-4737-8737-373737373737',
+    '38383838-3838-4838-8838-383838383838',
+    '39393939-3939-4939-8939-393939393939',
+    'Second Gemini turn','gemini'
+  );
+  if v_gemini->>'outcome' <> 'multi_turn_not_supported' then
+    raise exception 'New Gemini follow-up must fail closed until step history is implemented';
   end if;
 end
 $idempotency$;
