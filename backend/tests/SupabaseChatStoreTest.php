@@ -34,6 +34,9 @@ $mock=function(string $url,array $headers,string $body) use (&$calls,$user,$conv
         'get_chat_conversation'=>['status'=>200,'body'=>json_encode([
             'id'=>$conversation,'messages'=>[]
         ],JSON_THROW_ON_ERROR)],
+        'get_chat_conversation_metadata'=>['status'=>200,'body'=>json_encode([
+            'id'=>$conversation,'provider'=>'gemini','language'=>'ha'
+        ],JSON_THROW_ON_ERROR)],
         'get_recent_chat_context'=>['status'=>200,'body'=>json_encode([
             ['role'=>'user','content'=>'Sannu'],
             ['role'=>'assistant','content'=>'Wa alaikumus salam.'],
@@ -57,6 +60,7 @@ $saved=$store->saveMessage([
 chatStoreExpect(($saved['id']??null)===$message,'Saved message identity must be checked.');
 chatStoreExpect($store->listConversations($user)===[],'Empty history should be represented as an array.');
 chatStoreExpect(($store->getConversation($user,$conversation)['id']??null)===$conversation,'Conversation detail must match requested ID.');
+chatStoreExpect(($store->getConversationMetadata($user,$conversation)['provider']??null)==='gemini','Message submission metadata lookup must return owner-scoped provider details.');
 $context=$store->getRecentContext($user,$conversation);
 chatStoreExpect(count($context)===2 && ($context[0]['role']??null)==='user' && ($context[1]['role']??null)==='assistant','Recent context must preserve ordered completed role/content pairs.');
 chatStoreExpect($store->deleteConversation($user,$conversation),'Soft delete result should be true.');
