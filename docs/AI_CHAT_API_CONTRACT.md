@@ -66,7 +66,9 @@ Request:
 - Require explicit provider consent unless a valid, unrevoked consent for this provider and purpose is already recorded under the approved policy.
 - `client_turn_id` is an idempotency key scoped to user and conversation; replay must not create duplicate provider work.
 - Persist user turn safely before generation; assistant state must be marked completed, failed or cancelled accurately.
-- Load only bounded recent history belonging to this owner. Durable memory retrieval is Phase B, not part of this API.
+- For OpenAI, load only the latest completed user/assistant turns from this owner's active conversation using the bounded server-only context RPC (maximum 30 messages and 32,000 Unicode characters); append the current user turn and keep provider-side storage disabled.
+- Gemini multi-turn is not enabled until its complete Interactions step history can be preserved under an approved retention-safe design. Do not silently discard earlier turns; return `chat_multi_turn_not_supported` for a Gemini conversation that already has completed turns.
+- Durable memory retrieval is Phase B, not part of this API.
 - Complete auth, ownership, validation, consent, idempotency, rate and concurrency checks before provider invocation.
 
 SSE headers:
