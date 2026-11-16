@@ -386,6 +386,7 @@ jobs:
                 isset($data["consent_token"]) ||
                 isset($data["consent_id"])) {
                 fwrite(STDERR, "Consent endpoint must fail closed without issuing a consent grant.\\n");
+                fwrite(STDERR, "Observed response: " . json_encode($data, JSON_UNESCAPED_SLASHES) . "\\n");
                 exit(1);
             }
           '
