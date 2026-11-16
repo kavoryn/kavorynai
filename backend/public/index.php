@@ -1194,6 +1194,11 @@ if (str_starts_with($path, '/v1/chat/')) {
             strlen($messageText) > 96000 || preg_match('/\A.{1,24000}\z/us', $messageText) !== 1) {
             respond(422, ['error'=>['code'=>'invalid_chat_message','message'=>'Enter a message within the allowed size.','request_id'=>$requestId]]);
         }
+        $clientTurnId = $input['client_turn_id'] ?? null;
+        if (!is_string($clientTurnId) ||
+            preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $clientTurnId) !== 1) {
+            respond(422, ['error'=>['code'=>'invalid_client_turn_id','message'=>'A valid client turn ID is required for safe retries.','request_id'=>$requestId]]);
+        }
 
         $conversationId = $messageMatch[1];
         $conversation = $store->getConversationMetadata($user->id, $conversationId);
@@ -1246,13 +1251,48 @@ if (str_starts_with($path, '/v1/chat/')) {
             respond(429, ['error'=>['code'=>'chat_rate_limited','message'=>'Please wait before sending another message.','request_id'=>$requestId]]);
         }
 
-        $turnId = $store->newId();
-        $store->saveMessage([
-            'id'=>$store->newId(), 'user_id'=>$user->id,
-            'conversation_id'=>$conversationId, 'turn_id'=>$turnId,
-            'role'=>'user', 'content'=>$messageText, 'status'=>'completed',
-            'provider'=>$provider,
-        ]);
+        try {
+            $claim = $store->claimTurn(
+                $user->id,
+                $conversationId,
+                $clientTurnId,
+                $store->newId(),
+                $store->newId(),
+                $messageText,
+                $provider,
+            );
+        } catch (\Kavoryn\Ai\ChatStorageUnavailableException) {
+            respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable.','request_id'=>$requestId]]);
+        }
+
+        $claimOutcome = $claim['outcome'];
+        if ($claimOutcome === 'conflict') {
+            respond(409, ['error'=>['code'=>'chat_turn_id_conflict','message'=>'This turn ID was already used for a different message.','request_id'=>$requestId]]);
+        }
+        if ($claimOutcome === 'processing') {
+            respond(409, ['error'=>['code'=>'chat_turn_in_progress','message'=>'This message is already being processed.','request_id'=>$requestId]]);
+        }
+        if ($claimOutcome === 'failed' || $claimOutcome === 'cancelled') {
+            respond(409, ['error'=>['code'=>'chat_turn_terminal','message'=>'This turn has already ended. Start a new message to try again.','request_id'=>$requestId]]);
+        }
+        if ($claimOutcome === 'completed') {
+            http_response_code(200);
+            header('Content-Type: text/event-stream; charset=utf-8');
+            header('Cache-Control: no-store, no-cache, must-revalidate');
+            header('X-Accel-Buffering: no');
+            $sendReplay = static function (array $payload): void {
+                echo 'data: ' . json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                @ob_flush();
+                flush();
+            };
+            $sendReplay(['type'=>'delta','text'=>$claim['assistant_content']]);
+            $sendReplay(['type'=>'completed','message_id'=>$claim['assistant_message_id'],'replayed'=>true]);
+            exit;
+        }
+        if ($claimOutcome !== 'claimed' || !is_string($claim['turn_id'] ?? null)) {
+            respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable.','request_id'=>$requestId]]);
+        }
+        $turnId = $claim['turn_id'];
 
         http_response_code(200);
         header('Content-Type: text/event-stream; charset=utf-8');
@@ -1328,12 +1368,15 @@ if (str_starts_with($path, '/v1/chat/')) {
 
         if (!$streamFailed) {
             try {
-                $savedAssistant = $store->saveMessage([
-                    'id'=>$store->newId(), 'user_id'=>$user->id,
-                    'conversation_id'=>$conversationId, 'turn_id'=>$turnId,
-                    'role'=>'assistant', 'content'=>$assistantText, 'status'=>'completed',
-                    'provider'=>$provider, 'model'=>$model,
-                ]);
+                $savedAssistant = $store->completeTurn(
+                    $user->id,
+                    $conversationId,
+                    $clientTurnId,
+                    $store->newId(),
+                    $assistantText,
+                    $provider,
+                    $model,
+                );
                 $sendSse(['type'=>'completed','message_id'=>$savedAssistant['id']]);
             } catch (\Throwable) {
                 $sendSse(['type'=>'error','code'=>'chat_storage_unavailable','message'=>'Your response could not be saved. Please try again.','request_id'=>$requestId]);
@@ -1350,6 +1393,7 @@ if (str_starts_with($path, '/v1/chat/')) {
                 'role'=>'assistant', 'content'=>$safePlaceholder, 'status'=>$terminalStatus,
                 'provider'=>$provider, 'model'=>$model,
             ]);
+            $store->failTurn($user->id, $conversationId, $clientTurnId, $terminalStatus);
         } catch (\Throwable) {
             // Keep the stream error generic; do not expose storage or provider internals.
         }
