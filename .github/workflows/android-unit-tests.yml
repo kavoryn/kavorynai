@@ -2,7 +2,6 @@ name: Android unit tests
 
 on:
   pull_request:
-    branches: [integration/preview]
     paths:
       - "app/**"
       - "gradle/**"
