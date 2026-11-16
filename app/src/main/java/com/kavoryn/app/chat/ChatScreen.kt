@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 private val ChatInk = Color(0xFF17243A)
 private val ChatGold = Color(0xFFD3A64B)
@@ -162,7 +163,7 @@ fun ChatScreen(
             try {
                 try {
                     withContext(Dispatchers.IO) {
-                        api.streamMessage(current.id, message, accessToken) { delta ->
+                        api.streamMessage(current.id, UUID.randomUUID().toString(), message, accessToken) { delta ->
                             if (deltas.trySend(delta).isFailure) {
                                 throw CancellationException("Chat response is no longer being displayed.")
                             }
