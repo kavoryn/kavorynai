@@ -84,6 +84,37 @@ $failed=new SupabaseChatStore('https://example.supabase.co','secret-test','servi
 try { $failed->hasConsent($user,'openai'); throw new RuntimeException('Storage failure must fail closed.'); }
 catch(ChatStorageUnavailableException) {}
 
+// If assistant persistence fails after the provider stream, the handler must be
+// able to close the claimed turn as failed instead of leaving it processing.
+$completionFailureCalls=[];
+$completionFailureStore=new SupabaseChatStore(
+    'https://example.supabase.co',
+    'secret-test',
+    'service-role-test',
+    static function(string $url,array $payload) use (&$completionFailureCalls):array {
+        $function=basename((string)parse_url($url,PHP_URL_PATH));
+        $completionFailureCalls[]=$function;
+        return $function==='complete_chat_turn'
+            ? ['status'=>500,'body'=>'{}']
+            : ($function==='fail_chat_turn'
+                ? ['status'=>200,'body'=>'true']
+                : ['status'=>404,'body'=>'{}']);
+    }
+);
+try {
+    $completionFailureStore->completeTurn(
+        $user,$conversation,'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a21',
+        'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22','An answer','openai','test-model'
+    );
+    throw new RuntimeException('Assistant persistence failure must be surfaced.');
+} catch (ChatStorageUnavailableException) {
+    chatStoreExpect(
+        $completionFailureStore->failTurn($user,$conversation,'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a21','failed')===true,
+        'A persistence failure must be followed by a terminal failed-turn update when storage recovers.'
+    );
+}
+chatStoreExpect(in_array('fail_chat_turn',$completionFailureCalls,true),'A completion persistence failure must attempt the terminal turn RPC.');
+
 try { $store->hasConsent('not-a-uuid','gemini'); throw new RuntimeException('Invalid identity must be rejected.'); }
 catch(InvalidArgumentException) {}
 
