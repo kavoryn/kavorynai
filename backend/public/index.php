@@ -1392,9 +1392,13 @@ if (str_starts_with($path, '/v1/chat/')) {
                 'role'=>'assistant', 'content'=>$safePlaceholder, 'status'=>$terminalStatus,
                 'provider'=>$provider, 'model'=>$model,
             ]);
-            $store->failTurn($user->id, $conversationId, $clientTurnId, $terminalStatus);
         } catch (\Throwable) {
             // Keep the stream error generic; do not expose storage or provider internals.
+        }
+        try {
+            $store->failTurn($user->id, $conversationId, $clientTurnId, $terminalStatus);
+        } catch (\Throwable) {
+            // The turn remains claimed; retries cannot trigger duplicate provider work.
         }
         if (connection_aborted() !== 1) {
             $code = $cancelled ? 'chat_cancelled' : ($outputTooLarge ? 'chat_response_too_large' : 'chat_provider_error');
