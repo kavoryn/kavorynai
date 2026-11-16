@@ -15,7 +15,6 @@ require_once dirname(__DIR__) . '/src/Ocr/OcrJob.php';
 require_once dirname(__DIR__) . '/src/Ocr/OcrJobStore.php';
 require_once dirname(__DIR__) . '/src/Ocr/OcrResultSink.php';
 require_once dirname(__DIR__) . '/src/Ocr/SupabaseEncryptedOcrResultSink.php';
-require_once dirname(__DIR__) . '/src/Ocr/SupabaseEncryptedOcrResultSink.php';
 require_once dirname(__DIR__) . '/src/Ocr/OcrWorker.php';
 
 use Kavoryn\Ocr\OcrJob;
