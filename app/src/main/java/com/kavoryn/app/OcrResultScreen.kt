@@ -2,9 +2,9 @@ package com.kavoryn.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -12,29 +12,44 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import com.kavoryn.app.speech.DocumentSpeechControls
 import com.kavoryn.app.speech.SpeechLanguage
+import com.kavoryn.app.speech.SpeechRange
 
 /**
- * Accessible original-text review. Uncertain OCR ranges are highlighted, but the
- * original characters remain unchanged so users can verify them before AI explanation.
+ * Accessible original-text review. Uncertain OCR ranges and the word currently
+ * being spoken are highlighted without rewriting the original OCR characters.
  */
 @Composable
 fun OcrResultScreen(
     result: DocumentOcrResult,
     onExplain: () -> Unit,
     onAskQuestion: () -> Unit,
+    onDelete: () -> Unit,
+    onShareText: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val speechRange = remember(result.documentId) { mutableStateOf<SpeechRange?>(null) }
+    var confirmShare by rememberSaveable(result.documentId) { mutableStateOf(false) }
     val highlightedText = buildAnnotatedString {
         append(result.text)
         result.uncertainSpans.forEach { span ->
@@ -49,6 +64,22 @@ fun OcrResultScreen(
                     ),
                     start = span.start,
                     end = span.endExclusive
+                )
+            }
+        }
+        speechRange.value?.let { range ->
+            if (range.start >= 0 && range.endExclusive <= result.text.length &&
+                range.start < range.endExclusive
+            ) {
+                addStyle(
+                    style = SpanStyle(
+                        background = Color(0xFFD8F0FF),
+                        color = Color(0xFF10334A),
+                        fontWeight = FontWeight.Bold,
+                        textDecoration = TextDecoration.Underline
+                    ),
+                    start = range.start,
+                    end = range.endExclusive
                 )
             }
         }
@@ -109,6 +140,7 @@ fun OcrResultScreen(
             DocumentSpeechControls(
                 text = result.text,
                 language = speechLanguage,
+                onProgress = { speechRange.value = it },
                 modifier = Modifier.fillMaxWidth()
             )
         } else {
@@ -120,5 +152,44 @@ fun OcrResultScreen(
         Button(onClick = onAskQuestion, modifier = Modifier.fillMaxWidth()) {
             Text("Ask a question about this document")
         }
+        OutlinedButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+            Text("Delete document securely")
+        }
+        OutlinedButton(
+            onClick = { confirmShare = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .semantics { contentDescription = "Share extracted document text" }
+        ) {
+            Text("Share extracted text")
+        }
+    }
+    if (confirmShare) {
+        AlertDialog(
+            onDismissRequest = { confirmShare = false },
+            title = { Text("Before sharing") },
+            text = {
+                Text(
+                    "Kavoryn will prepare the extracted text for Android's share menu. " +
+                        "You choose the app and recipient yourself. Nothing is sent until " +
+                        "you select an app and complete the share action. Only share with " +
+                        "people you trust."
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    confirmShare = false
+                    onShareText()
+                }) {
+                    Text("Open share menu")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { confirmShare = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
