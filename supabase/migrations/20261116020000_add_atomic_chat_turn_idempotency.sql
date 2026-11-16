@@ -36,7 +36,6 @@ as $function$
 declare
   v_conversation private.chat_conversations;
   v_claim private.chat_turn_requests;
-  v_inserted boolean := false;
   v_assistant_content text;
 begin
   if p_user_id is null or p_conversation_id is null or p_client_turn_id is null
@@ -47,6 +46,7 @@ begin
     raise exception 'Invalid chat turn claim parameters';
   end if;
 
+  -- Serializes claims per conversation, so a stable client ID is claimed once.
   select * into v_conversation
   from private.chat_conversations
   where id=p_conversation_id and user_id=p_user_id and deleted_at is null
@@ -59,24 +59,15 @@ begin
     raise exception 'Active provider consent required';
   end if;
 
-  insert into private.chat_turn_requests(
-    user_id,conversation_id,client_turn_id,turn_id,request_hash,provider,status
-  ) values (
-    p_user_id,p_conversation_id,p_client_turn_id,p_turn_id,
-    pg_catalog.md5(p_content),p_provider,'processing'
-  )
-  on conflict (user_id,conversation_id,client_turn_id) do nothing
-  returning * into v_claim;
+  -- Check an existing client key before Gemini's single-turn restriction so
+  -- completed Gemini retries can replay without invoking the provider again.
+  select * into v_claim
+  from private.chat_turn_requests
+  where user_id=p_user_id and conversation_id=p_conversation_id
+    and client_turn_id=p_client_turn_id
+  for update;
 
-  v_inserted := found;
-
-  if not v_inserted then
-    select * into v_claim
-    from private.chat_turn_requests
-    where user_id=p_user_id and conversation_id=p_conversation_id
-      and client_turn_id=p_client_turn_id
-    for update;
-
+  if found then
     if v_claim.request_hash <> pg_catalog.md5(p_content)
        or v_claim.provider <> p_provider then
       return pg_catalog.jsonb_build_object('outcome','conflict');
@@ -98,6 +89,30 @@ begin
       'outcome',v_claim.status,'turn_id',v_claim.turn_id
     );
   end if;
+
+  if p_provider='gemini' and exists (
+    select 1
+    from private.chat_messages u
+    join private.chat_messages a
+      on a.conversation_id=u.conversation_id
+     and a.user_id=u.user_id
+     and a.turn_id=u.turn_id
+     and a.role='assistant'
+     and a.status='completed'
+    where u.conversation_id=p_conversation_id
+      and u.user_id=p_user_id
+      and u.role='user'
+      and u.status='completed'
+  ) then
+    return pg_catalog.jsonb_build_object('outcome','multi_turn_not_supported');
+  end if;
+
+  insert into private.chat_turn_requests(
+    user_id,conversation_id,client_turn_id,turn_id,request_hash,provider,status
+  ) values (
+    p_user_id,p_conversation_id,p_client_turn_id,p_turn_id,
+    pg_catalog.md5(p_content),p_provider,'processing'
+  ) returning * into v_claim;
 
   insert into private.chat_messages(
     id,conversation_id,user_id,turn_id,role,content,status,provider,completed_at
