@@ -27,6 +27,7 @@ SQL
 psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114002000_create_private_chat_storage.sql
 psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261114003000_add_private_chat_operations.sql
 psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261116010000_add_bounded_chat_context_rpc.sql
+psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261116020000_add_atomic_chat_turn_idempotency.sql
 
 psql -v ON_ERROR_STOP=1 <<'SQL'
 insert into auth.users(id,email) values
@@ -43,18 +44,28 @@ begin
      or has_function_privilege('anon','public.get_recent_chat_context(uuid,uuid,integer,integer)','EXECUTE')
      or has_function_privilege('authenticated','public.get_recent_chat_context(uuid,uuid,integer,integer)','EXECUTE')
      or has_function_privilege('anon','public.get_chat_conversation_metadata(uuid,uuid)','EXECUTE')
-     or has_function_privilege('authenticated','public.get_chat_conversation_metadata(uuid,uuid)','EXECUTE') then
+     or has_function_privilege('authenticated','public.get_chat_conversation_metadata(uuid,uuid)','EXECUTE')
+     or has_function_privilege('anon','public.claim_chat_turn(uuid,uuid,uuid,uuid,uuid,text,text)','EXECUTE')
+     or has_function_privilege('authenticated','public.claim_chat_turn(uuid,uuid,uuid,uuid,uuid,text,text)','EXECUTE')
+     or has_function_privilege('anon','public.complete_chat_turn(uuid,uuid,uuid,uuid,text,text,text)','EXECUTE')
+     or has_function_privilege('authenticated','public.complete_chat_turn(uuid,uuid,uuid,uuid,text,text,text)','EXECUTE')
+     or has_function_privilege('anon','public.fail_chat_turn(uuid,uuid,uuid,text)','EXECUTE')
+     or has_function_privilege('authenticated','public.fail_chat_turn(uuid,uuid,uuid,text)','EXECUTE') then
     raise exception 'Untrusted roles must not execute private chat RPCs';
   end if;
   if has_table_privilege('service_role','private.chat_conversations','SELECT')
      or has_table_privilege('service_role','private.chat_messages','SELECT')
-     or has_table_privilege('service_role','private.chat_provider_consents','SELECT') then
+     or has_table_privilege('service_role','private.chat_provider_consents','SELECT')
+     or has_table_privilege('service_role','private.chat_turn_requests','SELECT') then
     raise exception 'Service role must use the server-only RPC boundary, not direct table access';
   end if;
   if not has_function_privilege('service_role','public.get_chat_conversation(uuid,uuid)','EXECUTE')
      or not has_function_privilege('service_role','public.save_chat_message(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,integer)','EXECUTE')
      or not has_function_privilege('service_role','public.get_recent_chat_context(uuid,uuid,integer,integer)','EXECUTE')
-     or not has_function_privilege('service_role','public.get_chat_conversation_metadata(uuid,uuid)','EXECUTE') then
+     or not has_function_privilege('service_role','public.get_chat_conversation_metadata(uuid,uuid)','EXECUTE')
+     or not has_function_privilege('service_role','public.claim_chat_turn(uuid,uuid,uuid,uuid,uuid,text,text)','EXECUTE')
+     or not has_function_privilege('service_role','public.complete_chat_turn(uuid,uuid,uuid,uuid,text,text,text)','EXECUTE')
+     or not has_function_privilege('service_role','public.fail_chat_turn(uuid,uuid,uuid,text)','EXECUTE') then
     raise exception 'service_role must be able to execute the chat RPCs';
   end if;
 end
@@ -93,6 +104,117 @@ select public.save_chat_message(
  '14141414-1414-4414-8414-141414141414',
  'user','unfinished user turn','completed','openai'
 );
+
+-- Atomic idempotency: one claim, no duplicate user row, conflict on payload
+-- mismatch, replay completed answer, and terminal failure blocks re-invocation.
+do $idempotency$
+declare
+  v_claim jsonb;
+  v_replay jsonb;
+  v_completed jsonb;
+  v_user_count integer;
+  v_assistant_count integer;
+begin
+  v_claim := public.claim_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '15151515-1515-4515-8515-151515151515',
+    '16161616-1616-4616-8616-161616161616',
+    '17171717-1717-4717-8717-171717171717',
+    'Idempotent hello','openai'
+  );
+  if v_claim->>'outcome' <> 'claimed' then
+    raise exception 'First request should claim the turn';
+  end if;
+
+  v_replay := public.claim_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '15151515-1515-4515-8515-151515151515',
+    '18181818-1818-4818-8818-181818181818',
+    '19191919-1919-4919-8919-191919191919',
+    'Idempotent hello','openai'
+  );
+  if v_replay->>'outcome' <> 'processing'
+     or v_replay->>'turn_id' <> v_claim->>'turn_id' then
+    raise exception 'Duplicate request must reuse the original in-progress turn';
+  end if;
+
+  v_replay := public.claim_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '15151515-1515-4515-8515-151515151515',
+    '20202020-2020-4020-8020-202020202020',
+    '21212121-2121-4121-8121-212121212121',
+    'Different content','openai'
+  );
+  if v_replay->>'outcome' <> 'conflict' then
+    raise exception 'Reusing a client turn ID with different content must conflict';
+  end if;
+
+  v_completed := public.complete_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '15151515-1515-4515-8515-151515151515',
+    '22222222-2222-4222-8222-222222222222',
+    'Idempotent answer','openai','test-model'
+  );
+  if v_completed->>'status' <> 'completed'
+     or v_completed->>'content' <> 'Idempotent answer' then
+    raise exception 'Turn completion did not persist the assistant response';
+  end if;
+
+  v_replay := public.claim_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '15151515-1515-4515-8515-151515151515',
+    '23232323-2323-4323-8323-232323232323',
+    '24242424-2424-4424-8424-242424242424',
+    'Idempotent hello','openai'
+  );
+  if v_replay->>'outcome' <> 'completed'
+     or v_replay->>'assistant_content' <> 'Idempotent answer' then
+    raise exception 'Completed retry must replay the stored assistant response';
+  end if;
+
+  select count(*) into v_user_count from private.chat_messages
+   where turn_id=v_claim->>'turn_id'::uuid and role='user';
+  select count(*) into v_assistant_count from private.chat_messages
+   where turn_id=v_claim->>'turn_id'::uuid and role='assistant';
+  if v_user_count<>1 or v_assistant_count<>1 then
+    raise exception 'Idempotent turn created duplicate user or assistant messages';
+  end if;
+
+  v_claim := public.claim_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '25252525-2525-4525-8525-252525252525',
+    '26262626-2626-4626-8626-262626262626',
+    '27272727-2727-4727-8727-272727272727',
+    'A turn that will fail','openai'
+  );
+  if v_claim->>'outcome' <> 'claimed' then
+    raise exception 'Failed-turn fixture should be claimed';
+  end if;
+  perform public.fail_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '25252525-2525-4525-8525-252525252525',
+    'failed'
+  );
+  v_replay := public.claim_chat_turn(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    '25252525-2525-4525-8525-252525252525',
+    '28282828-2828-4828-8828-282828282828',
+    '29292929-2929-4929-8929-292929292929',
+    'A turn that will fail','openai'
+  );
+  if v_replay->>'outcome' <> 'failed' then
+    raise exception 'Failed turn retry must not start provider work again';
+  end if;
+end
+$idempotency$;
 
 do $isolation$
 declare
