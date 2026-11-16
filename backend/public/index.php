@@ -1210,7 +1210,7 @@ if (str_starts_with($path, '/v1/chat/')) {
 
         try {
             $history = $store->getRecentContext($user->id, $conversationId, 30, 32000);
-        } catch (\\Kavoryn\\Ai\\ChatStorageUnavailableException) {
+        } catch (\Kavoryn\Ai\ChatStorageUnavailableException) {
             respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
         }
         if ($provider === 'gemini' && $history !== []) {
