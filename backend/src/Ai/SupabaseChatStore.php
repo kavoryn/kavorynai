@@ -177,7 +177,7 @@ final class SupabaseChatStore
             'p_provider'=>$provider,
         ]);
         if (!is_array($result) ||
-            !in_array($result['outcome']??null,['claimed','processing','completed','failed','cancelled','conflict'],true)) {
+            !in_array($result['outcome']??null,['claimed','processing','completed','failed','cancelled','conflict','multi_turn_not_supported'],true)) {
             throw new ChatStorageUnavailableException('Invalid chat turn claim response.');
         }
         if (isset($result['turn_id']) && (!is_string($result['turn_id']) ||
