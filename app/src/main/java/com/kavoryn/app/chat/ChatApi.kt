@@ -30,6 +30,12 @@ data class ChatConversation(
 
 class ChatApiException(val status: Int?, val code: String?, message: String) : Exception(message)
 
+internal fun buildChatMessagePayload(clientTurnId: String, message: String): JSONObject {
+    require(Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$").matches(clientTurnId))
+    require(message.isNotBlank() && message.codePointCount(0, message.length) <= 24_000)
+    return JSONObject().put("message", message).put("client_turn_id", clientTurnId)
+}
+
 class ChatApi(
     private val baseUrl: String,
     private val connectTimeoutMs: Int = 10_000,
@@ -99,7 +105,7 @@ class ChatApi(
             doOutput = true
         }
         try {
-            val payload = JSONObject().put("message", message).put("client_turn_id", clientTurnId).toString()
+            val payload = buildChatMessagePayload(clientTurnId, message).toString()
             connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
             val status = connection.responseCode
             if (status !in 200..299) throw parseError(status, connection.errorStream?.bufferedReader()?.use { it.readText() })
