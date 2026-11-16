@@ -145,7 +145,7 @@ Rate limiting must use a transaction-safe database RPC or equivalent; never an i
 
 ## Stable error codes
 
-`unauthorized`, `conversation_not_found`, `provider_consent_required`, `provider_not_configured`, `provider_unavailable`, `rate_limited`, `concurrency_limit`, `message_too_large`, `invalid_provider`, `turn_in_progress`, `turn_cancelled`, `chat_storage_unavailable`.
+`unauthorized`, `conversation_not_found`, `provider_consent_required`, `provider_not_configured`, `provider_unavailable`, `rate_limited`, `concurrency_limit`, `message_too_large`, `invalid_provider`, `turn_in_progress`, `turn_cancelled`, `chat_turn_in_progress`, `chat_turn_terminal`, `chat_turn_id_conflict`, `chat_multi_turn_not_supported`, `invalid_client_turn_id`, `chat_storage_unavailable`.
 
 Never return raw provider responses, exception messages, SQL errors or stack traces.
 
