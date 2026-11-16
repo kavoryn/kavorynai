@@ -130,6 +130,9 @@ jobs:
       - name: Encrypted OCR result sink tests
         run: php backend/tests/EncryptedOcrResultSinkTest.php
 
+      - name: OCR worker failure-path tests
+        run: php backend/tests/OcrWorkerFailurePathTest.php
+
       - name: Encrypted OCR result reader tests
         run: php backend/tests/EncryptedOcrResultReaderTest.php
 
