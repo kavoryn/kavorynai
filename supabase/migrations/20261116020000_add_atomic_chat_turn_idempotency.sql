@@ -42,7 +42,7 @@ begin
      or p_turn_id is null or p_user_message_id is null
      or p_content is null or pg_catalog.btrim(p_content) = ''
      or pg_catalog.char_length(p_content) > 24000
-     or p_provider not in ('openai','gemini') then
+     or p_provider is null or p_provider not in ('openai','gemini') then
     raise exception 'Invalid chat turn claim parameters';
   end if;
 
@@ -87,6 +87,21 @@ begin
 
     return pg_catalog.jsonb_build_object(
       'outcome',v_claim.status,'turn_id',v_claim.turn_id
+    );
+  end if;
+
+  -- A conversation may have only one active generation at a time, even when
+  -- two different client turn IDs arrive concurrently.
+  select * into v_claim
+  from private.chat_turn_requests
+  where user_id=p_user_id and conversation_id=p_conversation_id
+    and status='processing'
+  order by created_at desc
+  limit 1
+  for update;
+  if found then
+    return pg_catalog.jsonb_build_object(
+      'outcome','processing','turn_id',v_claim.turn_id
     );
   end if;
 
@@ -151,7 +166,7 @@ begin
   if p_user_id is null or p_conversation_id is null or p_client_turn_id is null
      or p_assistant_message_id is null or p_content is null
      or pg_catalog.btrim(p_content) = '' or pg_catalog.char_length(p_content)>24000
-     or p_provider not in ('openai','gemini')
+     or p_provider is null or p_provider not in ('openai','gemini')
      or (p_model is not null and pg_catalog.char_length(p_model)>120) then
     raise exception 'Invalid chat turn completion parameters';
   end if;
@@ -215,7 +230,8 @@ set search_path = ''
 as $function$
 declare v_count integer;
 begin
-  if p_status not in ('failed','cancelled') then
+  if p_user_id is null or p_conversation_id is null or p_client_turn_id is null
+     or p_status is null or p_status not in ('failed','cancelled') then
     raise exception 'Invalid chat terminal status';
   end if;
   update private.chat_turn_requests
