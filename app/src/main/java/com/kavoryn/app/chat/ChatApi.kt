@@ -85,11 +85,13 @@ class ChatApi(
     /** Streams only the explicitly selected conversation provider; provider secrets never enter Android. */
     fun streamMessage(
         conversationId: String,
+        clientTurnId: String,
         message: String,
         accessToken: String,
         onDelta: (String) -> Unit
     ) {
         requireUuid(conversationId)
+        requireUuid(clientTurnId)
         require(message.isNotBlank() && message.codePointCount(0, message.length) <= 24_000)
         val connection = open("/v1/chat/conversations/$conversationId/messages", "POST", accessToken).apply {
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -97,7 +99,7 @@ class ChatApi(
             doOutput = true
         }
         try {
-            val payload = JSONObject().put("message", message).toString()
+            val payload = JSONObject().put("message", message).put("client_turn_id", clientTurnId).toString()
             connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
             val status = connection.responseCode
             if (status !in 200..299) throw parseError(status, connection.errorStream?.bufferedReader()?.use { it.readText() })
