@@ -146,6 +146,108 @@ final class SupabaseChatStore
         return $result;
     }
 
+    /**
+     * Atomically claims a client turn and persists its user message exactly once.
+     *
+     * @return array{outcome:string,turn_id?:string,assistant_message_id?:string,assistant_content?:string}
+     */
+    public function claimTurn(
+        string $userId,
+        string $conversationId,
+        string $clientTurnId,
+        string $turnId,
+        string $userMessageId,
+        string $content,
+        string $provider,
+    ): array {
+        foreach ([$userId,$conversationId,$clientTurnId,$turnId,$userMessageId] as $id) {
+            $this->assertUuid($id);
+        }
+        $this->assertProvider($provider);
+        if (trim($content)==='' || preg_match('/\A.{1,24000}\z/us',$content)!==1) {
+            throw new \InvalidArgumentException('Invalid chat turn content.');
+        }
+        $result=$this->rpc('claim_chat_turn',[
+            'p_user_id'=>$userId,
+            'p_conversation_id'=>$conversationId,
+            'p_client_turn_id'=>$clientTurnId,
+            'p_turn_id'=>$turnId,
+            'p_user_message_id'=>$userMessageId,
+            'p_content'=>$content,
+            'p_provider'=>$provider,
+        ]);
+        if (!is_array($result) ||
+            !in_array($result['outcome']??null,['claimed','processing','completed','failed','cancelled','conflict','multi_turn_not_supported'],true)) {
+            throw new ChatStorageUnavailableException('Invalid chat turn claim response.');
+        }
+        if (isset($result['turn_id']) && (!is_string($result['turn_id']) ||
+            preg_match('/^[0-9a-f-]{36}$/i',$result['turn_id'])!==1)) {
+            throw new ChatStorageUnavailableException('Invalid chat turn claim identity.');
+        }
+        if (($result['outcome']??null)==='completed' &&
+            (!is_string($result['assistant_message_id']??null) ||
+             !is_string($result['assistant_content']??null) ||
+             trim($result['assistant_content'])==='')) {
+            throw new ChatStorageUnavailableException('Invalid completed chat turn replay.');
+        }
+        return $result;
+    }
+
+    /** @return array{id:string,turn_id:string,content:string,status:string} */
+    public function completeTurn(
+        string $userId,
+        string $conversationId,
+        string $clientTurnId,
+        string $assistantMessageId,
+        string $content,
+        string $provider,
+        ?string $model,
+    ): array {
+        foreach ([$userId,$conversationId,$clientTurnId,$assistantMessageId] as $id) {
+            $this->assertUuid($id);
+        }
+        $this->assertProvider($provider);
+        if (trim($content)==='' || preg_match('/\A.{1,24000}\z/us',$content)!==1 ||
+            ($model!==null && strlen($model)>120)) {
+            throw new \InvalidArgumentException('Invalid assistant turn completion.');
+        }
+        $result=$this->rpc('complete_chat_turn',[
+            'p_user_id'=>$userId,
+            'p_conversation_id'=>$conversationId,
+            'p_client_turn_id'=>$clientTurnId,
+            'p_assistant_message_id'=>$assistantMessageId,
+            'p_content'=>$content,
+            'p_provider'=>$provider,
+            'p_model'=>$model,
+        ]);
+        if (!is_array($result) || ($result['id']??null)!==$assistantMessageId ||
+            !is_string($result['turn_id']??null) || ($result['content']??null)!==$content ||
+            ($result['status']??null)!=='completed') {
+            throw new ChatStorageUnavailableException('Invalid completed chat turn response.');
+        }
+        return $result;
+    }
+
+    public function failTurn(string $userId,string $conversationId,string $clientTurnId,string $status): bool
+    {
+        foreach ([$userId,$conversationId,$clientTurnId] as $id) {
+            $this->assertUuid($id);
+        }
+        if (!in_array($status,['failed','cancelled'],true)) {
+            throw new \InvalidArgumentException('Invalid chat turn terminal status.');
+        }
+        $result=$this->rpc('fail_chat_turn',[
+            'p_user_id'=>$userId,
+            'p_conversation_id'=>$conversationId,
+            'p_client_turn_id'=>$clientTurnId,
+            'p_status'=>$status,
+        ]);
+        if (!is_bool($result)) {
+            throw new ChatStorageUnavailableException('Invalid chat turn failure response.');
+        }
+        return $result;
+    }
+
     public function listConversations(string $userId, int $limit = 30): array
     {
         $this->assertUuid($userId);

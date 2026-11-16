@@ -6,6 +6,7 @@ on:
       - "supabase/migrations/20261114002000_create_private_chat_storage.sql"
       - "supabase/migrations/20261114003000_add_private_chat_operations.sql"
       - "supabase/migrations/20261116010000_add_bounded_chat_context_rpc.sql"
+      - "supabase/migrations/20261116020000_add_atomic_chat_turn_idempotency.sql"
       - "supabase/tests/chat_security_integration.sh"
       - ".github/workflows/chat-postgres-integration.yml"
   workflow_dispatch:
