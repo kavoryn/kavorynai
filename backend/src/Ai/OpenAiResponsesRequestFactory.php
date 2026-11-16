@@ -28,7 +28,7 @@ final class OpenAiResponsesRequestFactory
         $payload = [
             'model' => $this->model,
             'instructions' => $this->systemInstruction,
-            'input' => $userInput,
+            'input' => $input,
             'stream' => true,
             'store' => false,
             'max_output_tokens' => $this->maxOutputTokens,
