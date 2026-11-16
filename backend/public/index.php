@@ -1138,6 +1138,90 @@ if ($method === 'GET' && preg_match(
     ]);
 }
 
+if ($method === 'DELETE' && preg_match(
+    '#^/v1/documents/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$#i',
+    $path,
+    $matches,
+)) {
+    if (strtolower(getenv('DOCUMENT_DELETE_ENABLED') ?: 'false') !== 'true') {
+        respond(503, [
+            'error' => [
+                'code' => 'document_delete_disabled',
+                'message' => 'Secure document deletion is not enabled on this server yet.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
+
+    require_once dirname(__DIR__) . '/src/Upload/DocumentFileException.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/SupabasePrivateDocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentStorageFactory.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentDeletionService.php';
+    require_once dirname(__DIR__) . '/src/Upload/SupabaseDocumentDeletionStore.php';
+
+    try {
+        $storage = \Kavoryn\Upload\DocumentStorageFactory::fromEnvironment(__DIR__);
+        $store = new \Kavoryn\Upload\SupabaseDocumentDeletionStore(
+            $supabaseUrl,
+            $secretKey,
+            $serviceRoleJwt,
+        );
+        $service = new \Kavoryn\Upload\DocumentDeletionService($store, $storage);
+        $deleted = $service->delete($matches[1], $user->id);
+    } catch (\Kavoryn\Upload\DocumentDeletionUnavailableException) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_deletion_unavailable',
+                'message' => 'Secure document deletion is temporarily unavailable. Please try again.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    } catch (\Kavoryn\Upload\DocumentFileException) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_storage_unavailable',
+                'message' => 'Secure document deletion is temporarily unavailable. Please try again.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    } catch (\InvalidArgumentException) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_deletion_unavailable',
+                'message' => 'Secure document deletion is temporarily unavailable. Please try again.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    if (!$deleted) {
+        respond(404, [
+            'error' => [
+                'code' => 'document_not_found',
+                'message' => 'The document was not found for this account.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    respond(200, [
+        'deleted' => true,
+        'document_id' => $matches[1],
+        'request_id' => $requestId,
+    ]);
+}
+
 // General-purpose chat API. Disabled by default until staging validation and release gates pass.
 if (str_starts_with($path, '/v1/chat/')) {
     if (strtolower(getenv('CHAT_ENABLED') ?: 'false') !== 'true') {
