@@ -52,7 +52,7 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           create role anon nologin;
           create role authenticated nologin;
