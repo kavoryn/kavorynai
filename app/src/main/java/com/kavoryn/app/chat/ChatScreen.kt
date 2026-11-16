@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 private val ChatInk = Color(0xFF17243A)
 private val ChatGold = Color(0xFFD3A64B)
@@ -136,7 +137,8 @@ fun ChatScreen(
         val message = draft.trim()
         if (message.isEmpty() || streaming || loading) return
         draft = ""
-        val userMessage = ChatMessage("local-user-${System.nanoTime()}", "user", message, "completed")
+        val clientTurnId = UUID.randomUUID().toString()
+        val userMessage = ChatMessage(clientTurnId, "user", message, "completed")
         val assistantMessage = ChatMessage("local-assistant-${System.nanoTime()}", "assistant", "", "streaming")
         conversation = current.copy(messages = current.messages + userMessage + assistantMessage)
         streaming = true
@@ -162,7 +164,7 @@ fun ChatScreen(
             try {
                 try {
                     withContext(Dispatchers.IO) {
-                        api.streamMessage(current.id, message, accessToken) { delta ->
+                        api.streamMessage(current.id, clientTurnId, message, accessToken) { delta ->
                             if (deltas.trySend(delta).isFailure) {
                                 throw CancellationException("Chat response is no longer being displayed.")
                             }
