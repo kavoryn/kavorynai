@@ -178,9 +178,9 @@ begin
   end if;
 
   select count(*) into v_user_count from private.chat_messages
-   where turn_id=v_claim->>'turn_id'::uuid and role='user';
+   where turn_id=(v_claim->>'turn_id')::uuid and role='user';
   select count(*) into v_assistant_count from private.chat_messages
-   where turn_id=v_claim->>'turn_id'::uuid and role='assistant';
+   where turn_id=(v_claim->>'turn_id')::uuid and role='assistant';
   if v_user_count<>1 or v_assistant_count<>1 then
     raise exception 'Idempotent turn created duplicate user or assistant messages';
   end if;
