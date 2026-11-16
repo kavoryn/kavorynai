@@ -133,6 +133,9 @@ jobs:
       - name: OCR worker failure-path tests
         run: php backend/tests/OcrWorkerFailurePathTest.php
 
+      - name: OCR worker lease-loss regression tests
+        run: php backend/tests/OcrWorkerLeaseLossTest.php
+
       - name: Encrypted OCR result reader tests
         run: php backend/tests/EncryptedOcrResultReaderTest.php
 
