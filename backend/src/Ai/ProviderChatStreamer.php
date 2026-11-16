@@ -27,6 +27,10 @@ final class ProviderChatStreamer
         ?callable $isCancelled = null,
         array $history = [],
     ): void {
+        if ($provider === 'gemini' && $history !== []) {
+            throw new \InvalidArgumentException('Gemini multi-turn context is not enabled until its retention-safe step history is implemented.');
+        }
+
         $request = match ($provider) {
             'openai' => $this->openAi?->create($userInput, $history)
                 ?? throw new \InvalidArgumentException('The selected AI provider is not configured.'),
@@ -34,10 +38,6 @@ final class ProviderChatStreamer
                 ?? throw new \InvalidArgumentException('The selected AI provider is not configured.'),
             default => throw new \InvalidArgumentException('The requested AI provider is not supported.'),
         };
-
-        if ($provider === 'gemini' && $history !== []) {
-            throw new \InvalidArgumentException('Gemini multi-turn context is not enabled until its retention-safe step history is implemented.');
-        }
 
         $this->transport->streamRequest($request, $onEvent, $isCancelled);
     }
