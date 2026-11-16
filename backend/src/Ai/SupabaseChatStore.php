@@ -173,6 +173,65 @@ final class SupabaseChatStore
         return $result;
     }
 
+    /**
+     * Load only completed turns from this owner's active conversation.
+     *
+     * @return list<array{role:string,content:string}>
+     */
+    public function getRecentContext(string $userId, string $conversationId, int $messageLimit = 30, int $characterLimit = 32000): array
+    {
+        $this->assertUuid($userId);
+        $this->assertUuid($conversationId);
+        $result = $this->rpc('get_recent_chat_context', [
+            'p_user_id' => $userId,
+            'p_conversation_id' => $conversationId,
+            'p_message_limit' => max(2, min($messageLimit, 30)),
+            'p_character_limit' => max(1, min($characterLimit, 32000)),
+        ]);
+        if (!is_array($result) || !array_is_list($result) || count($result) > 30) {
+            throw new ChatStorageUnavailableException('Invalid chat context response.');
+        }
+
+        $totalCharacters = 0;
+        $context = [];
+        foreach ($result as $item) {
+            if (!is_array($item) ||
+                !in_array($item['role'] ?? null, ['user', 'assistant'], true) ||
+                !is_string($item['content'] ?? null) ||
+                trim($item['content']) === '' ||
+                preg_match('/\A.{1,24000}\z/us', $item['content']) !== 1) {
+                throw new ChatStorageUnavailableException('Invalid chat context item.');
+            }
+            preg_match_all('/./us', $item['content'], $characters);
+            $totalCharacters += count($characters[0]);
+            if ($totalCharacters > 32000) {
+                throw new ChatStorageUnavailableException('Chat context exceeded its character limit.');
+            }
+            $context[] = ['role' => $item['role'], 'content' => $item['content']];
+        }
+        return $context;
+    }
+
+    public function getConversationMetadata(string $userId, string $conversationId): ?array
+    {
+        $this->assertUuid($userId);
+        $this->assertUuid($conversationId);
+        $result = $this->rpc('get_chat_conversation_metadata', [
+            'p_user_id' => $userId,
+            'p_conversation_id' => $conversationId,
+        ]);
+        if ($result === null) {
+            return null;
+        }
+        if (!is_array($result) ||
+            ($result['id'] ?? null) !== $conversationId ||
+            !in_array($result['provider'] ?? null, ['openai', 'gemini'], true) ||
+            !in_array($result['language'] ?? null, ['en', 'ha', 'ar', 'fr'], true)) {
+            throw new ChatStorageUnavailableException('Invalid conversation metadata response.');
+        }
+        return $result;
+    }
+
     public function deleteConversation(string $userId, string $conversationId): bool
     {
         $this->assertUuid($userId);
