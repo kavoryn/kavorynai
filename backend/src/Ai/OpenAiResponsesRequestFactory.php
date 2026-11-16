@@ -19,11 +19,40 @@ final class OpenAiResponsesRequestFactory
         }
     }
 
-    public function create(string $userInput): ProviderStreamRequest
+    /**
+     * @param list<array{role:string,content:string}> $history Completed, owner-scoped prior turns only.
+     */
+    public function create(string $userInput, array $history = []): ProviderStreamRequest
     {
-        if (trim($userInput) === '' || strlen($userInput) > 100000) {
-            throw new \InvalidArgumentException('The chat input is empty or too large.');
+        if (trim($userInput) === '' || strlen($userInput) > 100000
+            || !array_is_list($history) || count($history) > 30) {
+            throw new \InvalidArgumentException('The chat input or history is invalid.');
         }
+
+        $totalCharacters = 0;
+        $input = [];
+        foreach ($history as $item) {
+            if (!is_array($item)
+                || !in_array($item['role'] ?? null, ['user', 'assistant'], true)
+                || !is_string($item['content'] ?? null)
+                || trim($item['content']) === ''
+                || preg_match('/\A.{1,24000}\z/us', $item['content']) !== 1) {
+                throw new \InvalidArgumentException('The chat history is invalid.');
+            }
+            preg_match_all('/./us', $item['content'], $characters);
+            $totalCharacters += count($characters[0]);
+            if ($totalCharacters > 32000) {
+                throw new \InvalidArgumentException('The chat history is too large.');
+            }
+            $input[] = ['role' => $item['role'], 'content' => $item['content']];
+        }
+
+        preg_match_all('/./us', $userInput, $currentCharacters);
+        $totalCharacters += count($currentCharacters[0]);
+        if ($totalCharacters > 44000) {
+            throw new \InvalidArgumentException('The chat input and history are too large.');
+        }
+        $input[] = ['role' => 'user', 'content' => $userInput];
 
         $payload = [
             'model' => $this->model,
