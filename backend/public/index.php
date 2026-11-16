@@ -1240,16 +1240,6 @@ if (str_starts_with($path, '/v1/chat/')) {
             'GEMINI_CHAT_MODEL' => getenv('GEMINI_CHAT_MODEL') ?: '',
         ];
         try {
-            $streamer = \Kavoryn\Ai\ProviderChatStreamerFactory::fromEnvironment($providerEnvironment, $provider);
-        } catch (\InvalidArgumentException) {
-            respond(503, ['error'=>['code'=>'chat_provider_unavailable','message'=>'The selected AI provider is temporarily unavailable.','request_id'=>$requestId]]);
-        }
-
-        if (!$store->consumeRateLimit($user->id, 20, 60)) {
-            respond(429, ['error'=>['code'=>'chat_rate_limited','message'=>'Please wait before sending another message.','request_id'=>$requestId]]);
-        }
-
-        try {
             $claim = $store->claimTurn(
                 $user->id,
                 $conversationId,
@@ -1294,6 +1284,29 @@ if (str_starts_with($path, '/v1/chat/')) {
             respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable.','request_id'=>$requestId]]);
         }
         $turnId = $claim['turn_id'];
+
+        // Replays are resolved before provider configuration and rate limiting:
+        // a completed turn can be replayed even if the provider is temporarily
+        // unavailable, without consuming another provider request quota.
+        try {
+            $streamer = \Kavoryn\Ai\ProviderChatStreamerFactory::fromEnvironment($providerEnvironment, $provider);
+        } catch (\InvalidArgumentException) {
+            try {
+                $store->failTurn($user->id, $conversationId, $clientTurnId, 'failed');
+            } catch (\Throwable) {
+                // Keep the claim closed if storage is temporarily unavailable.
+            }
+            respond(503, ['error'=>['code'=>'chat_provider_unavailable','message'=>'The selected AI provider is temporarily unavailable.','request_id'=>$requestId]]);
+        }
+
+        if (!$store->consumeRateLimit($user->id, 20, 60)) {
+            try {
+                $store->failTurn($user->id, $conversationId, $clientTurnId, 'failed');
+            } catch (\Throwable) {
+                // Never leave a retry able to invoke the provider twice.
+            }
+            respond(429, ['error'=>['code'=>'chat_rate_limited','message'=>'Please wait before sending another message.','request_id'=>$requestId]]);
+        }
 
         http_response_code(200);
         header('Content-Type: text/event-stream; charset=utf-8');
