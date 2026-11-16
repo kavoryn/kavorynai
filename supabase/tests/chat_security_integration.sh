@@ -122,8 +122,6 @@ declare
   v_claim jsonb;
   v_replay jsonb;
   v_completed jsonb;
-  v_user_count integer;
-  v_assistant_count integer;
   v_gemini jsonb;
 begin
   v_claim := public.claim_chat_turn(
@@ -201,14 +199,6 @@ begin
     raise exception 'Completed retry must replay the stored assistant response';
   end if;
 
-  select count(*) into v_user_count from private.chat_messages
-   where turn_id=(v_claim->>'turn_id')::uuid and role='user';
-  select count(*) into v_assistant_count from private.chat_messages
-   where turn_id=(v_claim->>'turn_id')::uuid and role='assistant';
-  if v_user_count<>1 or v_assistant_count<>1 then
-    raise exception 'Idempotent turn created duplicate user or assistant messages';
-  end if;
-
   v_claim := public.claim_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
@@ -280,6 +270,24 @@ begin
   end if;
 end
 $idempotency$;
+
+-- Inspect private rows as the migration owner, not the restricted service role.
+reset role;
+do $unique_turn$
+declare
+  v_user_count integer;
+  v_assistant_count integer;
+begin
+  select count(*) into v_user_count from private.chat_messages
+   where turn_id='16161616-1616-4616-8616-161616161616' and role='user';
+  select count(*) into v_assistant_count from private.chat_messages
+   where turn_id='16161616-1616-4616-8616-161616161616' and role='assistant';
+  if v_user_count<>1 or v_assistant_count<>1 then
+    raise exception 'Idempotent turn created duplicate user or assistant messages';
+  end if;
+end
+$unique_turn$;
+set role service_role;
 
 do $isolation$
 declare
