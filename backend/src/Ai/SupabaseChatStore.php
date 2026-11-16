@@ -212,6 +212,26 @@ final class SupabaseChatStore
         return $context;
     }
 
+    public function getConversationMetadata(string $userId, string $conversationId): ?array
+    {
+        $this->assertUuid($userId);
+        $this->assertUuid($conversationId);
+        $result = $this->rpc('get_chat_conversation_metadata', [
+            'p_user_id' => $userId,
+            'p_conversation_id' => $conversationId,
+        ]);
+        if ($result === null) {
+            return null;
+        }
+        if (!is_array($result) ||
+            ($result['id'] ?? null) !== $conversationId ||
+            !in_array($result['provider'] ?? null, ['openai', 'gemini'], true) ||
+            !in_array($result['language'] ?? null, ['en', 'ha', 'ar', 'fr'], true)) {
+            throw new ChatStorageUnavailableException('Invalid conversation metadata response.');
+        }
+        return $result;
+    }
+
     public function deleteConversation(string $userId, string $conversationId): bool
     {
         $this->assertUuid($userId);
