@@ -41,6 +41,9 @@ $mock=function(string $url,array $headers,string $body) use (&$calls,$user,$conv
             ['role'=>'user','content'=>'Sannu'],
             ['role'=>'assistant','content'=>'Wa alaikumus salam.'],
         ],JSON_THROW_ON_ERROR)],
+        'claim_chat_turn'=>['status'=>200,'body'=>json_encode(['outcome'=>'claimed','turn_id'=>'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14'],JSON_THROW_ON_ERROR)],
+        'complete_chat_turn'=>['status'=>200,'body'=>json_encode(['id'=>'e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a16','turn_id'=>'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14','content'=>'An answer','status'=>'completed'],JSON_THROW_ON_ERROR)],
+        'fail_chat_turn'=>['status'=>200,'body'=>'true'],
         'delete_chat_conversation'=>['status'=>200,'body'=>'true'],
         default=>['status'=>404,'body'=>'{}'],
     };
@@ -64,6 +67,12 @@ chatStoreExpect(($store->getConversationMetadata($user,$conversation)['provider'
 $context=$store->getRecentContext($user,$conversation);
 chatStoreExpect(count($context)===2 && ($context[0]['role']??null)==='user' && ($context[1]['role']??null)==='assistant','Recent context must preserve ordered completed role/content pairs.');
 chatStoreExpect($store->deleteConversation($user,$conversation),'Soft delete result should be true.');
+$clientTurn='f0eebc99-9c0b-4ef8-bb6d-6bb9bd380a17';
+$claim=$store->claimTurn($user,$conversation,$clientTurn,$turn,$message,'Sannu','gemini');
+chatStoreExpect(($claim['outcome']??null)==='claimed' && ($claim['turn_id']??null)===$turn,'Turn claim must return the stable server turn ID.');
+$completed=$store->completeTurn($user,$conversation,$clientTurn,'e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a16','An answer','gemini','gemini-test');
+chatStoreExpect(($completed['status']??null)==='completed','Atomic turn completion must return completed status.');
+chatStoreExpect($store->failTurn($user,$conversation,$clientTurn,'failed')===true,'Turn failure operation must return its update result.');
 $last=$calls[array_key_last($calls)];
 chatStoreExpect(($last['payload']['p_user_id']??null)===$user,'Every operation must bind the verified user ID.');
 chatStoreExpect(str_contains($last['url'],'delete_chat_conversation'),'Delete must use the owner-scoped RPC.');
