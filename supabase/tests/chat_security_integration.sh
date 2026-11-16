@@ -83,6 +83,11 @@ select public.create_chat_conversation(
  'Owner private conversation','openai','en'
 );
 select public.create_chat_conversation(
+ 'd3d3d3d3-d3d3-43d3-83d3-d3d3d3d3d3d3',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+ 'OpenAI idempotency conversation','openai','en'
+);
+select public.create_chat_conversation(
  'd2d2d2d2-d2d2-42d2-82d2-d2d2d2d2d2d2',
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
  'Gemini single-turn conversation','gemini','en'
@@ -126,7 +131,7 @@ declare
 begin
   v_claim := public.claim_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'd3d3d3d3-d3d3-43d3-83d3-d3d3d3d3d3d3',
     '15151515-1515-4515-8515-151515151515',
     '16161616-1616-4616-8616-161616161616',
     '17171717-1717-4717-8717-171717171717',
@@ -138,7 +143,7 @@ begin
 
   v_replay := public.claim_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'd3d3d3d3-d3d3-43d3-83d3-d3d3d3d3d3d3',
     '41414141-4141-4141-8141-414141414141',
     '42424242-4242-4242-8242-424242424242',
     '43434343-4343-4343-8343-434343434343',
@@ -151,7 +156,7 @@ begin
 
   v_replay := public.claim_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'd3d3d3d3-d3d3-43d3-83d3-d3d3d3d3d3d3',
     '15151515-1515-4515-8515-151515151515',
     '18181818-1818-4818-8818-181818181818',
     '19191919-1919-4919-8919-191919191919',
@@ -164,7 +169,7 @@ begin
 
   v_replay := public.claim_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'd3d3d3d3-d3d3-43d3-83d3-d3d3d3d3d3d3',
     '15151515-1515-4515-8515-151515151515',
     '20202020-2020-4020-8020-202020202020',
     '21212121-2121-4121-8121-212121212121',
@@ -176,7 +181,7 @@ begin
 
   v_completed := public.complete_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'd3d3d3d3-d3d3-43d3-83d3-d3d3d3d3d3d3',
     '15151515-1515-4515-8515-151515151515',
     '22222222-2222-4222-8222-222222222222',
     'Idempotent answer','openai','test-model'
@@ -188,7 +193,7 @@ begin
 
   v_replay := public.claim_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'd3d3d3d3-d3d3-43d3-83d3-d3d3d3d3d3d3',
     '15151515-1515-4515-8515-151515151515',
     '23232323-2323-4323-8323-232323232323',
     '24242424-2424-4424-8424-242424242424',
@@ -201,7 +206,7 @@ begin
 
   v_claim := public.claim_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'd3d3d3d3-d3d3-43d3-83d3-d3d3d3d3d3d3',
     '25252525-2525-4525-8525-252525252525',
     '26262626-2626-4626-8626-262626262626',
     '27272727-2727-4727-8727-272727272727',
@@ -212,13 +217,13 @@ begin
   end if;
   perform public.fail_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'd3d3d3d3-d3d3-43d3-83d3-d3d3d3d3d3d3',
     '25252525-2525-4525-8525-252525252525',
     'failed'
   );
   v_replay := public.claim_chat_turn(
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    'd3d3d3d3-d3d3-43d3-83d3-d3d3d3d3d3d3',
     '25252525-2525-4525-8525-252525252525',
     '28282828-2828-4828-8828-282828282828',
     '29292929-2929-4929-8929-292929292929',
