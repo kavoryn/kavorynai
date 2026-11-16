@@ -1208,6 +1208,15 @@ if (str_starts_with($path, '/v1/chat/')) {
             respond(409, ['error'=>['code'=>'chat_provider_consent_required','message'=>'Confirm provider data processing before sending a message.','request_id'=>$requestId]]);
         }
 
+        try {
+            $history = $store->getRecentContext($user->id, $conversationId, 30, 32000);
+        } catch (\\Kavoryn\\Ai\\ChatStorageUnavailableException) {
+            respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
+        }
+        if ($provider === 'gemini' && $history !== []) {
+            respond(409, ['error'=>['code'=>'chat_multi_turn_not_supported','message'=>'Gemini multi-turn chat is not available yet. Start a new conversation or choose OpenAI for conversation history.','request_id'=>$requestId]]);
+        }
+
         require_once dirname(__DIR__) . '/src/Ai/ProviderSseEventMapper.php';
         require_once dirname(__DIR__) . '/src/Ai/ProviderStreamException.php';
         require_once dirname(__DIR__) . '/src/Ai/SseEventDecoder.php';
@@ -1304,6 +1313,7 @@ if (str_starts_with($path, '/v1/chat/')) {
                     }
                     return false;
                 },
+                $history,
             );
             if (!$streamCompleted || trim($assistantText) === '') {
                 throw new \Kavoryn\Ai\ProviderStreamException('The provider stream did not complete.');
