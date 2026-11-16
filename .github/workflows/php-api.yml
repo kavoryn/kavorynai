@@ -7,6 +7,8 @@ on:
       - "backend/**"
       - "supabase/migrations/**"
       - "supabase/tests/**"
+      - "docs/STAGE_A_OCR_BENCHMARK_PLAN.md"
+      - "docs/KAVORYN_MASTER_COMPLETION_CHECKLIST.md"
       - ".github/workflows/php-api.yml"
       - ".github/workflows/billing-subscription-expiry.yml"
   pull_request:
@@ -14,6 +16,8 @@ on:
       - "backend/**"
       - "supabase/migrations/**"
       - "supabase/tests/**"
+      - "docs/STAGE_A_OCR_BENCHMARK_PLAN.md"
+      - "docs/KAVORYN_MASTER_COMPLETION_CHECKLIST.md"
       - ".github/workflows/php-api.yml"
       - ".github/workflows/billing-subscription-expiry.yml"
 
@@ -131,6 +135,9 @@ jobs:
 
       - name: Google Cloud Vision OCR provider tests
         run: php backend/tests/GoogleCloudVisionOcrProviderTest.php
+
+      - name: OCR corpus benchmark tests
+        run: php backend/tests/OcrCorpusBenchmarkTest.php
 
       - name: OpenAI document explainer tests
         run: php backend/tests/OpenAiDocumentExplainerTest.php
