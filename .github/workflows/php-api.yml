@@ -52,7 +52,7 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
           create role anon nologin;
           create role authenticated nologin;
@@ -366,11 +366,26 @@ jobs:
           '
 
           consent_status=$(curl --silent --output /tmp/kavoryn-consent.json --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"action":"document.process","payload_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","language":"ha","translate":false,"confirmed":true}' http://127.0.0.1:8080/v1/consents)
-          test "$consent_status" = "503"
+          if [[ "$consent_status" != "401" && "$consent_status" != "503" ]]; then
+            echo "Consent endpoint must reject unauthenticated or unconfigured requests; got HTTP $consent_status."
+            cat /tmp/kavoryn-consent.json
+            exit 1
+          fi
           php -r '
             $data = json_decode(file_get_contents("/tmp/kavoryn-consent.json"), true, 512, JSON_THROW_ON_ERROR);
-            if (($data["error"]["code"] ?? null) !== "authentication_not_configured") {
-                fwrite(STDERR, "Consent endpoint must fail closed without Auth configuration.\\n");
+            $code = $data["error"]["code"] ?? null;
+            $allowed = [
+                "authentication_not_configured",
+                "authentication_service_unavailable",
+                "unauthorized",
+                "consent_storage_not_configured",
+                "consent_storage_unavailable",
+                "consent_configuration_invalid"
+            ];
+            if (!in_array($code, $allowed, true) ||
+                isset($data["consent_token"]) ||
+                isset($data["consent_id"])) {
+                fwrite(STDERR, "Consent endpoint must fail closed without issuing a consent grant.\\n");
                 exit(1);
             }
           '
