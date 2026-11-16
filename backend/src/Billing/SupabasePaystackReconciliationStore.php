@@ -12,11 +12,11 @@ final class SupabasePaystackReconciliationStore
     public function __construct(
         private readonly string $supabaseUrl,
         private readonly string $secretKey,
-        private readonly string $serviceRoleJwt,
+        string $legacyServiceRoleJwtForCompatibility,
         private readonly mixed $http = null,
     ) {
         if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
-            $secretKey === '' || $serviceRoleJwt === '') {
+            $secretKey === '') {
             throw new \InvalidArgumentException('Payment reconciliation is not configured.');
         }
     }
@@ -44,7 +44,6 @@ final class SupabasePaystackReconciliationStore
         $url = rtrim($this->supabaseUrl, '/') . '/rest/v1/rpc/reconcile_paystack_charge_success';
         $headers = [
             'apikey' => $this->secretKey,
-            'Authorization' => 'Bearer ' . $this->serviceRoleJwt,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ];

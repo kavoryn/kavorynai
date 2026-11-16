@@ -22,7 +22,7 @@ $store = new SupabasePaystackReconciliationStore(
     static function (string $url, array $headers, string $body) use (&$requests): array {
         $requests[] = compact('url', 'headers', 'body');
         reconciliationExpect(str_ends_with($url, '/rpc/reconcile_paystack_charge_success'), 'Reconciliation must call the atomic RPC.');
-        reconciliationExpect(($headers['Authorization'] ?? null) === 'Bearer service-role-test', 'Service role credentials must remain server-side.');
+        reconciliationExpect(!isset($headers['Authorization']) && isset($headers['apikey']), 'Privileged Supabase calls must use the secret API key via apikey only.');
         return ['status' => 200, 'body' => 'true'];
     },
 );

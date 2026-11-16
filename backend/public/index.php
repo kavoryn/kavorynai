@@ -102,8 +102,8 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
     $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $supabaseSecret = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
-    if ($paystackSecret === '' || $supabaseUrl === '' || $supabaseSecret === '' || $serviceRoleJwt === '') {
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
+    if ($paystackSecret === '' || $supabaseUrl === '' || $supabaseSecret === '') {
         respond(503, ['error'=>['code'=>'webhook_not_configured','message'=>'Payment notification processing is temporarily unavailable.','request_id'=>$requestId]]);
     }
 
@@ -333,10 +333,10 @@ if ($method === 'POST' && $path === '/v1/billing/checkout') {
 
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $supabaseSecret = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
     $callbackUrl = getenv('PAYSTACK_CALLBACK_URL') ?: '';
-    if ($supabaseUrl === '' || $supabaseSecret === '' || $serviceRoleJwt === '' ||
+    if ($supabaseUrl === '' || $supabaseSecret === '' ||
         $paystackSecret === '' || parse_url($callbackUrl, PHP_URL_SCHEME) !== 'https') {
         respond(503, ['error'=>['code'=>'billing_checkout_not_configured','message'=>'Checkout is temporarily unavailable.','request_id'=>$requestId]]);
     }
@@ -596,8 +596,8 @@ if ($method === 'POST' && $path === '/v1/consents') {
     }
 
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
-    if ($secretKey === '' || $serviceRoleJwt === '') {
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
+    if ($secretKey === '') {
         respond(503, [
             'error' => [
                 'code' => 'consent_storage_not_configured',
@@ -749,9 +749,9 @@ if ($method === 'POST' && $path === '/v1/documents') {
     $storageDriver = strtolower(trim(getenv('DOCUMENT_STORAGE_DRIVER') ?: 'supabase'));
     $storageBucket = getenv('PRIVATE_DOCUMENT_STORAGE_BUCKET') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
-    if ($secretKey === '' || $serviceRoleJwt === '' || $supabaseUrl === '' ||
+    if ($secretKey === '' || $supabaseUrl === '' ||
         !in_array($storageDriver, ['supabase', 'local'], true) ||
         ($storageDriver === 'supabase' && $storageBucket === '')) {
         respond(503, [
@@ -912,9 +912,9 @@ if ($method === 'POST' && preg_match(
 
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
-    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $encryptionKey === '') {
+    if ($supabaseUrl === '' || $secretKey === '' || $encryptionKey === '') {
         respond(503, ['error' => ['code' => 'document_explanation_not_configured', 'message' => 'Document explanation is temporarily unavailable.', 'request_id' => $requestId]]);
     }
 
@@ -1005,9 +1005,9 @@ if ($method === 'POST' && preg_match(
     }
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
-    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $encryptionKey === '') {
+    if ($supabaseUrl === '' || $secretKey === '' || $encryptionKey === '') {
         respond(503, ['error' => ['code' => 'document_qa_not_configured', 'message' => 'Document questions are temporarily unavailable.', 'request_id' => $requestId]]);
     }
 
@@ -1088,9 +1088,9 @@ if ($method === 'GET' && preg_match(
 
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
-    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $encryptionKey === '') {
+    if ($supabaseUrl === '' || $secretKey === '' || $encryptionKey === '') {
         respond(503, [
             'error' => [
                 'code' => 'ocr_result_storage_not_configured',
@@ -1151,9 +1151,9 @@ if (str_starts_with($path, '/v1/chat/')) {
     );
 
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
-    if ($secretKey === '' || $serviceRoleJwt === '' || $supabaseUrl === '') {
+    if ($secretKey === '' || $supabaseUrl === '') {
         respond(503, ['error'=>['code'=>'chat_storage_not_configured','message'=>'Chat is temporarily unavailable.','request_id'=>$requestId]]);
     }
 

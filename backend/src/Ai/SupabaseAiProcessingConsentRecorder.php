@@ -10,10 +10,10 @@ final class SupabaseAiProcessingConsentRecorder
     public function __construct(
         private readonly string $supabaseUrl,
         private readonly string $secretKey,
-        private readonly string $serviceRoleJwt,
+        string $legacyServiceRoleJwtForCompatibility,
         private readonly mixed $http = null,
     ) {
-        if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' || $secretKey === '' || $serviceRoleJwt === '') {
+        if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' || $secretKey === '') {
             throw new \InvalidArgumentException('AI consent storage is not configured.');
         }
     }
@@ -38,7 +38,6 @@ final class SupabaseAiProcessingConsentRecorder
         $url = rtrim($this->supabaseUrl, '/') . '/rest/v1/rpc/record_ai_processing_consent';
         $headers = [
             'apikey' => $this->secretKey,
-            'Authorization' => 'Bearer ' . $this->serviceRoleJwt,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ];

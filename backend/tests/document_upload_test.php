@@ -68,7 +68,7 @@ $rateLimitHttp = static function (string $url, array $headers, string $body): ar
     uploadExpect(str_ends_with($url, '/rpc/consume_document_upload_rate_limit'), 'Rate limiter must call the atomic Supabase RPC.');
     $payload = json_decode($body, true, 8, JSON_THROW_ON_ERROR);
     uploadExpect(($payload['p_user_id'] ?? null) === 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12', 'Rate limiter must use the authenticated user id.');
-    uploadExpect(($headers['Authorization'] ?? '') === 'Bearer service-role-test-jwt', 'Rate limiter must authenticate server-side only.');
+    uploadExpect(!isset($headers['Authorization']) && isset($headers['apikey']), 'Privileged document upload calls must use the secret API key via apikey only.');
     return ['status' => 200, 'body' => '[{"allowed":true,"retry_after_seconds":0}]'];
 };
 $rateLimiter = new \Kavoryn\Upload\SupabaseDocumentRateLimiter(

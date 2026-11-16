@@ -65,7 +65,7 @@ storeExpect(($insert['p_id'] ?? null) === $record->id, 'Create RPC must persist 
 storeExpect(($insert['p_ttl_seconds'] ?? null) === 300, 'Create RPC must receive the configured grant lifetime.');
 storeExpect($storedRecord->expiresAt->getTimestamp() - $storedRecord->createdAt->getTimestamp() === 300, 'Store must return database-confirmed expiry.');
 storeExpect(($requests[0]['headers']['apikey'] ?? '') === 'sb_secret_test', 'New secret API key must be sent in apikey.');
-storeExpect(($requests[0]['headers']['Authorization'] ?? '') === 'Bearer service-role-jwt-test', 'Legacy service-role JWT must be used as bearer.');
+storeExpect(!isset($requests[0]['headers']['Authorization']) && isset($requests[0]['headers']['apikey']), 'Privileged Supabase calls must use the secret API key via apikey only.');
 storeExpect(($insert['p_token_hash'] ?? null) === $record->tokenHash, 'Only the token hash must be sent to the database.');
 
 $consumed = $store->consumeOnce(

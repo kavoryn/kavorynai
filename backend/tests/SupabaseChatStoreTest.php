@@ -18,7 +18,7 @@ $message='d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15';
 $calls=[];
 $mock=function(string $url,array $headers,string $body) use (&$calls,$user,$conversation,$message):array {
     $calls[]=['url'=>$url,'headers'=>$headers,'payload'=>json_decode($body,true,16,JSON_THROW_ON_ERROR)];
-    chatStoreExpect(($headers['Authorization']??null)==='Bearer service-role-test','Service role auth must remain server-side.');
+    chatStoreExpect(($headers['apikey']??null)==='secret-test' && !isset($headers['Authorization']),'Privileged Chat RPCs must use the Supabase secret key via apikey only.');
     $name=basename($url);
     return match($name) {
         'create_chat_conversation'=>['status'=>200,'body'=>json_encode(['id'=>$calls[array_key_last($calls)]['payload']['p_id'],'provider'=>'gemini','language'=>'ha'],JSON_THROW_ON_ERROR)],
@@ -48,7 +48,7 @@ $mock=function(string $url,array $headers,string $body) use (&$calls,$user,$conv
         default=>['status'=>404,'body'=>'{}'],
     };
 };
-$store=new SupabaseChatStore('https://example.supabase.co','secret-test','service-role-test',$mock);
+$store=new SupabaseChatStore('https://example.supabase.co','secret-test','',$mock);
 $created=$store->createConversation($user,'gemini','ha','Hausa test');
 chatStoreExpect(($created['provider']??null)==='gemini','Conversation provider should be returned.');
 chatStoreExpect($store->consumeRateLimit($user),'Rate limit should allow an available request.');
@@ -80,7 +80,7 @@ $lastDelete=$deleteCalls[array_key_last($deleteCalls)];
 chatStoreExpect(($lastDelete['payload']['p_user_id']??null)===$user,'Delete must bind the verified user ID.');
 chatStoreExpect(str_contains($lastDelete['url'],'delete_chat_conversation'),'Delete must use the owner-scoped RPC.');
 
-$failed=new SupabaseChatStore('https://example.supabase.co','secret-test','service-role-test',static fn()=>['status'=>500,'body'=>'{}']);
+$failed=new SupabaseChatStore('https://example.supabase.co','secret-test','',static fn()=>['status'=>500,'body'=>'{}']);
 try { $failed->hasConsent($user,'openai'); throw new RuntimeException('Storage failure must fail closed.'); }
 catch(ChatStorageUnavailableException) {}
 
@@ -90,7 +90,7 @@ $completionFailureCalls=[];
 $completionFailureStore=new SupabaseChatStore(
     'https://example.supabase.co',
     'secret-test',
-    'service-role-test',
+    '',
     static function(string $url,array $payload) use (&$completionFailureCalls):array {
         $function=basename((string)parse_url($url,PHP_URL_PATH));
         $completionFailureCalls[]=$function;

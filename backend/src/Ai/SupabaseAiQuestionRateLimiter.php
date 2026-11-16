@@ -10,10 +10,10 @@ final class SupabaseAiQuestionRateLimiter
     public function __construct(
         private readonly string $supabaseUrl,
         private readonly string $secretKey,
-        private readonly string $serviceRoleJwt,
+        string $legacyServiceRoleJwtForCompatibility,
         private readonly mixed $http = null,
     ) {
-        if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' || $secretKey === '' || $serviceRoleJwt === '') {
+        if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' || $secretKey === '') {
             throw new \InvalidArgumentException('AI question rate limiting is not configured.');
         }
     }
@@ -24,7 +24,7 @@ final class SupabaseAiQuestionRateLimiter
             throw new \InvalidArgumentException('Invalid rate-limit identity.');
         }
         $url=rtrim($this->supabaseUrl,'/').'/rest/v1/rpc/consume_ai_question_rate_limit';
-        $headers=['apikey'=>$this->secretKey,'Authorization'=>'Bearer '.$this->serviceRoleJwt,'Content-Type'=>'application/json','Accept'=>'application/json'];
+        $headers=['apikey'=>$this->secretKey,'Content-Type'=>'application/json','Accept'=>'application/json'];
         $body=json_encode(['p_user_id'=>$userId,'p_limit'=>10,'p_window_seconds'=>60],JSON_THROW_ON_ERROR);
         try {
             if($this->http!==null) $response=($this->http)($url,$headers,$body);

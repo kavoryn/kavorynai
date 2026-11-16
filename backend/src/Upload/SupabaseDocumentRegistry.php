@@ -12,11 +12,11 @@ final class SupabaseDocumentRegistry implements DocumentRegistry
     public function __construct(
         private readonly string $supabaseUrl,
         private readonly string $secretKey,
-        private readonly string $serviceRoleJwt,
+        string $legacyServiceRoleJwtForCompatibility,
         private readonly mixed $http = null,
     ) {
         if ($supabaseUrl === '' || parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
-            $secretKey === '' || $serviceRoleJwt === '') {
+            $secretKey === '') {
             throw new DocumentRegistryUnavailableException('Document registry is not configured.');
         }
     }
@@ -49,7 +49,6 @@ final class SupabaseDocumentRegistry implements DocumentRegistry
         $url = rtrim($this->supabaseUrl, '/') . '/rest/v1/rpc/register_uploaded_document';
         $headers = [
             'apikey' => $this->secretKey,
-            'Authorization' => 'Bearer ' . $this->serviceRoleJwt,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ];
@@ -157,11 +156,11 @@ final class SupabaseDocumentRateLimiter
     public function __construct(
         private readonly string $supabaseUrl,
         private readonly string $secretKey,
-        private readonly string $serviceRoleJwt,
+        string $legacyServiceRoleJwtForCompatibility,
         private readonly mixed $http = null,
     ) {
         if ($supabaseUrl === '' || parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
-            $secretKey === '' || $serviceRoleJwt === '') {
+            $secretKey === '') {
             throw new DocumentRateLimiterUnavailableException('Rate limiter is not configured.');
         }
     }
@@ -175,7 +174,6 @@ final class SupabaseDocumentRateLimiter
         $url = rtrim($this->supabaseUrl, '/') . '/rest/v1/rpc/consume_document_upload_rate_limit';
         $headers = [
             'apikey' => $this->secretKey,
-            'Authorization' => 'Bearer ' . $this->serviceRoleJwt,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ];

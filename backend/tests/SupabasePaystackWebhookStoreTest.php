@@ -23,7 +23,7 @@ $store = new SupabasePaystackWebhookStore(
     static function (string $url, array $headers, string $body) use (&$calls): array {
         $calls[] = compact('url', 'headers', 'body');
         receiptExpect(str_ends_with($url, '/rpc/record_paystack_webhook_receipt'), 'Receipt should use the server-side RPC.');
-        receiptExpect(($headers['Authorization'] ?? null) === 'Bearer service-role-test', 'Service credentials must remain server-side.');
+        receiptExpect(!isset($headers['Authorization']) && isset($headers['apikey']), 'Privileged Supabase calls must use the secret API key via apikey only.');
         return ['status' => 200, 'body' => 'true'];
     },
 );
