@@ -1196,7 +1196,7 @@ if (str_starts_with($path, '/v1/chat/')) {
         }
 
         $conversationId = $messageMatch[1];
-        $conversation = $store->getConversation($user->id, $conversationId);
+        $conversation = $store->getConversationMetadata($user->id, $conversationId);
         if ($conversation === null) {
             respond(404, ['error'=>['code'=>'conversation_not_found','message'=>'The conversation was not found.','request_id'=>$requestId]]);
         }
