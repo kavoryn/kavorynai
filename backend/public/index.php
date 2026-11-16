@@ -1393,6 +1393,15 @@ if (str_starts_with($path, '/v1/chat/')) {
                 );
                 $sendSse(['type'=>'completed','message_id'=>$savedAssistant['id']]);
             } catch (\Throwable) {
+                // The provider completed, but persistence failed. Close the claim
+                // when storage is available so this conversation is not blocked
+                // forever by a turn left in the processing state.
+                try {
+                    $store->failTurn($user->id, $conversationId, $clientTurnId, 'failed');
+                } catch (\Throwable) {
+                    // If storage is still unavailable, fail closed: do not retry
+                    // provider work for this client turn.
+                }
                 $sendSse(['type'=>'error','code'=>'chat_storage_unavailable','message'=>'Your response could not be saved. Please try again.','request_id'=>$requestId]);
             }
             exit;
