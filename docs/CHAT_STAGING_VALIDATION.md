@@ -77,6 +77,8 @@ Before running any provider-backed test:
 - The staging deployment, database, and environment are confirmed isolated from Production.
 
 ## Current staging status (2026-11-16)
+- A direct rollback-only transaction test was run against staging for OpenAI turn claim, duplicate in-progress retry, conflicting payload rejection, atomic completion, completed-answer replay, one-user/one-assistant-row invariant, and Gemini single-turn fail-closed behavior; all assertions passed. Verification after rollback confirmed zero temporary users, conversations, messages, consents, or turn-request rows remain.
+
 
 - A separate Supabase staging project `kavoryn-chat-staging` (project ref `czaholjpagapvglswssd`, region `eu-west-1`) is active. Four chat migrations are applied there: private chat storage, private chat operations, bounded context RPC, and atomic chat-turn idempotency. The live Supabase project has no chat migrations applied; this is intentional. Do not apply these migrations to Production for staging.
 - The three turn-idempotency RPCs (`claim_chat_turn`, `complete_chat_turn`, and `fail_chat_turn`) are SECURITY DEFINER with an empty `search_path`; execution is denied to `anon` and `authenticated` and granted to `service_role` only. All five private chat tables have RLS enabled, and direct SELECT is denied to `anon`, `authenticated`, and `service_role`.
