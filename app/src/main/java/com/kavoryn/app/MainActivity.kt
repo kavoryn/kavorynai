@@ -1,5 +1,6 @@
 package com.kavoryn.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,6 +24,8 @@ import com.kavoryn.app.auth.shouldClearStoredSessionAfterRefreshFailure
 import com.kavoryn.app.auth.SupabaseAuthSession
 import com.kavoryn.app.auth.SupabaseSessionStore
 import com.kavoryn.app.auth.SupabaseSignInScreen
+import com.kavoryn.app.auth.PasswordResetScreen
+import com.kavoryn.app.auth.parseSupabaseAuthCallback
 import com.kavoryn.app.chat.ChatScreen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -35,24 +38,43 @@ private val KavorynGold = Color(0xFFC9A24B)
 private val KavorynInk = Color(0xFF1A1814)
 
 class MainActivity : ComponentActivity() {
+    private var pendingAuthCallbackUri by mutableStateOf<String?>(null)
+
+    private fun clearPendingAuthCallback() {
+        pendingAuthCallbackUri = null
+        setIntent(Intent(this, MainActivity::class.java))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingAuthCallbackUri = intent?.dataString
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(
                 primary = KavorynGold, onPrimary = KavorynInk,
                 background = KavorynBlue, surface = Color(0xFFF4F9FE),
                 onSurface = KavorynInk
             )) {
-                Surface(Modifier.fillMaxSize(), color = KavorynBlue) { DocumentFlow() }
+                Surface(Modifier.fillMaxSize(), color = KavorynBlue) {
+                    DocumentFlow(
+                        authCallbackUri = pendingAuthCallbackUri,
+                        onAuthCallbackHandled = { clearPendingAuthCallback() }
+                    )
+                }
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingAuthCallbackUri = intent.dataString
+    }
 }
 
-private enum class Screen { HOME, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD }
+private enum class Screen { HOME, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD, RESET_PASSWORD }
 
 @Composable
-private fun DocumentFlow() {
+private fun DocumentFlow(authCallbackUri: String?, onAuthCallbackHandled: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var screen by remember { mutableStateOf(Screen.HOME) }
     var confirmed by remember { mutableStateOf(false) }
@@ -64,6 +86,7 @@ private fun DocumentFlow() {
     var authLoading by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
     var authNotice by remember { mutableStateOf<String?>(null) }
+    var recoveryCallback by remember { mutableStateOf<com.kavoryn.app.auth.SupabaseAuthCallback?>(null) }
     var openChatAfterAuth by remember { mutableStateOf(false) }
     val authConfigured = BuildConfig.SUPABASE_URL.isNotBlank() &&
         BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()
@@ -97,6 +120,48 @@ private fun DocumentFlow() {
                 } catch (_: Exception) {
                     authError = "Kavoryn couldn't reconnect. Your encrypted session is kept; try again when you're online."
                 }
+            }
+        }
+    }
+
+    LaunchedEffect(authCallbackUri) {
+        val rawCallback = authCallbackUri ?: return@LaunchedEffect
+        val callback = parseSupabaseAuthCallback(rawCallback)
+        if (callback == null) {
+            onAuthCallbackHandled()
+            authError = "This email link is invalid or has expired. Request a new link and try again."
+            authNotice = null
+            screen = Screen.AUTH
+            return@LaunchedEffect
+        }
+        authError = null
+        authNotice = null
+        if (callback.type == "recovery") {
+            recoveryCallback = callback
+            screen = Screen.RESET_PASSWORD
+        } else {
+            authLoading = true
+            scope.launch {
+                try {
+                    val user = withContext(Dispatchers.IO) { authApi.getUser(callback.accessToken) }
+                    val verifiedSession = SupabaseAuthSession(
+                        accessToken = callback.accessToken,
+                        refreshToken = callback.refreshToken,
+                        tokenType = "bearer",
+                        expiresAtEpochSeconds = callback.expiresAtEpochSeconds,
+                        userId = user.userId,
+                        email = user.email
+                    )
+                    withContext(Dispatchers.IO) { authStore.save(verifiedSession) }
+                    onAuthCallbackHandled()
+                    authSession = verifiedSession
+                    authNotice = "Your email is confirmed. You're signed in."
+                    screen = if (selectedDocuments.isNotEmpty()) Screen.REVIEW else Screen.HOME
+                } catch (_: Exception) {
+                    onAuthCallbackHandled()
+                    authError = "Email confirmation could not be completed. Request a new link and try again."
+                    screen = Screen.AUTH
+                } finally { authLoading = false }
             }
         }
     }
@@ -173,26 +238,15 @@ private fun DocumentFlow() {
         pendingCamera = null
     }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isNotEmpty()) {
-            val accepted = mutableListOf<SelectedDocument>()
-            val rejected = mutableListOf<String>()
-            uris.forEach { uri ->
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (_: SecurityException) { /* Temporary picker grant remains usable. */ }
-                when (val result = readDocumentMetadata(context, uri)) {
-                    is DocumentMetadataResult.Valid -> accepted.add(result.document)
-                    is DocumentMetadataResult.Invalid -> rejected.add(result.reason)
-                }
-            }
-            cleanupTemporaryScans(context, selectedDocuments)
-            selectedDocuments = accepted
-            confirmed = false
-            pickerError = rejected.firstOrNull()
-            screen = if (accepted.isNotEmpty()) Screen.REVIEW else Screen.HOME
+    // The current processing contract accepts one document per run.
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: SecurityException) { /* Temporary picker grant remains usable. */ }
+            acceptUri(uri)
         }
     }
 
@@ -270,6 +324,32 @@ private fun DocumentFlow() {
                     }
                 }
             },
+            onPasswordResetRequest = { email ->
+                authLoading = true
+                authError = null
+                authNotice = null
+                scope.launch {
+                    try {
+                        withContext(Dispatchers.IO) { authApi.sendPasswordRecoveryEmail(email) }
+                        authNotice = "If an account matches that email, a password reset link has been sent."
+                    } catch (_: Exception) {
+                        authError = "Password reset could not be requested. Check your email address and try again later."
+                    } finally { authLoading = false }
+                }
+            },
+            onResendSignupConfirmation = { email ->
+                authLoading = true
+                authError = null
+                authNotice = null
+                scope.launch {
+                    try {
+                        withContext(Dispatchers.IO) { authApi.resendSignupConfirmationEmail(email) }
+                        authNotice = "If that address needs confirmation, a confirmation email has been sent."
+                    } catch (_: Exception) {
+                        authError = "A confirmation email could not be requested. Try again later."
+                    } finally { authLoading = false }
+                }
+            },
             onSignUp = { email, password ->
                 authLoading = true
                 authError = null
@@ -295,6 +375,40 @@ private fun DocumentFlow() {
                 }
             }
         )
+        Screen.RESET_PASSWORD -> {
+            val recovery = recoveryCallback
+            if (recovery == null) {
+                LocalReadyScreen(false) { screen = Screen.AUTH }
+            } else {
+                PasswordResetScreen(
+                    loading = authLoading,
+                    errorMessage = authError,
+                    onCancel = {
+                        recoveryCallback = null
+                        onAuthCallbackHandled()
+                        authError = null
+                        screen = Screen.AUTH
+                    },
+                    onSubmit = { newPassword ->
+                        authLoading = true
+                        authError = null
+                        scope.launch {
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    authApi.updatePassword(recovery.accessToken, newPassword)
+                                }
+                                recoveryCallback = null
+                                onAuthCallbackHandled()
+                                authNotice = "Your password has been updated. Sign in with your new password."
+                                screen = Screen.AUTH
+                            } catch (_: Exception) {
+                                authError = "The password could not be updated. The recovery link may have expired; request a new one."
+                            } finally { authLoading = false }
+                        }
+                    }
+                )
+            }
+        }
         Screen.CHAT -> {
             val session = authSession
             if (session != null) {

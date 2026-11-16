@@ -47,10 +47,8 @@ Do not change a status based on an assumption. Add a test link, report, commit, 
 - [x] Encrypted OCR result storage and owner-authenticated result retrieval exist in backend.
 - [x] Bounded OCR queue/worker lease and retry foundations exist; worker remains disabled.
 - [ ] Run fixed, permissioned/synthetic real-document corpus across all four Phase 1 languages.
-- [x] Add mocked-provider regression coverage for preserving Hausa characters ɓ, ɗ, ƙ, ƴ and mixed Hausa/Arabic text with Unicode-safe uncertainty offsets.
-- [x] Add offline per-language CER/WER benchmark tooling, synthetic tests, and a privacy-safe fixed-corpus protocol.
-- [ ] Measure real OCR baseline/error rate on a fixed, permission-cleared document corpus before setting final targets.
-- [ ] Specifically validate Hausa characters: ɓ, ɗ, ƙ, ƴ on real scanned documents and manually verified ground truth.
+- [ ] Measure OCR baseline/error rate before setting final targets.
+- [ ] Specifically test Hausa characters: ɓ, ɗ, ƙ, ƴ.
 - [ ] Verify multi-page provider behavior, tables, forms, columns, and complex page layouts.
 - [ ] Measure OCR confidence calibration and ensure uncertain words/spans are visibly and audibly identified.
 - [ ] Verify no OCR result can be read by a different user or after expiry/deletion.
@@ -201,7 +199,9 @@ Do not change a status based on an assumption. Add a test link, report, commit, 
 ## 5. Accounts, onboarding and account lifecycle
 - [x] Supabase email/password sign-in and registration foundations exist.
 - [x] Encrypted Android session storage backed by Android Keystore exists.
-- [ ] Complete email verification and password-reset user journeys, including expiry/replay/rate limits.
+- [x] Add Android password-reset request, signup-confirmation resend, callback validation, email-confirmation session handling, and password-update UI foundations.
+- [ ] Complete real Supabase email delivery and callback verification: redirect allowlist, email templates/SMTP, physical-device links, expiry/replay/rate limits, and end-to-end password change.
+- [ ] Replace the unverified custom URI callback with a verified HTTPS Android App Link before small-group/public release; publish and validate `assetlinks.json` on a controlled domain.
 - [ ] Decide whether Google Sign-In is in MVP; if enabled, configure OAuth and redirect protection.
 - [ ] Decide Guest Mode and registration timing.
 - [ ] Avoid account-existence leaks in authentication errors where appropriate.
