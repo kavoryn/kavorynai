@@ -199,7 +199,7 @@ final class SupabaseChatStore
                 !in_array($item['role'] ?? null, ['user', 'assistant'], true) ||
                 !is_string($item['content'] ?? null) ||
                 trim($item['content']) === '' ||
-                preg_match('/\\A.{1,24000}\\z/us', $item['content']) !== 1) {
+                preg_match('/\A.{1,24000}\z/us', $item['content']) !== 1) {
                 throw new ChatStorageUnavailableException('Invalid chat context item.');
             }
             preg_match_all('/./us', $item['content'], $characters);
