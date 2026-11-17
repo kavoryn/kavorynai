@@ -85,6 +85,7 @@ fun DashboardScreen(
     onOpenHistory: () -> Unit,
     onSignOut: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenDocuments: () -> Unit,
     selectedLanguage: OcrLanguage,
     onLanguageChange: (OcrLanguage) -> Unit,
     onChoose: () -> Unit,
@@ -98,7 +99,7 @@ fun DashboardScreen(
                 selected = WorkspaceTab.HOME,
                 onHomeClick = {},
                 onChatClick = onOpenChat,
-                onDocumentsClick = onChoose,
+                onDocumentsClick = onOpenDocuments,
                 onSettingsClick = onOpenSettings
             )
         }
@@ -274,6 +275,136 @@ private fun WorkspaceFeatureCard(
 }
 
 @Composable
+fun DocumentsWorkspaceScreen(
+    selectedDocumentNames: List<String>,
+    error: String?,
+    onOpenHome: () -> Unit,
+    onOpenChat: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onScanWithCamera: () -> Unit,
+    onChooseFile: () -> Unit
+) {
+    Scaffold(
+        containerColor = WorkspaceCanvas,
+        bottomBar = {
+            WorkspaceBottomBar(
+                selected = WorkspaceTab.DOCUMENTS,
+                onHomeClick = onOpenHome,
+                onChatClick = onOpenChat,
+                onDocumentsClick = {},
+                onSettingsClick = onOpenSettings
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            Modifier.fillMaxSize().padding(innerPadding).verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("Documents", color = WorkspaceInk, style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold)
+            Text(
+                "Bring a document into Kavoryn to review, process and understand it.",
+                color = WorkspaceMuted
+            )
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(Icons.Outlined.Description, contentDescription = null,
+                        tint = WorkspaceGold, modifier = Modifier.size(32.dp))
+                    Text("Add a document", color = WorkspaceInk,
+                        style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Scan a paper document with your camera, or choose a PDF or supported image from your device.",
+                        color = WorkspaceMuted, style = MaterialTheme.typography.bodyMedium
+                    )
+                    Button(
+                        onClick = onScanWithCamera,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = WorkspaceInk)
+                    ) {
+                        Icon(Icons.Outlined.Description, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Scan with camera")
+                    }
+                    OutlinedButton(
+                        onClick = onChooseFile,
+                        modifier = Modifier.fillMaxWidth().height(52.dp)
+                    ) {
+                        Icon(Icons.Outlined.UploadFile, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Choose PDF or image")
+                    }
+                    if (error != null) {
+                        Text(error, color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = WorkspaceGold)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Current selection", color = WorkspaceInk,
+                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                    if (selectedDocumentNames.isEmpty()) {
+                        Text(
+                            "No document selected yet. Your file will appear here while you review it before processing.",
+                            color = WorkspaceMuted, style = MaterialTheme.typography.bodySmall
+                        )
+                    } else {
+                        selectedDocumentNames.forEach { name ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.Description, contentDescription = null,
+                                    tint = WorkspaceMuted, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(name, color = WorkspaceInk, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.History, contentDescription = null, tint = WorkspaceGold)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Document history", color = WorkspaceInk,
+                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        "Saved document history will appear here when the complete OCR result and document-history connection is finished. This screen does not invent or display unsaved records.",
+                        color = WorkspaceMuted, style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun KavorynSettingsScreen(
     accountEmail: String?,
     authConfigured: Boolean,
@@ -283,6 +414,7 @@ fun KavorynSettingsScreen(
     onLanguageChange: (OcrLanguage) -> Unit,
     onOpenSignIn: () -> Unit,
     onSignOut: () -> Unit,
+    onOpenHome: () -> Unit,
     onOpenChat: () -> Unit,
     onOpenDocuments: () -> Unit
 ) {
@@ -292,7 +424,7 @@ fun KavorynSettingsScreen(
         bottomBar = {
             WorkspaceBottomBar(
                 selected = WorkspaceTab.SETTINGS,
-                onHomeClick = onOpenDocuments,
+                onHomeClick = onOpenHome,
                 onChatClick = onOpenChat,
                 onDocumentsClick = onOpenDocuments,
                 onSettingsClick = {}
