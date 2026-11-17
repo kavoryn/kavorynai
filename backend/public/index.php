@@ -1318,7 +1318,7 @@ if (str_starts_with($path, '/v1/chat/')) {
         require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamerFactory.php';
         require_once dirname(__DIR__) . '/src/Ai/ChatProviderEnvironmentFactory.php';
 
-        $providerEnvironment = \\Kavoryn\\Ai\\ChatProviderEnvironmentFactory::fromEnvironment([
+        $providerEnvironment = \Kavoryn\Ai\ChatProviderEnvironmentFactory::fromEnvironment([
             'OPENAI_API_KEY' => getenv('OPENAI_API_KEY') ?: '',
             'OPENAI_API_KE' => getenv('OPENAI_API_KE') ?: '',
             'OPENAI_CHAT_MODEL' => getenv('OPENAI_CHAT_MODEL') ?: '',
