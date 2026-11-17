@@ -1456,8 +1456,18 @@ if (str_starts_with($path, '/v1/chat/')) {
             if (!$streamCompleted || trim($assistantText) === '') {
                 throw new \Kavoryn\Ai\ProviderStreamException('The provider stream did not complete.');
             }
-        } catch (\Throwable) {
+        } catch (\Throwable $error) {
             $streamFailed = true;
+            $diagnostic = [
+                'event' => 'chat_provider_stream_failed',
+                'request_id' => $requestId,
+                'provider' => $provider,
+                'exception' => get_class($error),
+            ];
+            if ($error instanceof \Kavoryn\Ai\ProviderStreamException) {
+                $diagnostic['provider_diagnostics'] = $error->diagnostics();
+            }
+            error_log('[kavoryn-chat] ' . json_encode($diagnostic, JSON_UNESCAPED_SLASHES));
         }
 
         $model = $provider === 'openai'
