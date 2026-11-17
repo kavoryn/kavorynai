@@ -14,7 +14,7 @@ final class DocumentStorageFactory
             return new SupabasePrivateDocumentStorage(
                 getenv('SUPABASE_URL') ?: '',
                 getenv('SUPABASE_SECRET_KEY') ?: '',
-                getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '',
+                '',
                 getenv('PRIVATE_DOCUMENT_STORAGE_BUCKET') ?: '',
             );
         }

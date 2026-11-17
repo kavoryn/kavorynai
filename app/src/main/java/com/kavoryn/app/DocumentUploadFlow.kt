@@ -2,7 +2,6 @@ package com.kavoryn.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -56,6 +55,8 @@ fun DocumentUploadFlow(
     var explanation by remember { mutableStateOf<DocumentExplanation?>(null) }
     var showAiConsent by remember { mutableStateOf(false) }
     var showQuestions by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     var activeJob by remember { mutableStateOf<Job?>(null) }
 
     fun startUpload() {
@@ -118,31 +119,10 @@ fun DocumentUploadFlow(
 
     when {
         explanation != null -> {
-            Column(
-                Modifier.fillMaxSize().padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Text("Document explanation", style = MaterialTheme.typography.headlineMedium)
-                Text(explanation!!.summary, style = MaterialTheme.typography.titleMedium)
-                Text(explanation!!.detailedExplanation)
-                if (explanation!!.keyFacts.isNotEmpty()) {
-                    Text("Key facts", style = MaterialTheme.typography.titleSmall)
-                    explanation!!.keyFacts.forEach { fact ->
-                        Text("• ${fact.label}: ${fact.value}")
-                        if (fact.sourceQuote.isNotBlank()) {
-                            Text("Source: “${fact.sourceQuote}”", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-                if (explanation!!.actions.isNotEmpty()) {
-                    Text("Suggested next steps", style = MaterialTheme.typography.titleSmall)
-                    explanation!!.actions.forEach { Text("• $it") }
-                }
-                Spacer(Modifier.weight(1f))
-                OutlinedButton(onClick = { explanation = null }, Modifier.fillMaxWidth()) {
-                    Text("Back to document")
-                }
-            }
+            DocumentExplanationScreen(
+                explanation = explanation!!,
+                onBackToDocument = { explanation = null }
+            )
         }
         result != null -> {
             if (showQuestions) {
@@ -164,7 +144,74 @@ fun DocumentUploadFlow(
                 OcrResultScreen(
                     result = result!!,
                     onExplain = { showAiConsent = true },
-                    onAskQuestion = { showQuestions = true }
+                    onAskQuestion = { showQuestions = true },
+                    onDelete = { showDeleteConfirmation = true },
+                    onShareText = {
+                        try {
+                            shareDocumentText(context, result!!.text)
+                        } catch (_: Exception) {
+                            error = "The Android share menu could not be opened. Please try again."
+                        }
+                    }
+                )
+            }
+            if (showDeleteConfirmation && result != null) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { if (!deleting) showDeleteConfirmation = false },
+                    title = { Text("Delete this document?") },
+                    text = {
+                        Text(
+                            "Kavoryn will remove this document from your account, including its stored OCR result. " +
+                                "This action cannot be undone."
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            enabled = !deleting,
+                            onClick = {
+                                val documentId = result?.documentId
+                                if (documentId == null) {
+                                    showDeleteConfirmation = false
+                                    error = "This document is no longer available in the current screen."
+                                } else {
+                                    deleting = true
+                                    error = null
+                                    activeJob = scope.launch {
+                                        try {
+                                            withContext(Dispatchers.IO) {
+                                                DocumentDeleteApi(apiBaseUrl).deleteDocument(
+                                                    documentId = documentId,
+                                                    accessToken = accessToken
+                                                )
+                                            }
+                                            showDeleteConfirmation = false
+                                            showAiConsent = false
+                                            showQuestions = false
+                                            result = null
+                                            explanation = null
+                                            onBack()
+                                        } catch (cancelled: CancellationException) {
+                                            throw cancelled
+                                        } catch (failure: Exception) {
+                                            showDeleteConfirmation = false
+                                            error = failure.message
+                                                ?: "The document could not be deleted. Please try again."
+                                        } finally {
+                                            deleting = false
+                                        }
+                                    }
+                                }
+                            }
+                        ) {
+                            if (deleting) CircularProgressIndicator() else Text("Delete permanently")
+                        }
+                    },
+                    dismissButton = {
+                        OutlinedButton(
+                            enabled = !deleting,
+                            onClick = { showDeleteConfirmation = false }
+                        ) { Text("Cancel") }
+                    }
                 )
             }
             if (showAiConsent && !showQuestions) {
@@ -181,7 +228,8 @@ fun DocumentUploadFlow(
                                         documentId = result!!.documentId,
                                         accessToken = accessToken,
                                         provider = provider,
-                                        language = outputLanguage
+                                        language = outputLanguage,
+                                        originalOcrText = result!!.text
                                     )
                                 }
                                 explanation = response

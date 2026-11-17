@@ -66,12 +66,12 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
         $this->assertSafeHeaders($headers);
 
         if (!function_exists('curl_init')) {
-            throw new ProviderStreamException('Secure streaming is unavailable on this server.');
+            throw new ProviderStreamException('Secure streaming is unavailable on this server.', ['category' => 'curl_unavailable']);
         }
 
         $handle = curl_init($url);
         if ($handle === false) {
-            throw new ProviderStreamException('The AI provider connection could not be started.');
+            throw new ProviderStreamException('The AI provider connection could not be started.', ['category' => 'curl_init_failed']);
         }
 
         $decoder = new SseEventDecoder($this->maxEventBytes);
@@ -79,16 +79,25 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
         $contentType = '';
         $transportFailure = null;
         $callbackFailure = null;
+        $eventFailureCategory = null;
 
-        $dispatch = static function (array $rawEvents) use ($mapper, $onEvent, &$callbackFailure): void {
+        $dispatch = static function (array $rawEvents) use ($mapper, $onEvent, &$callbackFailure, &$eventFailureCategory): void {
             foreach ($rawEvents as $rawEvent) {
-                $mapped = $mapper->map($rawEvent);
+                try {
+                    $mapped = $mapper->map($rawEvent);
+                } catch (ProviderStreamException $error) {
+                    $eventFailureCategory = $error->diagnostics()['category'] ?? 'provider_event_rejected';
+                    throw new ProviderStreamException('The provider event could not be processed.', ['category' => $eventFailureCategory]);
+                } catch (\Throwable) {
+                    $eventFailureCategory = 'event_mapping_failed';
+                    throw new ProviderStreamException('The provider event could not be processed.', ['category' => $eventFailureCategory]);
+                }
                 if ($mapped !== null) {
                     try {
                         $onEvent($mapped);
                     } catch (\Throwable $error) {
                         $callbackFailure = $error;
-                        throw new ProviderStreamException('The chat stream could not be delivered.');
+                        throw new ProviderStreamException('The chat stream could not be delivered.', ['category' => 'callback_failed']);
                     }
                 }
             }
@@ -136,6 +145,8 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
                     &$responseBytes,
                     &$transportFailure,
                     &$contentType,
+                    &$callbackFailure,
+                    &$eventFailureCategory,
                     $decoder,
                     $dispatch,
                     $isCancelled,
@@ -156,9 +167,15 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
                     }
 
                     try {
-                        $dispatch($decoder->push($chunk));
+                        $rawEvents = $decoder->push($chunk);
                     } catch (\Throwable) {
-                        $transportFailure = 'event';
+                        $transportFailure = 'decoder';
+                        return 0;
+                    }
+                    try {
+                        $dispatch($rawEvents);
+                    } catch (\Throwable) {
+                        $transportFailure = $callbackFailure !== null ? 'callback' : 'event';
                         return 0;
                     }
                     return $length;
@@ -166,7 +183,7 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
             ];
 
             if (!curl_setopt_array($handle, $options)) {
-                throw new ProviderStreamException('The AI provider connection could not be configured.');
+                throw new ProviderStreamException('The AI provider connection could not be configured.', ['category' => 'curl_setup_failed']);
             }
 
             $success = curl_exec($handle);
@@ -174,22 +191,44 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
             $httpStatus = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
 
             if ($callbackFailure !== null) {
-                throw new ProviderStreamException('The chat stream could not be delivered.');
+                throw new ProviderStreamException('The chat stream could not be delivered.', [
+                    'category' => 'callback_failed',
+                    'curl_errno' => $curlError,
+                ]);
+            }
+            if ($eventFailureCategory !== null) {
+                throw new ProviderStreamException('The provider event could not be processed.', [
+                    'category' => $eventFailureCategory,
+                    'curl_errno' => $curlError,
+                ]);
+            }
+            if ($transportFailure === 'decoder') {
+                throw new ProviderStreamException('The provider SSE data could not be decoded.', [
+                    'category' => 'sse_decode_failed',
+                    'curl_errno' => $curlError,
+                ]);
             }
             if ($transportFailure === 'cancelled') {
-                throw new ProviderStreamException('The chat response was cancelled.');
+                throw new ProviderStreamException('The chat response was cancelled.', ['category' => 'cancelled']);
             }
             if ($transportFailure === 'limit') {
-                throw new ProviderStreamException('The AI provider response exceeded the allowed size.');
+                throw new ProviderStreamException('The AI provider response exceeded the allowed size.', ['category' => 'response_too_large']);
+            }
+            if ($httpStatus === 0 && ($success === false || $curlError !== 0)) {
+                throw new ProviderStreamException('The AI provider stream was interrupted.', [
+                    'category' => 'stream_interrupted',
+                    'transport_reason' => $transportFailure ?? 'curl_error',
+                    'curl_errno' => $curlError,
+                ]);
             }
             if ($httpStatus < 200 || $httpStatus >= 300) {
-                throw new ProviderStreamException('The AI provider could not complete the response.');
+                throw new ProviderStreamException('The AI provider could not complete the response.', ['category' => 'http_error', 'http_status' => $httpStatus]);
             }
             if ($transportFailure !== null || $success === false || $curlError !== 0) {
-                throw new ProviderStreamException('The AI provider stream was interrupted.');
+                throw new ProviderStreamException('The AI provider stream was interrupted.', ['category' => 'stream_interrupted', 'transport_reason' => $transportFailure ?? 'curl_error', 'curl_errno' => $curlError]);
             }
             if (!str_starts_with($contentType, 'text/event-stream')) {
-                throw new ProviderStreamException('The AI provider returned an unsupported response.');
+                throw new ProviderStreamException('The AI provider returned an unsupported response.', ['category' => 'unsupported_content_type']);
             }
 
             $dispatch($decoder->finish());

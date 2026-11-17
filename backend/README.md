@@ -15,7 +15,7 @@ The identity endpoint calls Supabase Auth's `/auth/v1/user` endpoint. It does no
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
 
-Set these in the server's secret/configuration manager. `SUPABASE_PUBLISHABLE_KEY` is for Auth identity verification. Consent persistence uses `SUPABASE_SECRET_KEY` as the `apikey` and the legacy `SUPABASE_SERVICE_ROLE_KEY` JWT as the Authorization bearer; the secret key cannot itself be used as a JWT bearer. Both elevated values are server-only and must never enter Android, Git, logs, or public documents. The legacy `service_role` JWT is a compatibility bridge only: Supabase plans to end support for legacy `anon`/`service_role` keys at the end of 2026. Before then, replace this bearer mechanism with a supported dedicated server-side database connection/credential approach and test it on the selected PHP host. PHP cURL with TLS verification is required.
+Set these in the server's secret/configuration manager. `SUPABASE_PUBLISHABLE_KEY` is for Auth identity verification. Privileged server-side REST and Storage calls use `SUPABASE_SECRET_KEY` in the `apikey` header only; never send the non-JWT secret key in `Authorization: Bearer`. No legacy `SUPABASE_SERVICE_ROLE_KEY` JWT is required. Keep the secret key server-side only and never place it in Android, Git, logs, or public documents. PHP cURL with TLS verification is required.
 
 Example request:
 
@@ -68,13 +68,13 @@ The endpoint returns `201` with the current document status; the database trigge
 - The health route is liveness only; it must not expose database or provider status.
 - Do not accept user IDs supplied by clients as proof of identity.
 - The identity endpoint verifies the current user session only. Role authorization, account recovery, phone/email ownership policy, general API-wide rate limiting (the document upload route has its own limiter), session revocation checks, and account creation UX remain outstanding.
-- Upload requires `PRIVATE_DOCUMENT_STORAGE_PATH` (an absolute private directory outside `backend/public`) and `DOCUMENT_UPLOAD_ENABLED=false` by default. It remains disabled until release gates pass. The database sets an expiry of one hour for unprocessed uploads. `backend/bin/cleanup_expired_documents.php` deletes expired private files and marks their rows deleted; schedule it every five minutes using the host cron service. Do not enable upload until server secrets and private storage are configured, host upload limits are raised appropriately, the Poppler `pdfinfo` binary is installed and reachable through `PDFINFO_BINARY` (or `PATH`), the Supabase upload-rate-limit migrations are applied, and the cleanup cron is configured and tested.
+- Upload uses `DOCUMENT_STORAGE_DRIVER=supabase` and an existing private bucket named by `PRIVATE_DOCUMENT_STORAGE_BUCKET`; the backend verifies that the bucket exists and is not public, and never creates or changes it. `PRIVATE_DOCUMENT_STORAGE_PATH` is local-development only. `DOCUMENT_UPLOAD_ENABLED=false` remains the default until release gates pass. The database sets an expiry of one hour for unprocessed uploads. `backend/bin/cleanup_expired_documents.php` deletes expired objects from the configured private Supabase Storage bucket and marks their rows deleted; schedule it every five minutes using the host cron service. Do not enable upload until server secrets and private storage are configured, host upload limits are raised appropriately, the Poppler `pdfinfo` binary is installed and reachable through `PDFINFO_BINARY` (or `PATH`), the Supabase upload-rate-limit migrations are applied, and the cleanup cron is configured and tested.
 
 ## Current status
 
 Supabase-backed user identity verification is wired into `GET /v1/me`. The `POST /v1/consents` endpoint now issues consent grants through the server-only Supabase adapter. The database stores only a token hash and the one-time consume RPC atomically matches and marks a grant as consumed. Production readiness still depends on configuring server secrets, testing with a real session and real database, HTTPS, rate limiting, and a documented session revocation policy. PHP hosting suitability, queue/background-job support, request-size limits, temporary storage, and deletion behavior also require proof on the selected host.
 
-Secure upload foundations and `POST /v1/documents` are implemented in code. The Supabase `documents` table is private to the service role, and `register_uploaded_document` atomically consumes consent and registers the file with per-user idempotency. The endpoint is deliberately disabled by default. Do not set `DOCUMENT_UPLOAD_ENABLED=true` until the PHP host has an absolute private storage path, HTTPS, PHP `fileinfo`/cURL support, `upload_max_filesize` of at least 20M and `post_max_size` of at least 22M, plus rate limits, quota enforcement, the `pdfinfo` PDF page-count validation, the five-minute cleanup cron, and a real authenticated integration test. The upload registry creates an OCR queue job through a database trigger. The endpoint can still return `uploaded` while waiting for a worker to claim the job. See `docs/CONSENT_VERIFICATION_DESIGN.md` and `docs/STAGE_A_API_CONTRACT.md`.
+Secure upload foundations and `POST /v1/documents` are implemented in code. The Supabase `documents` table is private to the service role, and `register_uploaded_document` atomically consumes consent and registers the file with per-user idempotency. The endpoint is deliberately disabled by default. Do not set `DOCUMENT_UPLOAD_ENABLED=true` until the PHP host has server-side Supabase credentials and an existing verified private bucket, HTTPS, PHP `fileinfo`/cURL support, `upload_max_filesize` of at least 20M and `post_max_size` of at least 22M, plus rate limits, quota enforcement, the `pdfinfo` PDF page-count validation, the five-minute cleanup cron using the configured Supabase Storage adapter, and a real authenticated integration test. The upload registry creates an OCR queue job through a database trigger. The endpoint can still return `uploaded` while waiting for a worker to claim the job. See `docs/CONSENT_VERIFICATION_DESIGN.md` and `docs/STAGE_A_API_CONTRACT.md`.
 
 
 ## Expired upload cleanup
@@ -85,7 +85,7 @@ Unprocessed uploads receive a one-hour expiry in Postgres. Configure the PHP hos
 */5 * * * * /usr/bin/php /home/ACCOUNT/backend/bin/cleanup_expired_documents.php >/dev/null 2>&1
 ```
 
-Replace `/home/ACCOUNT` and the PHP binary path with the actual hosting paths. The cleanup script removes the private file first and then marks the database row deleted. It also scans for old staged files that have no matching database row, which covers interrupted registration requests. If the database update fails, the next run safely retries because deleting a missing file is treated as success. The script never reads or logs document contents.
+Replace `/home/ACCOUNT` and the PHP binary path with the actual hosting paths. The cleanup script removes the private storage object first and then marks the database row deleted. It also scans for old unreferenced private bucket objects that have no matching database row, which covers interrupted registration requests. If the database update fails, the next run safely retries because deleting a missing object is treated as success. The script never reads or logs document contents.
 
 
 ## PDF validation and upload throttling
@@ -109,7 +109,7 @@ The backend now contains a provider-independent worker core under `backend/src/O
 - `OcrJob` validates queue metadata and storage keys before processing.
 - `SupabaseOcrJobStore` calls the existing private queue claim, fail, and completion RPCs using server-only credentials over verified HTTPS.
 - `OcrWorker` resolves only generated storage keys inside the configured private storage root, invokes the injected OCR provider, persists results through an injected result sink, and completes the lease only after persistence succeeds. Failures are reduced to bounded error codes with exponential retry delay.
-- `OcrWorkerTest.php` covers successful processing, persistence-before-completion, missing private files, and empty queues. It is included in the PHP API workflow.
+- `OcrWorkerTest.php` covers successful processing, persistence-before-completion, missing private objects, and empty queues. It is included in the PHP API workflow.
 
 The worker CLI is implemented in `backend/bin/ocr_worker.php`. It is disabled by default and requires server-only Google service-account credentials, a 32-byte result-encryption key, Supabase service credentials, private storage, and Poppler. Do not enable uploads or the worker until staging tests pass. No document text is logged by the worker core.
 
@@ -131,7 +131,7 @@ Set these variables in the backend host environment (never in Android, the web c
 - `OCR_RESULT_ENCRYPTION_KEY_VERSION=1`.
 - `OCR_WORKER_ENABLED=true` only after all provider and storage settings have been verified.
 - `OCR_WORKER_MAX_JOBS`: optional 1–10 jobs per CLI invocation (default 3).
-- Existing `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `PRIVATE_DOCUMENT_STORAGE_PATH` values are also required.
+- Existing `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `DOCUMENT_STORAGE_DRIVER=supabase`, and `PRIVATE_DOCUMENT_STORAGE_BUCKET` values are required for Supabase-backed document storage. Keep privileged values server-side only.
 
 
 - `GOOGLE_VISION_ENDPOINT`: optional; defaults to the EU regional OCR endpoint `https://eu-vision.googleapis.com/v1/images:annotate`. The provider permits only Google's global, EU, or US HTTPS endpoints.
@@ -190,3 +190,10 @@ curl --fail-with-body -X POST "https://YOUR_API_HOST/v1/documents/DOCUMENT_UUID/
 ```
 
 This is backend implementation and automated mock-test coverage only. It is not a live-provider or production-host staging pass. Do not enable document uploads or the OCR worker until the full authenticated upload → OCR → encrypted result → consented explanation flow has passed staging tests with rotated credentials and real provider access.
+
+
+## Secure document deletion (Preview gate)
+
+The authenticated `DELETE /v1/documents/{document_id}` endpoint is implemented behind `DOCUMENT_DELETE_ENABLED=false` by default. It uses the owner-scoped `delete_document_for_user` database RPC, then removes the private object through the same `DocumentStorage` interface used by upload and OCR. The Supabase adapter requires the configured bucket to exist and be private; it will not create or change buckets. A failed object cleanup returns a retryable 503 while the database tombstone keeps the document inaccessible.
+
+The migration `supabase/migrations/20261115002000_add_owner_scoped_document_deletion.sql` is included for review only. Do not apply it to Supabase until migration history has been reconciled and the isolated staging migration is explicitly approved. Before enabling deletion, run two-account owner-isolation tests, worker/delete race tests, retry tests for object-removal failure, and authenticated HTTPS Preview end-to-end checks. This branch does not enable any feature flag or modify a Supabase database.

@@ -12,7 +12,7 @@ final class SupabaseEncryptedOcrResultReader
     public function __construct(
         private readonly string $supabaseUrl,
         private readonly string $secretKey,
-        private readonly string $serviceRoleJwt,
+        string $legacyServiceRoleJwtForCompatibility,
         private readonly string $encryptionKey,
         private readonly mixed $http = null,
     ) {
@@ -20,7 +20,7 @@ final class SupabaseEncryptedOcrResultReader
             throw new \InvalidArgumentException('The PHP sodium extension is required.');
         }
         if (parse_url($supabaseUrl, PHP_URL_SCHEME) !== 'https' ||
-            $secretKey === '' || $serviceRoleJwt === '' ||
+            $secretKey === '' ||
             strlen($encryptionKey) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
             throw new \InvalidArgumentException('Encrypted OCR result reader is not configured.');
         }
@@ -49,7 +49,6 @@ final class SupabaseEncryptedOcrResultReader
         $url = rtrim($this->supabaseUrl, '/') . '/rest/v1/rpc/get_document_ocr_result';
         $headers = [
             'apikey' => $this->secretKey,
-            'Authorization' => 'Bearer ' . $this->serviceRoleJwt,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ];

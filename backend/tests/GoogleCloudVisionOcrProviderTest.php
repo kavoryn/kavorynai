@@ -87,6 +87,74 @@ try {
     $tokens->accessToken();
     expectVision($tokenCalls === 1, 'OAuth token should be cached within the worker process.');
 
+    // Mixed Hausa/Arabic fixture: verify UTF-8 text is preserved and uncertainty
+    // offsets count Unicode code points rather than UTF-8 bytes.
+    $mixedText = "Hausa ɓ ɗ ƙ ƴ — مستند رسمي";
+    $mixedWords = [
+        ['text' => 'ɓ', 'confidence' => 0.99],
+        ['text' => 'ɗ', 'confidence' => 0.99],
+        ['text' => 'ƙ', 'confidence' => 0.55],
+        ['text' => 'ƴ', 'confidence' => 0.99],
+        ['text' => 'مستند', 'confidence' => 0.48],
+        ['text' => 'رسمي', 'confidence' => 0.96],
+    ];
+    $mixedImagePath = sys_get_temp_dir() . '/kavory-vision-mixed-' . bin2hex(random_bytes(5)) . '.png';
+    file_put_contents($mixedImagePath, 'mixed-language-fixture');
+    $mixedVisionHttp = function (string $url, array $headers, string $body) use ($mixedText, $mixedWords): array {
+        $symbolsFor = static function (string $word): array {
+            $symbols = [];
+            foreach (preg_split('//u', $word) ?: [] as $character) {
+                if ($character !== '') $symbols[] = ['text' => $character];
+            }
+            return $symbols;
+        };
+        $words = [];
+        foreach ($mixedWords as $word) {
+            $words[] = [
+                'confidence' => $word['confidence'],
+                'symbols' => $symbolsFor($word['text']),
+            ];
+        }
+        return ['status' => 200, 'body' => json_encode([
+            'responses' => [[
+                'fullTextAnnotation' => [
+                    'text' => $mixedText,
+                    'pages' => [[
+                        'property' => ['detectedLanguages' => [
+                            ['languageCode' => 'ha'],
+                            ['languageCode' => 'ar'],
+                        ]],
+                        'blocks' => [[
+                            'paragraphs' => [[
+                                'words' => $words,
+                            ]],
+                        ]],
+                    ]],
+                ],
+            ]],
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)];
+    };
+
+    try {
+        $mixedProvider = new GoogleCloudVisionOcrProvider($tokens, 'pdfinfo', 'pdftoppm', $mixedVisionHttp);
+        $mixedResult = $mixedProvider->recognize(new OcrRequest($mixedImagePath, 'image/png', 'ha'));
+        expectVision($mixedResult->text === $mixedText, 'Mixed Hausa/Arabic OCR text must be returned without normalization or character loss.');
+        expectVision($mixedResult->detectedLanguage === 'und', 'A page with both Hausa and Arabic detections must not be labelled as a single language.');
+        expectVision(count($mixedResult->uncertainSpans) === 2, 'Low-confidence Hausa and Arabic words must both be marked uncertain.');
+
+        $codePoints = preg_split('//u', $mixedResult->text, -1, PREG_SPLIT_NO_EMPTY);
+        expectVision(is_array($codePoints), 'Mixed-language OCR output must remain valid UTF-8.');
+        $uncertainWords = [];
+        foreach ($mixedResult->uncertainSpans as $span) {
+            $uncertainWords[] = implode('', array_slice($codePoints, $span['start'], $span['end'] - $span['start']));
+        }
+        expectVision($uncertainWords === ['ƙ', 'مستند'], 'Uncertainty offsets must select the exact Hausa and Arabic words using Unicode character positions.');
+        expectVision($mixedResult->uncertainSpans[0]['confidence'] === 0.55, 'Hausa confidence must remain unchanged.');
+        expectVision($mixedResult->uncertainSpans[1]['confidence'] === 0.48, 'Arabic confidence must remain unchanged.');
+    } finally {
+        @unlink($mixedImagePath);
+    }
+
     $pdfPath = sys_get_temp_dir() . '/kavoryn-vision-pdf-' . bin2hex(random_bytes(5)) . '.pdf';
     $pdf = "%PDF-1.4\n";
     $objects = [

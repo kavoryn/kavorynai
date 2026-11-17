@@ -17,7 +17,7 @@ $openAi = (new OpenAiResponsesRequestFactory('test-openai-key', 'gpt-6-astra', '
 $openAiBody = json_decode($openAi->body, true, 32, JSON_THROW_ON_ERROR);
 requestExpect($openAi->url === 'https://api.openai.com/v1/responses', 'OpenAI endpoint must be fixed HTTPS.');
 requestExpect($openAiBody['stream'] === true && $openAiBody['store'] === false, 'OpenAI stream/storage policy failed.');
-requestExpect($openAiBody['input'] === 'Hello, Kavoryn', 'OpenAI input not preserved.');
+requestExpect($openAiBody['input'] === [['role' => 'user', 'content' => 'Hello, Kavoryn']], 'OpenAI input must use a role-bearing message array.');
 requestExpect(in_array('Authorization: Bearer test-openai-key', $openAi->headers, true), 'OpenAI key header missing.');
 $gemini = (new GeminiInteractionsRequestFactory('test-gemini-key', 'gemini-3.8-flash', 'Be concise.'))->create('Sannu Kavoryn');
 $geminiBody = json_decode($gemini->body, true, 32, JSON_THROW_ON_ERROR);

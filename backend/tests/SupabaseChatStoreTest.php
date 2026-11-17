@@ -18,7 +18,7 @@ $message='d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15';
 $calls=[];
 $mock=function(string $url,array $headers,string $body) use (&$calls,$user,$conversation,$message):array {
     $calls[]=['url'=>$url,'headers'=>$headers,'payload'=>json_decode($body,true,16,JSON_THROW_ON_ERROR)];
-    chatStoreExpect(($headers['Authorization']??null)==='Bearer service-role-test','Service role auth must remain server-side.');
+    chatStoreExpect(($headers['apikey']??null)==='secret-test' && !isset($headers['Authorization']),'Privileged Chat RPCs must use the Supabase secret key via apikey only.');
     $name=basename($url);
     return match($name) {
         'create_chat_conversation'=>['status'=>200,'body'=>json_encode(['id'=>$calls[array_key_last($calls)]['payload']['p_id'],'provider'=>'gemini','language'=>'ha'],JSON_THROW_ON_ERROR)],
@@ -34,11 +34,21 @@ $mock=function(string $url,array $headers,string $body) use (&$calls,$user,$conv
         'get_chat_conversation'=>['status'=>200,'body'=>json_encode([
             'id'=>$conversation,'messages'=>[]
         ],JSON_THROW_ON_ERROR)],
+        'get_chat_conversation_metadata'=>['status'=>200,'body'=>json_encode([
+            'id'=>$conversation,'provider'=>'gemini','language'=>'ha'
+        ],JSON_THROW_ON_ERROR)],
+        'get_recent_chat_context'=>['status'=>200,'body'=>json_encode([
+            ['role'=>'user','content'=>'Sannu'],
+            ['role'=>'assistant','content'=>'Wa alaikumus salam.'],
+        ],JSON_THROW_ON_ERROR)],
+        'claim_chat_turn'=>['status'=>200,'body'=>json_encode(['outcome'=>'claimed','turn_id'=>'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14'],JSON_THROW_ON_ERROR)],
+        'complete_chat_turn'=>['status'=>200,'body'=>json_encode(['id'=>'e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a16','turn_id'=>'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14','content'=>'An answer','status'=>'completed'],JSON_THROW_ON_ERROR)],
+        'fail_chat_turn'=>['status'=>200,'body'=>'true'],
         'delete_chat_conversation'=>['status'=>200,'body'=>'true'],
         default=>['status'=>404,'body'=>'{}'],
     };
 };
-$store=new SupabaseChatStore('https://example.supabase.co','secret-test','service-role-test',$mock);
+$store=new SupabaseChatStore('https://example.supabase.co','secret-test','',$mock);
 $created=$store->createConversation($user,'gemini','ha','Hausa test');
 chatStoreExpect(($created['provider']??null)==='gemini','Conversation provider should be returned.');
 chatStoreExpect($store->consumeRateLimit($user),'Rate limit should allow an available request.');
@@ -53,14 +63,57 @@ $saved=$store->saveMessage([
 chatStoreExpect(($saved['id']??null)===$message,'Saved message identity must be checked.');
 chatStoreExpect($store->listConversations($user)===[],'Empty history should be represented as an array.');
 chatStoreExpect(($store->getConversation($user,$conversation)['id']??null)===$conversation,'Conversation detail must match requested ID.');
+chatStoreExpect(($store->getConversationMetadata($user,$conversation)['provider']??null)==='gemini','Message submission metadata lookup must return owner-scoped provider details.');
+$context=$store->getRecentContext($user,$conversation);
+chatStoreExpect(count($context)===2 && ($context[0]['role']??null)==='user' && ($context[1]['role']??null)==='assistant','Recent context must preserve ordered completed role/content pairs.');
 chatStoreExpect($store->deleteConversation($user,$conversation),'Soft delete result should be true.');
-$last=$calls[array_key_last($calls)];
-chatStoreExpect(($last['payload']['p_user_id']??null)===$user,'Every operation must bind the verified user ID.');
-chatStoreExpect(str_contains($last['url'],'delete_chat_conversation'),'Delete must use the owner-scoped RPC.');
+$clientTurn='f0eebc99-9c0b-4ef8-bb6d-6bb9bd380a17';
+$claim=$store->claimTurn($user,$conversation,$clientTurn,$turn,$message,'Sannu','gemini');
+chatStoreExpect(($claim['outcome']??null)==='claimed' && ($claim['turn_id']??null)===$turn,'Turn claim must return the stable server turn ID.');
+$completed=$store->completeTurn($user,$conversation,$clientTurn,'e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a16','An answer','gemini','gemini-test');
+chatStoreExpect(($completed['status']??null)==='completed','Atomic turn completion must return completed status.');
+$failedClientTurn='a1eebc99-9c0b-4ef8-bb6d-6bb9bd380a18';
+$store->claimTurn($user,$conversation,$failedClientTurn,'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a19','c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a20','Another message','gemini');
+chatStoreExpect($store->failTurn($user,$conversation,$failedClientTurn,'failed')===true,'Turn failure operation must return its update result.');
+$deleteCalls=array_values(array_filter($calls,static fn(array $call):bool=>str_contains($call['url'],'delete_chat_conversation')));
+$lastDelete=$deleteCalls[array_key_last($deleteCalls)];
+chatStoreExpect(($lastDelete['payload']['p_user_id']??null)===$user,'Delete must bind the verified user ID.');
+chatStoreExpect(str_contains($lastDelete['url'],'delete_chat_conversation'),'Delete must use the owner-scoped RPC.');
 
-$failed=new SupabaseChatStore('https://example.supabase.co','secret-test','service-role-test',static fn()=>['status'=>500,'body'=>'{}']);
+$failed=new SupabaseChatStore('https://example.supabase.co','secret-test','',static fn()=>['status'=>500,'body'=>'{}']);
 try { $failed->hasConsent($user,'openai'); throw new RuntimeException('Storage failure must fail closed.'); }
 catch(ChatStorageUnavailableException) {}
+
+// If assistant persistence fails after the provider stream, the handler must be
+// able to close the claimed turn as failed instead of leaving it processing.
+$completionFailureCalls=[];
+$completionFailureStore=new SupabaseChatStore(
+    'https://example.supabase.co',
+    'secret-test',
+    '',
+    static function(string $url,array $payload) use (&$completionFailureCalls):array {
+        $function=basename((string)parse_url($url,PHP_URL_PATH));
+        $completionFailureCalls[]=$function;
+        return $function==='complete_chat_turn'
+            ? ['status'=>500,'body'=>'{}']
+            : ($function==='fail_chat_turn'
+                ? ['status'=>200,'body'=>'true']
+                : ['status'=>404,'body'=>'{}']);
+    }
+);
+try {
+    $completionFailureStore->completeTurn(
+        $user,$conversation,'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a21',
+        'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22','An answer','openai','test-model'
+    );
+    throw new RuntimeException('Assistant persistence failure must be surfaced.');
+} catch (ChatStorageUnavailableException) {
+    chatStoreExpect(
+        $completionFailureStore->failTurn($user,$conversation,'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a21','failed')===true,
+        'A persistence failure must be followed by a terminal failed-turn update when storage recovers.'
+    );
+}
+chatStoreExpect(in_array('fail_chat_turn',$completionFailureCalls,true),'A completion persistence failure must attempt the terminal turn RPC.');
 
 try { $store->hasConsent('not-a-uuid','gemini'); throw new RuntimeException('Invalid identity must be rejected.'); }
 catch(InvalidArgumentException) {}

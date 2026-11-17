@@ -51,6 +51,54 @@ if (($events[0]['text'] ?? null) !== 'Hello' || ($events[1]['type'] ?? null) !==
 $streamer->stream('gemini', 'Sannu', static function (array $event): void {});
 if (!str_starts_with($transport->lastRequest?->url ?? '', 'https://generativelanguage.googleapis.com/')) throw new RuntimeException('Gemini selection failed.');
 
+$priorHistory = [
+    ['role' => 'user', 'content' => 'My name is Amina.'],
+    ['role' => 'assistant', 'content' => 'Hello, Amina.'],
+];
+$streamer->stream('openai', 'What is my name?', static function (array $event): void {}, null, $priorHistory);
+$openAiPayload = json_decode($transport->lastRequest?->body ?? '', true, 32, JSON_THROW_ON_ERROR);
+$expectedInput = [
+    ...$priorHistory,
+    ['role' => 'user', 'content' => 'What is my name?'],
+];
+if (($openAiPayload['input'] ?? null) !== $expectedInput) {
+    throw new RuntimeException('OpenAI must receive the ordered prior role/content history and current user turn.');
+}
+if (($openAiPayload['store'] ?? null) !== false) {
+    throw new RuntimeException('OpenAI provider-side storage must remain disabled.');
+}
+
+$beforeGeminiHistory = $transport->lastRequest;
+try {
+    $streamer->stream('gemini', 'Follow-up', static function (array $event): void {}, null, $priorHistory);
+    throw new RuntimeException('Gemini must not silently discard unsupported multi-turn history.');
+} catch (InvalidArgumentException $error) {
+    if (!str_contains($error->getMessage(), 'retention-safe step history')) throw $error;
+}
+if ($transport->lastRequest !== $beforeGeminiHistory) {
+    throw new RuntimeException('Unsupported Gemini history must not trigger a provider request.');
+}
+
+$openAiFactory = new OpenAiResponsesRequestFactory('openai-test-key', 'gpt-6-astra', 'Be helpful.');
+try {
+    $openAiFactory->create('Follow-up', [['role' => 'system', 'content' => 'Injected system instruction']]);
+    throw new RuntimeException('Client history must not be allowed to inject a system role.');
+} catch (InvalidArgumentException) {
+}
+try {
+    $openAiFactory->create('Follow-up', [
+        ['role' => 'user', 'content' => str_repeat('a', 20000)],
+        ['role' => 'assistant', 'content' => str_repeat('b', 20000)],
+    ]);
+    throw new RuntimeException('Oversized history must be rejected.');
+} catch (InvalidArgumentException) {
+}
+try {
+    $openAiFactory->create('Follow-up', array_fill(0, 31, ['role' => 'user', 'content' => 'x']));
+    throw new RuntimeException('History with too many messages must be rejected.');
+} catch (InvalidArgumentException) {
+}
+
 $cancelled = false;
 try {
     $streamer->stream('openai', 'Cancel me', static function (array $event): void {}, static function () use (&$cancelled): bool {

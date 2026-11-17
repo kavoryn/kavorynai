@@ -15,7 +15,7 @@ $userId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12';
 $documentId = 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13';
 $mock = function (string $url, array $headers, string $body) use ($userId, $documentId): array {
     aiConsentExpect(str_ends_with($url, '/rest/v1/rpc/record_ai_processing_consent'), 'Wrong consent RPC.');
-    aiConsentExpect(($headers['Authorization'] ?? '') === 'Bearer service-role-test', 'Service role bearer missing.');
+    aiConsentExpect(!isset($headers['Authorization']) && isset($headers['apikey']), 'Privileged Supabase calls must use the secret API key via apikey only.');
     $payload = json_decode($body, true, 16, JSON_THROW_ON_ERROR);
     aiConsentExpect(($payload['p_user_id'] ?? null) === $userId, 'Consent must bind the authenticated user.');
     aiConsentExpect(($payload['p_document_id'] ?? null) === $documentId, 'Consent must bind the exact document.');

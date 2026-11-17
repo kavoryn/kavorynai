@@ -63,7 +63,7 @@ $registration = $registry->register(
 registryExpect(count($requests) === 1, 'Registry must make exactly one atomic RPC call.');
 registryExpect(str_ends_with($requests[0]['url'], '/rest/v1/rpc/register_uploaded_document'), 'Registry must use the atomic document RPC.');
 registryExpect(($requests[0]['headers']['apikey'] ?? '') === 'sb_secret_test', 'Server secret key must be sent in apikey.');
-registryExpect(($requests[0]['headers']['Authorization'] ?? '') === 'Bearer service-role-jwt-test', 'Server role JWT must be sent only as bearer.');
+registryExpect(!isset($requests[0]['headers']['Authorization']) && isset($requests[0]['headers']['apikey']), 'Privileged Supabase calls must use the secret API key via apikey only.');
 $input = json_decode($requests[0]['body'], true, 16, JSON_THROW_ON_ERROR);
 registryExpect(($input['p_consent_token_hash'] ?? null) === $tokenHash, 'Registry must send only the consent token hash.');
 registryExpect(($input['p_user_id'] ?? null) === 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12', 'Registry must bind the authenticated user.');

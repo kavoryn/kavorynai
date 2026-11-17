@@ -64,9 +64,13 @@ Request:
 - Message length: 1–12,000 Unicode characters after normalization.
 - Provider must match the conversation provider. Provider changes require a separate owner-authorized update and fresh consent.
 - Require explicit provider consent unless a valid, unrevoked consent for this provider and purpose is already recorded under the approved policy.
-- `client_turn_id` is an idempotency key scoped to user and conversation; replay must not create duplicate provider work.
+- `client_turn_id` is a required UUID idempotency key scoped to user and conversation; Android creates it once for the local user message and sends the same value for any retry of that turn.
+- The server atomically claims the turn and persists the user message before provider invocation. Replays with the same key and payload never invoke the provider twice; a completed replay streams the already-saved answer, an in-progress replay returns `chat_turn_in_progress`, and reuse with different content returns `chat_turn_id_conflict`.
+- Only one generation may be active per conversation. A failed/cancelled turn is terminal; a deliberate new attempt must use a new client turn ID.
 - Persist user turn safely before generation; assistant state must be marked completed, failed or cancelled accurately.
-- Load only bounded recent history belonging to this owner. Durable memory retrieval is Phase B, not part of this API.
+- For OpenAI, load only the latest completed user/assistant turns from this owner's active conversation using the bounded server-only context RPC (maximum 30 messages and 32,000 Unicode characters); append the current user turn and keep provider-side storage disabled.
+- Gemini multi-turn is not enabled until its complete Interactions step history can be preserved under an approved retention-safe design. Do not silently discard earlier turns; return `chat_multi_turn_not_supported` for a Gemini conversation that already has completed turns.
+- Durable memory retrieval is Phase B, not part of this API.
 - Complete auth, ownership, validation, consent, idempotency, rate and concurrency checks before provider invocation.
 
 SSE headers:
@@ -141,7 +145,7 @@ Rate limiting must use a transaction-safe database RPC or equivalent; never an i
 
 ## Stable error codes
 
-`unauthorized`, `conversation_not_found`, `provider_consent_required`, `provider_not_configured`, `provider_unavailable`, `rate_limited`, `concurrency_limit`, `message_too_large`, `invalid_provider`, `turn_in_progress`, `turn_cancelled`, `chat_storage_unavailable`.
+`unauthorized`, `conversation_not_found`, `provider_consent_required`, `provider_not_configured`, `provider_unavailable`, `rate_limited`, `concurrency_limit`, `message_too_large`, `invalid_provider`, `turn_in_progress`, `turn_cancelled`, `chat_turn_in_progress`, `chat_turn_terminal`, `chat_turn_id_conflict`, `chat_multi_turn_not_supported`, `invalid_client_turn_id`, `chat_storage_unavailable`.
 
 Never return raw provider responses, exception messages, SQL errors or stack traces.
 

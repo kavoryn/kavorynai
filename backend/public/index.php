@@ -102,8 +102,8 @@ if ($method === 'POST' && $path === '/v1/webhooks/paystack') {
     $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $supabaseSecret = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
-    if ($paystackSecret === '' || $supabaseUrl === '' || $supabaseSecret === '' || $serviceRoleJwt === '') {
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
+    if ($paystackSecret === '' || $supabaseUrl === '' || $supabaseSecret === '') {
         respond(503, ['error'=>['code'=>'webhook_not_configured','message'=>'Payment notification processing is temporarily unavailable.','request_id'=>$requestId]]);
     }
 
@@ -333,10 +333,10 @@ if ($method === 'POST' && $path === '/v1/billing/checkout') {
 
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $supabaseSecret = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $paystackSecret = getenv('PAYSTACK_SECRET_KEY') ?: '';
     $callbackUrl = getenv('PAYSTACK_CALLBACK_URL') ?: '';
-    if ($supabaseUrl === '' || $supabaseSecret === '' || $serviceRoleJwt === '' ||
+    if ($supabaseUrl === '' || $supabaseSecret === '' ||
         $paystackSecret === '' || parse_url($callbackUrl, PHP_URL_SCHEME) !== 'https') {
         respond(503, ['error'=>['code'=>'billing_checkout_not_configured','message'=>'Checkout is temporarily unavailable.','request_id'=>$requestId]]);
     }
@@ -596,8 +596,8 @@ if ($method === 'POST' && $path === '/v1/consents') {
     }
 
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
-    if ($secretKey === '' || $serviceRoleJwt === '') {
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
+    if ($secretKey === '') {
         respond(503, [
             'error' => [
                 'code' => 'consent_storage_not_configured',
@@ -749,9 +749,9 @@ if ($method === 'POST' && $path === '/v1/documents') {
     $storageDriver = strtolower(trim(getenv('DOCUMENT_STORAGE_DRIVER') ?: 'supabase'));
     $storageBucket = getenv('PRIVATE_DOCUMENT_STORAGE_BUCKET') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
-    if ($secretKey === '' || $serviceRoleJwt === '' || $supabaseUrl === '' ||
+    if ($secretKey === '' || $supabaseUrl === '' ||
         !in_array($storageDriver, ['supabase', 'local'], true) ||
         ($storageDriver === 'supabase' && $storageBucket === '')) {
         respond(503, [
@@ -912,9 +912,9 @@ if ($method === 'POST' && preg_match(
 
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
-    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $encryptionKey === '') {
+    if ($supabaseUrl === '' || $secretKey === '' || $encryptionKey === '') {
         respond(503, ['error' => ['code' => 'document_explanation_not_configured', 'message' => 'Document explanation is temporarily unavailable.', 'request_id' => $requestId]]);
     }
 
@@ -1005,9 +1005,9 @@ if ($method === 'POST' && preg_match(
     }
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
-    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $encryptionKey === '') {
+    if ($supabaseUrl === '' || $secretKey === '' || $encryptionKey === '') {
         respond(503, ['error' => ['code' => 'document_qa_not_configured', 'message' => 'Document questions are temporarily unavailable.', 'request_id' => $requestId]]);
     }
 
@@ -1088,9 +1088,9 @@ if ($method === 'GET' && preg_match(
 
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $encryptionKey = getenv('OCR_RESULT_ENCRYPTION_KEY') ?: '';
-    if ($supabaseUrl === '' || $secretKey === '' || $serviceRoleJwt === '' || $encryptionKey === '') {
+    if ($supabaseUrl === '' || $secretKey === '' || $encryptionKey === '') {
         respond(503, [
             'error' => [
                 'code' => 'ocr_result_storage_not_configured',
@@ -1138,6 +1138,90 @@ if ($method === 'GET' && preg_match(
     ]);
 }
 
+if ($method === 'DELETE' && preg_match(
+    '#^/v1/documents/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$#i',
+    $path,
+    $matches,
+)) {
+    if (strtolower(getenv('DOCUMENT_DELETE_ENABLED') ?: 'false') !== 'true') {
+        respond(503, [
+            'error' => [
+                'code' => 'document_delete_disabled',
+                'message' => 'Secure document deletion is not enabled on this server yet.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    $user = authenticatedUser(
+        getenv('SUPABASE_URL') ?: '',
+        getenv('SUPABASE_PUBLISHABLE_KEY') ?: '',
+        $requestId,
+    );
+
+    $supabaseUrl = getenv('SUPABASE_URL') ?: '';
+    $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
+
+    require_once dirname(__DIR__) . '/src/Upload/DocumentFileException.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/SupabasePrivateDocumentStorage.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentStorageFactory.php';
+    require_once dirname(__DIR__) . '/src/Upload/DocumentDeletionService.php';
+    require_once dirname(__DIR__) . '/src/Upload/SupabaseDocumentDeletionStore.php';
+
+    try {
+        $storage = \Kavoryn\Upload\DocumentStorageFactory::fromEnvironment(__DIR__);
+        $store = new \Kavoryn\Upload\SupabaseDocumentDeletionStore(
+            $supabaseUrl,
+            $secretKey,
+            $serviceRoleJwt,
+        );
+        $service = new \Kavoryn\Upload\DocumentDeletionService($store, $storage);
+        $deleted = $service->delete($matches[1], $user->id);
+    } catch (\Kavoryn\Upload\DocumentDeletionUnavailableException) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_deletion_unavailable',
+                'message' => 'Secure document deletion is temporarily unavailable. Please try again.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    } catch (\Kavoryn\Upload\DocumentFileException) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_storage_unavailable',
+                'message' => 'Secure document deletion is temporarily unavailable. Please try again.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    } catch (\InvalidArgumentException) {
+        respond(503, [
+            'error' => [
+                'code' => 'document_deletion_unavailable',
+                'message' => 'Secure document deletion is temporarily unavailable. Please try again.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    if (!$deleted) {
+        respond(404, [
+            'error' => [
+                'code' => 'document_not_found',
+                'message' => 'The document was not found for this account.',
+                'request_id' => $requestId,
+            ],
+        ]);
+    }
+
+    respond(200, [
+        'deleted' => true,
+        'document_id' => $matches[1],
+        'request_id' => $requestId,
+    ]);
+}
+
 // General-purpose chat API. Disabled by default until staging validation and release gates pass.
 if (str_starts_with($path, '/v1/chat/')) {
     if (strtolower(getenv('CHAT_ENABLED') ?: 'false') !== 'true') {
@@ -1151,9 +1235,9 @@ if (str_starts_with($path, '/v1/chat/')) {
     );
 
     $secretKey = getenv('SUPABASE_SECRET_KEY') ?: '';
-    $serviceRoleJwt = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '';
+    $serviceRoleJwt = ''; // Legacy JWT is unused; send the secret API key via apikey only.
     $supabaseUrl = getenv('SUPABASE_URL') ?: '';
-    if ($secretKey === '' || $serviceRoleJwt === '' || $supabaseUrl === '') {
+    if ($secretKey === '' || $supabaseUrl === '') {
         respond(503, ['error'=>['code'=>'chat_storage_not_configured','message'=>'Chat is temporarily unavailable.','request_id'=>$requestId]]);
     }
 
@@ -1194,9 +1278,14 @@ if (str_starts_with($path, '/v1/chat/')) {
             strlen($messageText) > 96000 || preg_match('/\A.{1,24000}\z/us', $messageText) !== 1) {
             respond(422, ['error'=>['code'=>'invalid_chat_message','message'=>'Enter a message within the allowed size.','request_id'=>$requestId]]);
         }
+        $clientTurnId = $input['client_turn_id'] ?? null;
+        if (!is_string($clientTurnId) ||
+            preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $clientTurnId) !== 1) {
+            respond(422, ['error'=>['code'=>'invalid_client_turn_id','message'=>'A valid client turn ID is required for safe retries.','request_id'=>$requestId]]);
+        }
 
         $conversationId = $messageMatch[1];
-        $conversation = $store->getConversation($user->id, $conversationId);
+        $conversation = $store->getConversationMetadata($user->id, $conversationId);
         if ($conversation === null) {
             respond(404, ['error'=>['code'=>'conversation_not_found','message'=>'The conversation was not found.','request_id'=>$requestId]]);
         }
@@ -1208,6 +1297,13 @@ if (str_starts_with($path, '/v1/chat/')) {
             respond(409, ['error'=>['code'=>'chat_provider_consent_required','message'=>'Confirm provider data processing before sending a message.','request_id'=>$requestId]]);
         }
 
+        preg_match_all('/./us', $messageText, $messageCharacters);
+        $historyCharacterLimit = max(1, min(32000, 44000 - count($messageCharacters[0])));
+        try {
+            $history = $store->getRecentContext($user->id, $conversationId, 30, $historyCharacterLimit);
+        } catch (\Kavoryn\Ai\ChatStorageUnavailableException) {
+            respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable. Please try again.','request_id'=>$requestId]]);
+        }
         require_once dirname(__DIR__) . '/src/Ai/ProviderSseEventMapper.php';
         require_once dirname(__DIR__) . '/src/Ai/ProviderStreamException.php';
         require_once dirname(__DIR__) . '/src/Ai/SseEventDecoder.php';
@@ -1220,30 +1316,85 @@ if (str_starts_with($path, '/v1/chat/')) {
         require_once dirname(__DIR__) . '/src/Ai/GeminiInteractionsRequestFactory.php';
         require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamer.php';
         require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamerFactory.php';
+        require_once dirname(__DIR__) . '/src/Ai/ChatProviderEnvironmentFactory.php';
 
-        $providerEnvironment = [
+        $providerEnvironment = \Kavoryn\Ai\ChatProviderEnvironmentFactory::fromEnvironment([
             'OPENAI_API_KEY' => getenv('OPENAI_API_KEY') ?: '',
+            'OPENAI_API_KE' => getenv('OPENAI_API_KE') ?: '',
             'OPENAI_CHAT_MODEL' => getenv('OPENAI_CHAT_MODEL') ?: '',
             'GEMINI_API_KEY' => getenv('GEMINI_API_KEY') ?: '',
             'GEMINI_CHAT_MODEL' => getenv('GEMINI_CHAT_MODEL') ?: '',
-        ];
+            'VERCEL_ENV' => getenv('VERCEL_ENV') ?: '',
+            'VERCEL_GIT_COMMIT_REF' => getenv('VERCEL_GIT_COMMIT_REF') ?: '',
+        ]);
+        try {
+            $claim = $store->claimTurn(
+                $user->id,
+                $conversationId,
+                $clientTurnId,
+                $store->newId(),
+                $store->newId(),
+                $messageText,
+                $provider,
+            );
+        } catch (\Kavoryn\Ai\ChatStorageUnavailableException) {
+            respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable.','request_id'=>$requestId]]);
+        }
+
+        $claimOutcome = $claim['outcome'];
+        if ($claimOutcome === 'multi_turn_not_supported') {
+            respond(409, ['error'=>['code'=>'chat_multi_turn_not_supported','message'=>'Gemini multi-turn chat is not available yet. Start a new conversation or choose OpenAI for conversation history.','request_id'=>$requestId]]);
+        }
+        if ($claimOutcome === 'conflict') {
+            respond(409, ['error'=>['code'=>'chat_turn_id_conflict','message'=>'This turn ID was already used for a different message.','request_id'=>$requestId]]);
+        }
+        if ($claimOutcome === 'processing') {
+            respond(409, ['error'=>['code'=>'chat_turn_in_progress','message'=>'This message is already being processed.','request_id'=>$requestId]]);
+        }
+        if ($claimOutcome === 'failed' || $claimOutcome === 'cancelled') {
+            respond(409, ['error'=>['code'=>'chat_turn_terminal','message'=>'This turn has already ended. Start a new message to try again.','request_id'=>$requestId]]);
+        }
+        if ($claimOutcome === 'completed') {
+            http_response_code(200);
+            header('Content-Type: text/event-stream; charset=utf-8');
+            header('Cache-Control: no-store, no-cache, must-revalidate');
+            header('X-Accel-Buffering: no');
+            $sendReplay = static function (array $payload): void {
+                echo 'data: ' . json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                @ob_flush();
+                flush();
+            };
+            $sendReplay(['type'=>'delta','text'=>$claim['assistant_content']]);
+            $sendReplay(['type'=>'completed','message_id'=>$claim['assistant_message_id'],'replayed'=>true]);
+            exit;
+        }
+        if ($claimOutcome !== 'claimed' || !is_string($claim['turn_id'] ?? null)) {
+            respond(503, ['error'=>['code'=>'chat_storage_unavailable','message'=>'Chat is temporarily unavailable.','request_id'=>$requestId]]);
+        }
+        $turnId = $claim['turn_id'];
+
+        // Replays are resolved before provider configuration and rate limiting:
+        // a completed turn can be replayed even if the provider is temporarily
+        // unavailable, without consuming another provider request quota.
         try {
             $streamer = \Kavoryn\Ai\ProviderChatStreamerFactory::fromEnvironment($providerEnvironment, $provider);
         } catch (\InvalidArgumentException) {
+            try {
+                $store->failTurn($user->id, $conversationId, $clientTurnId, 'failed');
+            } catch (\Throwable) {
+                // Keep the claim closed if storage is temporarily unavailable.
+            }
             respond(503, ['error'=>['code'=>'chat_provider_unavailable','message'=>'The selected AI provider is temporarily unavailable.','request_id'=>$requestId]]);
         }
 
         if (!$store->consumeRateLimit($user->id, 20, 60)) {
+            try {
+                $store->failTurn($user->id, $conversationId, $clientTurnId, 'failed');
+            } catch (\Throwable) {
+                // Never leave a retry able to invoke the provider twice.
+            }
             respond(429, ['error'=>['code'=>'chat_rate_limited','message'=>'Please wait before sending another message.','request_id'=>$requestId]]);
         }
-
-        $turnId = $store->newId();
-        $store->saveMessage([
-            'id'=>$store->newId(), 'user_id'=>$user->id,
-            'conversation_id'=>$conversationId, 'turn_id'=>$turnId,
-            'role'=>'user', 'content'=>$messageText, 'status'=>'completed',
-            'provider'=>$provider,
-        ]);
 
         http_response_code(200);
         header('Content-Type: text/event-stream; charset=utf-8');
@@ -1304,12 +1455,23 @@ if (str_starts_with($path, '/v1/chat/')) {
                     }
                     return false;
                 },
+                $history,
             );
             if (!$streamCompleted || trim($assistantText) === '') {
                 throw new \Kavoryn\Ai\ProviderStreamException('The provider stream did not complete.');
             }
-        } catch (\Throwable) {
+        } catch (\Throwable $error) {
             $streamFailed = true;
+            $diagnostic = [
+                'event' => 'chat_provider_stream_failed',
+                'request_id' => $requestId,
+                'provider' => $provider,
+                'exception' => get_class($error),
+            ];
+            if ($error instanceof \Kavoryn\Ai\ProviderStreamException) {
+                $diagnostic['provider_diagnostics'] = $error->diagnostics();
+            }
+            error_log('[kavoryn-chat] ' . json_encode($diagnostic, JSON_UNESCAPED_SLASHES));
         }
 
         $model = $provider === 'openai'
@@ -1318,14 +1480,26 @@ if (str_starts_with($path, '/v1/chat/')) {
 
         if (!$streamFailed) {
             try {
-                $savedAssistant = $store->saveMessage([
-                    'id'=>$store->newId(), 'user_id'=>$user->id,
-                    'conversation_id'=>$conversationId, 'turn_id'=>$turnId,
-                    'role'=>'assistant', 'content'=>$assistantText, 'status'=>'completed',
-                    'provider'=>$provider, 'model'=>$model,
-                ]);
+                $savedAssistant = $store->completeTurn(
+                    $user->id,
+                    $conversationId,
+                    $clientTurnId,
+                    $store->newId(),
+                    $assistantText,
+                    $provider,
+                    $model,
+                );
                 $sendSse(['type'=>'completed','message_id'=>$savedAssistant['id']]);
             } catch (\Throwable) {
+                // The provider completed, but persistence failed. Close the claim
+                // when storage is available so this conversation is not blocked
+                // forever by a turn left in the processing state.
+                try {
+                    $store->failTurn($user->id, $conversationId, $clientTurnId, 'failed');
+                } catch (\Throwable) {
+                    // If storage is still unavailable, fail closed: do not retry
+                    // provider work for this client turn.
+                }
                 $sendSse(['type'=>'error','code'=>'chat_storage_unavailable','message'=>'Your response could not be saved. Please try again.','request_id'=>$requestId]);
             }
             exit;
@@ -1342,6 +1516,11 @@ if (str_starts_with($path, '/v1/chat/')) {
             ]);
         } catch (\Throwable) {
             // Keep the stream error generic; do not expose storage or provider internals.
+        }
+        try {
+            $store->failTurn($user->id, $conversationId, $clientTurnId, $terminalStatus);
+        } catch (\Throwable) {
+            // The turn remains claimed; retries cannot trigger duplicate provider work.
         }
         if (connection_aborted() !== 1) {
             $code = $cancelled ? 'chat_cancelled' : ($outputTooLarge ? 'chat_response_too_large' : 'chat_provider_error');
@@ -1376,9 +1555,6 @@ if (str_starts_with($path, '/v1/chat/')) {
                 !in_array($input['language'], ['en','ha','ar','fr'], true) ||
                 (isset($input['title']) && !is_string($input['title']))) {
                 respond(422, ['error'=>['code'=>'invalid_conversation','message'=>'Choose a supported provider and language.','request_id'=>$requestId]]);
-            }
-            if (!$store->hasConsent($user->id, $input['provider'])) {
-                respond(409, ['error'=>['code'=>'chat_provider_consent_required','message'=>'Confirm provider data processing before creating a chat.','request_id'=>$requestId]]);
             }
             $conversation = $store->createConversation($user->id, $input['provider'], $input['language'], $input['title'] ?? null);
             respond(201, ['conversation'=>$conversation,'request_id'=>$requestId]);
