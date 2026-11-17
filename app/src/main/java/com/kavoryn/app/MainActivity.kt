@@ -258,7 +258,6 @@ private fun DocumentFlow(authCallbackUri: String?, onAuthCallbackHandled: () -> 
             accountError = authError,
             authLoading = authLoading,
             onOpenSignIn = { openChatAfterAuth = false; authError = null; authNotice = null; screen = Screen.AUTH },
-            onOpenHome = { screen = Screen.HOME },
             onOpenChat = {
                 if (authSession == null) {
                     openChatAfterAuth = true
@@ -453,6 +452,7 @@ private fun DocumentFlow(authCallbackUri: String?, onAuthCallbackHandled: () -> 
                     authError = null
                 }
             },
+            onOpenHome = { screen = Screen.HOME },
             onOpenChat = {
                 if (authSession == null) {
                     openChatAfterAuth = true
