@@ -136,6 +136,7 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
                     &$responseBytes,
                     &$transportFailure,
                     &$contentType,
+                    &$eventFailureCategory,
                     $decoder,
                     $dispatch,
                     $isCancelled,
@@ -174,7 +175,22 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
             $httpStatus = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
 
             if ($callbackFailure !== null) {
-                throw new ProviderStreamException('The chat stream could not be delivered.');
+                throw new ProviderStreamException('The chat stream could not be delivered.', [
+                    'category' => 'callback_failed',
+                    'curl_errno' => $curlError,
+                ]);
+            }
+            if ($eventFailureCategory !== null) {
+                throw new ProviderStreamException('The provider event could not be processed.', [
+                    'category' => $eventFailureCategory,
+                    'curl_errno' => $curlError,
+                ]);
+            }
+            if ($transportFailure === 'decoder') {
+                throw new ProviderStreamException('The provider SSE data could not be decoded.', [
+                    'category' => 'sse_decode_failed',
+                    'curl_errno' => $curlError,
+                ]);
             }
             if ($transportFailure === 'cancelled') {
                 throw new ProviderStreamException('The chat response was cancelled.', ['category' => 'cancelled']);
