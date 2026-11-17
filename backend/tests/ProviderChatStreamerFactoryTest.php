@@ -65,9 +65,7 @@ try {
 } catch (InvalidArgumentException) {
 }
 
-use Kavoryn\\Ai\\ChatProviderEnvironmentFactory;
-
-$stagingAlias = ChatProviderEnvironmentFactory::fromEnvironment([
+$stagingAlias = \Kavoryn\Ai\ChatProviderEnvironmentFactory::fromEnvironment([
     'OPENAI_API_KE' => 'staging-compatibility-test-key',
     'OPENAI_CHAT_MODEL' => 'gpt-test-model',
     'VERCEL_ENV' => 'preview',
@@ -77,7 +75,7 @@ if ($stagingAlias['OPENAI_API_KEY'] !== 'staging-compatibility-test-key') {
     throw new RuntimeException('The compatibility key must be accepted on the designated staging Preview branch.');
 }
 
-$productionAlias = ChatProviderEnvironmentFactory::fromEnvironment([
+$productionAlias = \Kavoryn\Ai\ChatProviderEnvironmentFactory::fromEnvironment([
     'OPENAI_API_KE' => 'must-not-be-used-in-production',
     'VERCEL_ENV' => 'production',
     'VERCEL_GIT_COMMIT_REF' => 'integration/chat-stageb-secret-key-preview',
@@ -86,7 +84,7 @@ if ($productionAlias['OPENAI_API_KEY'] !== '') {
     throw new RuntimeException('The compatibility key must never be used in Production.');
 }
 
-$otherPreviewAlias = ChatProviderEnvironmentFactory::fromEnvironment([
+$otherPreviewAlias = \Kavoryn\Ai\ChatProviderEnvironmentFactory::fromEnvironment([
     'OPENAI_API_KE' => 'must-not-be-used-on-other-branches',
     'VERCEL_ENV' => 'preview',
     'VERCEL_GIT_COMMIT_REF' => 'another-preview-branch',
@@ -95,7 +93,7 @@ if ($otherPreviewAlias['OPENAI_API_KEY'] !== '') {
     throw new RuntimeException('The compatibility key must not be used on other Preview branches.');
 }
 
-$canonicalWins = ChatProviderEnvironmentFactory::fromEnvironment([
+$canonicalWins = \Kavoryn\Ai\ChatProviderEnvironmentFactory::fromEnvironment([
     'OPENAI_API_KEY' => 'canonical-key',
     'OPENAI_API_KE' => 'compatibility-key',
     'VERCEL_ENV' => 'preview',
