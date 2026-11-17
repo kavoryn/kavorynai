@@ -182,6 +182,13 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
             if ($transportFailure === 'limit') {
                 throw new ProviderStreamException('The AI provider response exceeded the allowed size.', ['category' => 'response_too_large']);
             }
+            if ($httpStatus === 0 && ($success === false || $curlError !== 0)) {
+                throw new ProviderStreamException('The AI provider stream was interrupted.', [
+                    'category' => 'stream_interrupted',
+                    'transport_reason' => $transportFailure ?? 'curl_error',
+                    'curl_errno' => $curlError,
+                ]);
+            }
             if ($httpStatus < 200 || $httpStatus >= 300) {
                 throw new ProviderStreamException('The AI provider could not complete the response.', ['category' => 'http_error', 'http_status' => $httpStatus]);
             }
