@@ -1,5 +1,6 @@
 package com.kavoryn.app.auth
 
+import com.kavoryn.app.BuildConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -12,16 +13,16 @@ class SupabaseAuthApiTest {
     fun authRedirectMustMatchTheKavorynCallback() {
         assertEquals(
             KAVORYN_AUTH_REDIRECT_URI,
-            validatedKavorynAuthRedirect("com.kavoryn.app://auth-callback")
+            validatedKavorynAuthRedirect(KAVORYN_AUTH_REDIRECT_URI)
         )
         assertThrows(IllegalArgumentException::class.java) {
             validatedKavorynAuthRedirect("https://example.com/callback")
         }
         assertThrows(IllegalArgumentException::class.java) {
-            validatedKavorynAuthRedirect("com.kavoryn.app://other-host")
+            validatedKavorynAuthRedirect("${BuildConfig.APPLICATION_ID}://other-host")
         }
         assertThrows(IllegalArgumentException::class.java) {
-            validatedKavorynAuthRedirect("com.kavoryn.app://auth-callback?next=https://evil.example")
+            validatedKavorynAuthRedirect("${BuildConfig.APPLICATION_ID}://auth-callback?next=https://evil.example")
         }
     }
 

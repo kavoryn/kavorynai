@@ -1,5 +1,6 @@
 package com.kavoryn.app.auth
 
+import com.kavoryn.app.BuildConfig
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
@@ -20,12 +21,16 @@ data class SupabaseAuthUser(
     val email: String?
 )
 
-const val KAVORYN_AUTH_REDIRECT_URI = "com.kavoryn.app://auth-callback"
+val KAVORYN_AUTH_REDIRECT_URI: String =
+    "${BuildConfig.APPLICATION_ID}://auth-callback"
 
-internal fun validatedKavorynAuthRedirect(value: String): String {
+internal fun validatedKavorynAuthRedirect(
+    value: String,
+    expectedApplicationId: String = BuildConfig.APPLICATION_ID
+): String {
     val uri = java.net.URI(value)
     require(
-        uri.scheme == "com.kavoryn.app" &&
+        uri.scheme == expectedApplicationId &&
             uri.host == "auth-callback" &&
             uri.userInfo == null &&
             uri.port == -1 &&

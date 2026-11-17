@@ -4,12 +4,15 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 val supabaseUrl = providers.gradleProperty("SUPABASE_URL")
-    .orElse(providers.environmentVariable("SUPABASE_URL")).getOrElse("")
+    .orElse(providers.environmentVariable("SUPABASE_URL"))
+    .getOrElse("https://nncrkjvldpeisyquulic.supabase.co")
 val supabasePublishableKey = providers.gradleProperty("SUPABASE_PUBLISHABLE_KEY")
-    .orElse(providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY")).getOrElse("")
-// Deliberately unset until the user supplies a verified HTTPS staging API origin.
+    .orElse(providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY"))
+    .getOrElse("sb_publishable_VdMETAWxzxWOjdK9nddPpg_ywxQgVeW")
+// Use the stable Production API origin. Server feature flags still control availability.
 val kavorynApiBaseUrl = providers.gradleProperty("KAVORYN_API_BASE_URL")
-    .orElse(providers.environmentVariable("KAVORYN_API_BASE_URL")).getOrElse("")
+    .orElse(providers.environmentVariable("KAVORYN_API_BASE_URL"))
+    .getOrElse("https://kavoryn.vercel.app")
 fun buildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
@@ -22,10 +25,18 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        resValue("string", "app_name", "Kavoryn")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", buildConfigString(supabaseUrl))
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", buildConfigString(supabasePublishableKey))
         buildConfigField("String", "KAVORYN_API_BASE_URL", buildConfigString(kavorynApiBaseUrl))
+    }
+    buildTypes {
+        debug {
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-test"
+            resValue("string", "app_name", "Kavoryn Test")
+        }
     }
     buildFeatures {
         compose = true

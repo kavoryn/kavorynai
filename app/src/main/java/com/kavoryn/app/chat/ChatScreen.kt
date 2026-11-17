@@ -1,5 +1,8 @@
 package com.kavoryn.app.chat
 
+import com.kavoryn.app.WorkspaceBottomBar
+import com.kavoryn.app.WorkspaceTab
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,7 +30,9 @@ private val ChatCanvas = Color(0xFFF5F7FB)
 fun ChatScreen(
     apiBaseUrl: String,
     accessToken: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenDocuments: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val api = remember(apiBaseUrl) { ChatApi(apiBaseUrl) }
     val scope = rememberCoroutineScope()
@@ -319,6 +324,13 @@ fun ChatScreen(
             "Your messages are sent only to the provider you select after you confirm its processing notice. Provider keys stay on the server.",
             color = Color(0xFF68758A),
             style = MaterialTheme.typography.labelSmall
+        )
+        WorkspaceBottomBar(
+            selected = WorkspaceTab.CHAT,
+            onHomeClick = onBack,
+            onChatClick = {},
+            onDocumentsClick = onOpenDocuments,
+            onSettingsClick = onOpenSettings
         )
     }
 

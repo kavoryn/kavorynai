@@ -47,5 +47,16 @@ jobs:
       - name: Install Android SDK platform
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Run Android unit tests only (no APK release workflow)
+      - name: Run Android unit tests
         run: gradle :app:testDebugUnitTest
+
+      - name: Assemble Kavoryn Test debug APK
+        run: gradle :app:assembleDebug
+
+      - name: Upload Kavoryn Test APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kavoryn-test-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7

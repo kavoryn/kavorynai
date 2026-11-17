@@ -1,17 +1,19 @@
 package com.kavoryn.app.auth
 
+import com.kavoryn.app.BuildConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SupabaseAuthCallbackTest {
+    private val appCallback = KAVORYN_AUTH_REDIRECT_URI
     private val access = "eyJhbGciOiJIUzI1NiJ9.payload.signature"
     private val refresh = "refresh_token_value_123456789"
 
     @Test
     fun acceptsRecoveryCallbackOnlyForConfiguredAppUri() {
         val callback = parseSupabaseAuthCallback(
-            "com.kavoryn.app://auth-callback#access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
+            "$appCallback#access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
             nowEpochSeconds = 1_000
         )
 
@@ -25,7 +27,7 @@ class SupabaseAuthCallbackTest {
     @Test
     fun acceptsSignupConfirmationCallback() {
         val callback = parseSupabaseAuthCallback(
-            "com.kavoryn.app://auth-callback#access_token=$access&refresh_token=$refresh&type=signup&expires_at=5000",
+            "$appCallback#access_token=$access&refresh_token=$refresh&type=signup&expires_at=5000",
             nowEpochSeconds = 1_000
         )
 
@@ -41,7 +43,11 @@ class SupabaseAuthCallbackTest {
             nowEpochSeconds = 1_000
         ))
         assertNull(parseSupabaseAuthCallback(
-            "com.kavoryn.app://other-host#access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
+            "${BuildConfig.APPLICATION_ID}://other-host#access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
+            nowEpochSeconds = 1_000
+        ))
+        assertNull(parseSupabaseAuthCallback(
+            "com.kavoryn.app://auth-callback#access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
             nowEpochSeconds = 1_000
         ))
     }
@@ -49,11 +55,11 @@ class SupabaseAuthCallbackTest {
     @Test
     fun rejectsQueryTokensAndUnsupportedCallbackTypes() {
         assertNull(parseSupabaseAuthCallback(
-            "com.kavoryn.app://auth-callback?access_token=$access&refresh_token=$refresh&type=recovery",
+            "$appCallback?access_token=$access&refresh_token=$refresh&type=recovery",
             nowEpochSeconds = 1_000
         ))
         assertNull(parseSupabaseAuthCallback(
-            "com.kavoryn.app://auth-callback#access_token=$access&refresh_token=$refresh&type=magiclink&expires_in=3600",
+            "$appCallback#access_token=$access&refresh_token=$refresh&type=magiclink&expires_in=3600",
             nowEpochSeconds = 1_000
         ))
     }
@@ -61,19 +67,19 @@ class SupabaseAuthCallbackTest {
     @Test
     fun rejectsMissingDuplicateExpiredOrMalformedTokens() {
         assertNull(parseSupabaseAuthCallback(
-            "com.kavoryn.app://auth-callback#access_token=$access&type=recovery&expires_in=3600",
+            "$appCallback#access_token=$access&type=recovery&expires_in=3600",
             nowEpochSeconds = 1_000
         ))
         assertNull(parseSupabaseAuthCallback(
-            "com.kavoryn.app://auth-callback#access_token=$access&access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
+            "$appCallback#access_token=$access&access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
             nowEpochSeconds = 1_000
         ))
         assertNull(parseSupabaseAuthCallback(
-            "com.kavoryn.app://auth-callback#access_token=$access&refresh_token=$refresh&type=recovery&expires_at=999",
+            "$appCallback#access_token=$access&refresh_token=$refresh&type=recovery&expires_at=999",
             nowEpochSeconds = 1_000
         ))
         assertNull(parseSupabaseAuthCallback(
-            "com.kavoryn.app://auth-callback#access_token=short&refresh_token=$refresh&type=recovery&expires_in=3600",
+            "$appCallback#access_token=short&refresh_token=$refresh&type=recovery&expires_in=3600",
             nowEpochSeconds = 1_000
         ))
     }
@@ -84,10 +90,10 @@ class SupabaseAuthCallbackTest {
         val fragment =
             "access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600"
         val invalidUris = listOf(
-            "com.kavoryn.app://attacker@auth-callback#$fragment",
-            "com.kavoryn.app://auth-callback:443#$fragment",
-            "com.kavoryn.app://auth-callback/unexpected#$fragment",
-            "com.kavoryn.app://auth-callback?next=https://example.com#$fragment"
+            "${BuildConfig.APPLICATION_ID}://attacker@auth-callback#$fragment",
+            "$appCallback:443#$fragment",
+            "$appCallback/unexpected#$fragment",
+            "$appCallback?next=https://example.com#$fragment"
         )
 
         invalidUris.forEach { uri ->
@@ -98,11 +104,11 @@ class SupabaseAuthCallbackTest {
     @Test
     fun rejectsMalformedPercentEncodingAndDuplicateDecodedKeys() {
         assertNull(parseSupabaseAuthCallback(
-            "com.kavoryn.app://auth-callback#access_token=%ZZ&refresh_token=$refresh&type=recovery&expires_in=3600",
+            "$appCallback#access_token=%ZZ&refresh_token=$refresh&type=recovery&expires_in=3600",
             nowEpochSeconds = 1_000
         ))
         assertNull(parseSupabaseAuthCallback(
-            "com.kavoryn.app://auth-callback#access_token=$access&%61ccess_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
+            "$appCallback#access_token=$access&%61ccess_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
             nowEpochSeconds = 1_000
         ))
     }
@@ -110,7 +116,7 @@ class SupabaseAuthCallbackTest {
     @Test
     fun rejectsCallbacksWithAnUnreasonablyLongLifetime() {
         assertNull(parseSupabaseAuthCallback(
-            "com.kavoryn.app://auth-callback#access_token=$access&refresh_token=$refresh&type=recovery&expires_in=999999999",
+            "$appCallback#access_token=$access&refresh_token=$refresh&type=recovery&expires_in=999999999",
             nowEpochSeconds = 1_000
         ))
     }
