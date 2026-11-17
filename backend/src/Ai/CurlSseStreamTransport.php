@@ -79,10 +79,19 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
         $contentType = '';
         $transportFailure = null;
         $callbackFailure = null;
+        $eventFailureCategory = null;
 
-        $dispatch = static function (array $rawEvents) use ($mapper, $onEvent, &$callbackFailure): void {
+        $dispatch = static function (array $rawEvents) use ($mapper, $onEvent, &$callbackFailure, &$eventFailureCategory): void {
             foreach ($rawEvents as $rawEvent) {
-                $mapped = $mapper->map($rawEvent);
+                try {
+                    $mapped = $mapper->map($rawEvent);
+                } catch (ProviderStreamException $error) {
+                    $eventFailureCategory = $error->diagnostics()['category'] ?? 'provider_event_rejected';
+                    throw new ProviderStreamException('The provider event could not be processed.', ['category' => $eventFailureCategory]);
+                } catch (\Throwable) {
+                    $eventFailureCategory = 'event_mapping_failed';
+                    throw new ProviderStreamException('The provider event could not be processed.', ['category' => $eventFailureCategory]);
+                }
                 if ($mapped !== null) {
                     try {
                         $onEvent($mapped);
@@ -136,6 +145,7 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
                     &$responseBytes,
                     &$transportFailure,
                     &$contentType,
+                    &$callbackFailure,
                     &$eventFailureCategory,
                     $decoder,
                     $dispatch,
@@ -157,9 +167,15 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
                     }
 
                     try {
-                        $dispatch($decoder->push($chunk));
+                            $rawEvents = $decoder->push($chunk);
                     } catch (\Throwable) {
-                        $transportFailure = 'event';
+                        $transportFailure = 'decoder';
+                        return 0;
+                    }
+                    try {
+                        $dispatch($rawEvents);
+                    } catch (\Throwable) {
+                        $transportFailure = $callbackFailure !== null ? 'callback' : 'event';
                         return 0;
                     }
                     return $length;
