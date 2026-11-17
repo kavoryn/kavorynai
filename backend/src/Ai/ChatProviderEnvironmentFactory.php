@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Kavoryn\\Ai;
+namespace Kavoryn\Ai;
 
 final class ChatProviderEnvironmentFactory
 {
