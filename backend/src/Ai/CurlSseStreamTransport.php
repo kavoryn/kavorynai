@@ -167,7 +167,7 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
                     }
 
                     try {
-                            $rawEvents = $decoder->push($chunk);
+                        $rawEvents = $decoder->push($chunk);
                     } catch (\Throwable) {
                         $transportFailure = 'decoder';
                         return 0;
