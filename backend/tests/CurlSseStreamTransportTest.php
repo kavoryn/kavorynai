@@ -78,7 +78,7 @@ try {
     // Exact host allowlists only.
 }
 
-$diagnosticError = new \\Kavoryn\\Ai\\ProviderStreamException(
+$diagnosticError = new \Kavoryn\Ai\ProviderStreamException(
     'The AI provider could not complete the response.',
     [
         'category' => 'http_error',
