@@ -79,10 +79,19 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
         $contentType = '';
         $transportFailure = null;
         $callbackFailure = null;
+        $eventFailureCategory = null;
 
-        $dispatch = static function (array $rawEvents) use ($mapper, $onEvent, &$callbackFailure): void {
+        $dispatch = static function (array $rawEvents) use ($mapper, $onEvent, &$callbackFailure, &$eventFailureCategory): void {
             foreach ($rawEvents as $rawEvent) {
-                $mapped = $mapper->map($rawEvent);
+                try {
+                    $mapped = $mapper->map($rawEvent);
+                } catch (ProviderStreamException $error) {
+                    $eventFailureCategory = $error->diagnostics()['category'] ?? 'provider_event_rejected';
+                    throw new ProviderStreamException('The provider event could not be processed.', ['category' => $eventFailureCategory]);
+                } catch (\Throwable) {
+                    $eventFailureCategory = 'event_mapping_failed';
+                    throw new ProviderStreamException('The provider event could not be processed.', ['category' => $eventFailureCategory]);
+                }
                 if ($mapped !== null) {
                     try {
                         $onEvent($mapped);
@@ -136,6 +145,8 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
                     &$responseBytes,
                     &$transportFailure,
                     &$contentType,
+                    &$callbackFailure,
+                    &$eventFailureCategory,
                     $decoder,
                     $dispatch,
                     $isCancelled,
@@ -156,9 +167,15 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
                     }
 
                     try {
-                        $dispatch($decoder->push($chunk));
+                        $rawEvents = $decoder->push($chunk);
                     } catch (\Throwable) {
-                        $transportFailure = 'event';
+                        $transportFailure = 'decoder';
+                        return 0;
+                    }
+                    try {
+                        $dispatch($rawEvents);
+                    } catch (\Throwable) {
+                        $transportFailure = $callbackFailure !== null ? 'callback' : 'event';
                         return 0;
                     }
                     return $length;
@@ -174,7 +191,22 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
             $httpStatus = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
 
             if ($callbackFailure !== null) {
-                throw new ProviderStreamException('The chat stream could not be delivered.');
+                throw new ProviderStreamException('The chat stream could not be delivered.', [
+                    'category' => 'callback_failed',
+                    'curl_errno' => $curlError,
+                ]);
+            }
+            if ($eventFailureCategory !== null) {
+                throw new ProviderStreamException('The provider event could not be processed.', [
+                    'category' => $eventFailureCategory,
+                    'curl_errno' => $curlError,
+                ]);
+            }
+            if ($transportFailure === 'decoder') {
+                throw new ProviderStreamException('The provider SSE data could not be decoded.', [
+                    'category' => 'sse_decode_failed',
+                    'curl_errno' => $curlError,
+                ]);
             }
             if ($transportFailure === 'cancelled') {
                 throw new ProviderStreamException('The chat response was cancelled.', ['category' => 'cancelled']);
