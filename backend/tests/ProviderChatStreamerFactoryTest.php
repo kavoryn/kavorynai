@@ -14,6 +14,7 @@ require_once dirname(__DIR__) . '/src/Ai/OpenAiResponsesRequestFactory.php';
 require_once dirname(__DIR__) . '/src/Ai/GeminiInteractionsRequestFactory.php';
 require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamer.php';
 require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamerFactory.php';
+require_once dirname(__DIR__) . '/src/Ai/ChatProviderEnvironmentFactory.php';
 
 use Kavoryn\Ai\ProviderChatStreamerFactory;
 
@@ -62,6 +63,44 @@ try {
     ProviderChatStreamerFactory::fromEnvironment($unsafe, 'openai');
     throw new RuntimeException('Unsafe provider credentials must be rejected.');
 } catch (InvalidArgumentException) {
+}
+
+$stagingAlias = \Kavoryn\Ai\ChatProviderEnvironmentFactory::fromEnvironment([
+    'OPENAI_API_KE' => 'staging-compatibility-test-key',
+    'OPENAI_CHAT_MODEL' => 'gpt-test-model',
+    'VERCEL_ENV' => 'preview',
+    'VERCEL_GIT_COMMIT_REF' => 'integration/chat-stageb-secret-key-preview',
+]);
+if ($stagingAlias['OPENAI_API_KEY'] !== 'staging-compatibility-test-key') {
+    throw new RuntimeException('The compatibility key must be accepted on the designated staging Preview branch.');
+}
+
+$productionAlias = \Kavoryn\Ai\ChatProviderEnvironmentFactory::fromEnvironment([
+    'OPENAI_API_KE' => 'must-not-be-used-in-production',
+    'VERCEL_ENV' => 'production',
+    'VERCEL_GIT_COMMIT_REF' => 'integration/chat-stageb-secret-key-preview',
+]);
+if ($productionAlias['OPENAI_API_KEY'] !== '') {
+    throw new RuntimeException('The compatibility key must never be used in Production.');
+}
+
+$otherPreviewAlias = \Kavoryn\Ai\ChatProviderEnvironmentFactory::fromEnvironment([
+    'OPENAI_API_KE' => 'must-not-be-used-on-other-branches',
+    'VERCEL_ENV' => 'preview',
+    'VERCEL_GIT_COMMIT_REF' => 'another-preview-branch',
+]);
+if ($otherPreviewAlias['OPENAI_API_KEY'] !== '') {
+    throw new RuntimeException('The compatibility key must not be used on other Preview branches.');
+}
+
+$canonicalWins = \Kavoryn\Ai\ChatProviderEnvironmentFactory::fromEnvironment([
+    'OPENAI_API_KEY' => 'canonical-key',
+    'OPENAI_API_KE' => 'compatibility-key',
+    'VERCEL_ENV' => 'preview',
+    'VERCEL_GIT_COMMIT_REF' => 'integration/chat-stageb-secret-key-preview',
+]);
+if ($canonicalWins['OPENAI_API_KEY'] !== 'canonical-key') {
+    throw new RuntimeException('The canonical OpenAI key must take precedence over the compatibility key.');
 }
 
 echo "Provider chat streamer factory tests passed." . PHP_EOL;

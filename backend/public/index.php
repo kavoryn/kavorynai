@@ -1316,13 +1316,17 @@ if (str_starts_with($path, '/v1/chat/')) {
         require_once dirname(__DIR__) . '/src/Ai/GeminiInteractionsRequestFactory.php';
         require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamer.php';
         require_once dirname(__DIR__) . '/src/Ai/ProviderChatStreamerFactory.php';
+        require_once dirname(__DIR__) . '/src/Ai/ChatProviderEnvironmentFactory.php';
 
-        $providerEnvironment = [
+        $providerEnvironment = \Kavoryn\Ai\ChatProviderEnvironmentFactory::fromEnvironment([
             'OPENAI_API_KEY' => getenv('OPENAI_API_KEY') ?: '',
+            'OPENAI_API_KE' => getenv('OPENAI_API_KE') ?: '',
             'OPENAI_CHAT_MODEL' => getenv('OPENAI_CHAT_MODEL') ?: '',
             'GEMINI_API_KEY' => getenv('GEMINI_API_KEY') ?: '',
             'GEMINI_CHAT_MODEL' => getenv('GEMINI_CHAT_MODEL') ?: '',
-        ];
+            'VERCEL_ENV' => getenv('VERCEL_ENV') ?: '',
+            'VERCEL_GIT_COMMIT_REF' => getenv('VERCEL_GIT_COMMIT_REF') ?: '',
+        ]);
         try {
             $claim = $store->claimTurn(
                 $user->id,
