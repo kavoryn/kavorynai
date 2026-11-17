@@ -78,4 +78,25 @@ try {
     // Exact host allowlists only.
 }
 
+$diagnosticError = new \\Kavoryn\\Ai\\ProviderStreamException(
+    'The AI provider could not complete the response.',
+    [
+        'category' => 'http_error',
+        'http_status' => 401,
+        'curl_errno' => 0,
+        'transport_reason' => 'content_type',
+        'api_key' => 'must-never-be-logged',
+    ],
+);
+$diagnostics = $diagnosticError->diagnostics();
+transportExpect(
+    $diagnostics === [
+        'category' => 'http_error',
+        'http_status' => 401,
+        'curl_errno' => 0,
+        'transport_reason' => 'content_type',
+    ],
+    'Provider diagnostics must expose only allow-listed safe fields.',
+);
+
 echo "cURL SSE transport policy tests passed." . PHP_EOL;
