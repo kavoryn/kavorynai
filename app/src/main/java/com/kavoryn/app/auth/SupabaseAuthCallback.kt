@@ -1,5 +1,6 @@
 package com.kavoryn.app.auth
 
+import com.kavoryn.app.BuildConfig
 import java.net.URI
 import java.net.URLDecoder
 
@@ -17,13 +18,14 @@ data class SupabaseAuthCallback(
  */
 internal fun parseSupabaseAuthCallback(
     callbackUri: String?,
-    nowEpochSeconds: Long = System.currentTimeMillis() / 1000
+    nowEpochSeconds: Long = System.currentTimeMillis() / 1000,
+    expectedApplicationId: String = BuildConfig.APPLICATION_ID
 ): SupabaseAuthCallback? {
     if (callbackUri.isNullOrBlank() || callbackUri.length > 16_384) return null
 
     return try {
         val uri = URI(callbackUri)
-        if (uri.scheme != "com.kavoryn.app" ||
+        if (uri.scheme != expectedApplicationId ||
             uri.host != "auth-callback" ||
             uri.userInfo != null ||
             uri.port != -1 ||
