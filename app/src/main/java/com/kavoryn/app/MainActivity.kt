@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { HOME, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD, RESET_PASSWORD, SETTINGS }
+private enum class Screen { HOME, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD, RESET_PASSWORD, SETTINGS, DOCUMENTS }
 
 @Composable
 private fun DocumentFlow(authCallbackUri: String?, onAuthCallbackHandled: () -> Unit) {
@@ -258,6 +258,7 @@ private fun DocumentFlow(authCallbackUri: String?, onAuthCallbackHandled: () -> 
             accountError = authError,
             authLoading = authLoading,
             onOpenSignIn = { openChatAfterAuth = false; authError = null; authNotice = null; screen = Screen.AUTH },
+            onOpenHome = { screen = Screen.HOME },
             onOpenChat = {
                 if (authSession == null) {
                     openChatAfterAuth = true
@@ -281,6 +282,7 @@ private fun DocumentFlow(authCallbackUri: String?, onAuthCallbackHandled: () -> 
                 }
             },
             onOpenSettings = { screen = Screen.SETTINGS },
+            onOpenDocuments = { screen = Screen.DOCUMENTS },
             selectedLanguage = selectedLanguage,
             onLanguageChange = { selectedLanguage = it },
             onChoose = {
@@ -417,7 +419,7 @@ private fun DocumentFlow(authCallbackUri: String?, onAuthCallbackHandled: () -> 
                     apiBaseUrl = BuildConfig.KAVORYN_API_BASE_URL,
                     accessToken = session.accessToken,
                     onBack = { screen = Screen.HOME },
-                    onOpenDocuments = { screen = Screen.HOME },
+                    onOpenDocuments = { screen = Screen.DOCUMENTS },
                     onOpenSettings = { screen = Screen.SETTINGS }
                 )
             } else {
@@ -459,7 +461,35 @@ private fun DocumentFlow(authCallbackUri: String?, onAuthCallbackHandled: () -> 
                     screen = Screen.AUTH
                 } else screen = Screen.CHAT
             },
-            onOpenDocuments = { screen = Screen.HOME }
+            onOpenDocuments = { screen = Screen.DOCUMENTS }
+        )
+        Screen.DOCUMENTS -> DocumentsWorkspaceScreen(
+            selectedDocumentNames = selectedDocuments.map { it.displayName },
+            error = pickerError,
+            onOpenHome = { screen = Screen.HOME },
+            onOpenChat = {
+                if (authSession == null) {
+                    openChatAfterAuth = true
+                    authError = null
+                    authNotice = null
+                    screen = Screen.AUTH
+                } else screen = Screen.CHAT
+            },
+            onOpenSettings = { screen = Screen.SETTINGS },
+            onScanWithCamera = {
+                pickerError = null
+                try {
+                    val output = createCameraOutput(context)
+                    pendingCamera = output
+                    camera.launch(output.uri)
+                } catch (_: Exception) {
+                    pickerError = "Camera could not be started. Please choose an image instead."
+                }
+            },
+            onChooseFile = {
+                pickerError = null
+                picker.launch(arrayOf("application/pdf", "image/jpeg", "image/png", "image/webp"))
+            }
         )
         Screen.REVIEW -> ReviewScreen(
             documents = selectedDocuments,
