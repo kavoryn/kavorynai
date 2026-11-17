@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { HOME, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD, RESET_PASSWORD }
+private enum class Screen { HOME, CHAT, REVIEW, LOCAL_READY, AUTH, UPLOAD, RESET_PASSWORD, SETTINGS }
 
 @Composable
 private fun DocumentFlow(authCallbackUri: String?, onAuthCallbackHandled: () -> Unit) {
@@ -280,6 +280,7 @@ private fun DocumentFlow(authCallbackUri: String?, onAuthCallbackHandled: () -> 
                     authError = null
                 }
             },
+            onOpenSettings = { screen = Screen.SETTINGS },
             selectedLanguage = selectedLanguage,
             onLanguageChange = { selectedLanguage = it },
             onChoose = {
@@ -415,12 +416,51 @@ private fun DocumentFlow(authCallbackUri: String?, onAuthCallbackHandled: () -> 
                 ChatScreen(
                     apiBaseUrl = BuildConfig.KAVORYN_API_BASE_URL,
                     accessToken = session.accessToken,
-                    onBack = { screen = Screen.HOME }
+                    onBack = { screen = Screen.HOME },
+                    onOpenDocuments = { screen = Screen.HOME },
+                    onOpenSettings = { screen = Screen.SETTINGS }
                 )
             } else {
                 LocalReadyScreen(false) { screen = Screen.HOME }
             }
         }
+        Screen.SETTINGS -> KavorynSettingsScreen(
+            accountEmail = authSession?.email,
+            authConfigured = authConfigured,
+            accountError = authError,
+            authLoading = authLoading,
+            selectedLanguage = selectedLanguage,
+            onLanguageChange = { selectedLanguage = it },
+            onOpenSignIn = {
+                openChatAfterAuth = false
+                authError = null
+                authNotice = null
+                screen = Screen.AUTH
+            },
+            onSignOut = {
+                val session = authSession
+                authLoading = true
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        try { if (session != null) authApi.signOut(session.accessToken) }
+                        catch (_: Exception) { }
+                        authStore.clear()
+                    }
+                    authSession = null
+                    authLoading = false
+                    authError = null
+                }
+            },
+            onOpenChat = {
+                if (authSession == null) {
+                    openChatAfterAuth = true
+                    authError = null
+                    authNotice = null
+                    screen = Screen.AUTH
+                } else screen = Screen.CHAT
+            },
+            onOpenDocuments = { screen = Screen.HOME }
+        )
         Screen.REVIEW -> ReviewScreen(
             documents = selectedDocuments,
             error = pickerError,
@@ -496,92 +536,28 @@ private fun HomeScreen(
     onOpenSignIn: () -> Unit,
     onOpenChat: () -> Unit,
     onSignOut: () -> Unit,
+    onOpenSettings: () -> Unit,
     selectedLanguage: OcrLanguage,
     onLanguageChange: (OcrLanguage) -> Unit,
     onChoose: () -> Unit,
     onCamera: () -> Unit
 ) {
-    var languageMenuExpanded by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Text("Kavoryn", style = MaterialTheme.typography.headlineLarge)
-        Text("Read, understand and listen to documents in your language.", style = MaterialTheme.typography.bodyLarge)
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Read a document", style = MaterialTheme.typography.titleLarge)
-                Text("Scan a paper document with your camera or choose an existing PDF or image.")
-                Text("Output language", style = MaterialTheme.typography.labelLarge)
-                Box {
-                    OutlinedButton(
-                        onClick = { languageMenuExpanded = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text(selectedLanguage.displayName) }
-                    DropdownMenu(
-                        expanded = languageMenuExpanded,
-                        onDismissRequest = { languageMenuExpanded = false }
-                    ) {
-                        OcrLanguage.entries.forEach { language ->
-                            DropdownMenuItem(
-                                text = { Text(language.displayName) },
-                                onClick = {
-                                    onLanguageChange(language)
-                                    languageMenuExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-                Button(
-                    onClick = onCamera,
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
-                        .semantics { contentDescription = "Take a document photo with the camera" }
-                ) { Text("Scan with camera") }
-                OutlinedButton(onClick = onChoose, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                    Text("Choose PDF or image")
-                }
-                if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
-            }
-        }
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Account", style = MaterialTheme.typography.titleMedium)
-                if (accountError != null) {
-                    Text(accountError, color = MaterialTheme.colorScheme.error)
-                }
-                if (signedInEmail != null) {
-                    Text("Signed in as $signedInEmail")
-                    OutlinedButton(
-                        onClick = onSignOut,
-                        enabled = !authLoading,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (authLoading) "Signing out…" else "Sign out")
-                    }
-                } else {
-                    Text(if (authConfigured) "Sign in to access your private workspace."
-                        else "Sign-in is unavailable until Supabase build configuration is provided.")
-                    OutlinedButton(onClick = onOpenSignIn, enabled = authConfigured && !authLoading,
-                        modifier = Modifier.fillMaxWidth()) { Text("Sign in") }
-                }
-            }
-        }
-        ModeCard("Describe what I see", "Coming in Stage C")
-        ModeCard("Read money", "Coming in Stage C")
-        Button(onClick = onOpenChat, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-            Text("Open Kavoryn Chat")
-        }
-        Spacer(Modifier.weight(1f))
-        Text("Privacy first: camera scans are saved temporarily in app cache. Nothing is uploaded in this build.")
-    }
-}
-
-@Composable
-private fun ModeCard(title: String, subtitle: String) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium)
-        }
-    }
+    DashboardScreen(
+        error = error,
+        signedInEmail = signedInEmail,
+        authConfigured = authConfigured,
+        accountError = accountError,
+        authLoading = authLoading,
+        onOpenSignIn = onOpenSignIn,
+        onOpenChat = onOpenChat,
+        onOpenHistory = onOpenChat,
+        onSignOut = onSignOut,
+        onOpenSettings = onOpenSettings,
+        selectedLanguage = selectedLanguage,
+        onLanguageChange = onLanguageChange,
+        onChoose = onChoose,
+        onCamera = onCamera
+    )
 }
 
 @Composable
