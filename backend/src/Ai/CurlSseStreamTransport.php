@@ -66,12 +66,12 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
         $this->assertSafeHeaders($headers);
 
         if (!function_exists('curl_init')) {
-            throw new ProviderStreamException('Secure streaming is unavailable on this server.');
+            throw new ProviderStreamException('Secure streaming is unavailable on this server.', ['category' => 'curl_unavailable']);
         }
 
         $handle = curl_init($url);
         if ($handle === false) {
-            throw new ProviderStreamException('The AI provider connection could not be started.');
+            throw new ProviderStreamException('The AI provider connection could not be started.', ['category' => 'curl_init_failed']);
         }
 
         $decoder = new SseEventDecoder($this->maxEventBytes);
@@ -88,7 +88,7 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
                         $onEvent($mapped);
                     } catch (\Throwable $error) {
                         $callbackFailure = $error;
-                        throw new ProviderStreamException('The chat stream could not be delivered.');
+                        throw new ProviderStreamException('The chat stream could not be delivered.', ['category' => 'callback_failed']);
                     }
                 }
             }
@@ -166,7 +166,7 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
             ];
 
             if (!curl_setopt_array($handle, $options)) {
-                throw new ProviderStreamException('The AI provider connection could not be configured.');
+                throw new ProviderStreamException('The AI provider connection could not be configured.', ['category' => 'curl_setup_failed']);
             }
 
             $success = curl_exec($handle);
@@ -177,19 +177,26 @@ final class CurlSseStreamTransport implements ProviderStreamTransport
                 throw new ProviderStreamException('The chat stream could not be delivered.');
             }
             if ($transportFailure === 'cancelled') {
-                throw new ProviderStreamException('The chat response was cancelled.');
+                throw new ProviderStreamException('The chat response was cancelled.', ['category' => 'cancelled']);
             }
             if ($transportFailure === 'limit') {
-                throw new ProviderStreamException('The AI provider response exceeded the allowed size.');
+                throw new ProviderStreamException('The AI provider response exceeded the allowed size.', ['category' => 'response_too_large']);
+            }
+            if ($httpStatus === 0 && ($success === false || $curlError !== 0)) {
+                throw new ProviderStreamException('The AI provider stream was interrupted.', [
+                    'category' => 'stream_interrupted',
+                    'transport_reason' => $transportFailure ?? 'curl_error',
+                    'curl_errno' => $curlError,
+                ]);
             }
             if ($httpStatus < 200 || $httpStatus >= 300) {
-                throw new ProviderStreamException('The AI provider could not complete the response.');
+                throw new ProviderStreamException('The AI provider could not complete the response.', ['category' => 'http_error', 'http_status' => $httpStatus]);
             }
             if ($transportFailure !== null || $success === false || $curlError !== 0) {
-                throw new ProviderStreamException('The AI provider stream was interrupted.');
+                throw new ProviderStreamException('The AI provider stream was interrupted.', ['category' => 'stream_interrupted', 'transport_reason' => $transportFailure ?? 'curl_error', 'curl_errno' => $curlError]);
             }
             if (!str_starts_with($contentType, 'text/event-stream')) {
-                throw new ProviderStreamException('The AI provider returned an unsupported response.');
+                throw new ProviderStreamException('The AI provider returned an unsupported response.', ['category' => 'unsupported_content_type']);
             }
 
             $dispatch($decoder->finish());
