@@ -43,7 +43,11 @@ class SupabaseAuthCallbackTest {
             nowEpochSeconds = 1_000
         ))
         assertNull(parseSupabaseAuthCallback(
-            "com.kavoryn.app://other-host#access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
+            "${BuildConfig.APPLICATION_ID}://other-host#access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
+            nowEpochSeconds = 1_000
+        ))
+        assertNull(parseSupabaseAuthCallback(
+            "com.kavoryn.app://auth-callback#access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600",
             nowEpochSeconds = 1_000
         ))
     }
@@ -86,7 +90,7 @@ class SupabaseAuthCallbackTest {
         val fragment =
             "access_token=$access&refresh_token=$refresh&type=recovery&expires_in=3600"
         val invalidUris = listOf(
-            "com.kavoryn.app://attacker@auth-callback#$fragment",
+            "${BuildConfig.APPLICATION_ID}://attacker@auth-callback#$fragment",
             "$appCallback:443#$fragment",
             "$appCallback/unexpected#$fragment",
             "$appCallback?next=https://example.com#$fragment"
