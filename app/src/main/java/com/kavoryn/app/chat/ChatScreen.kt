@@ -111,7 +111,10 @@ fun ChatScreen(
                 history = listOf(created) + history.filterNot { it.id == created.id }
                 val firstMessage = pendingFirstMessage
                 pendingFirstMessage = null
-                if (!firstMessage.isNullOrBlank()) sendMessageTo(created, firstMessage)
+                if (!firstMessage.isNullOrBlank()) {
+                    loading = false
+                    sendMessageTo(created, firstMessage)
+                }
             } catch (failure: Exception) {
                 chatUnavailable = failure is ChatApiException && failure.code == "chat_disabled"
                 error = failure.message ?: "The chat could not be created."
@@ -245,7 +248,11 @@ fun ChatScreen(
 
     if (showConsent) {
         AlertDialog(
-            onDismissRequest = { showConsent = false },
+            onDismissRequest = {
+                showConsent = false
+                draft = pendingFirstMessage.orEmpty()
+                pendingFirstMessage = null
+            },
             title = { Text("Before we start") },
             text = {
                 Text(
@@ -256,7 +263,7 @@ fun ChatScreen(
                 TextButton(onClick = ::confirmProviderConsent) { Text("Agree and send") }
             },
             dismissButton = {
-                TextButton(onClick = { showConsent = false }) { Text("Cancel") }
+                TextButton(onClick = { showConsent = false; draft = pendingFirstMessage.orEmpty(); pendingFirstMessage = null }) { Text("Cancel") }
             }
         )
     }
