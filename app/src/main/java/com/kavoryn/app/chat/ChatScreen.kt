@@ -36,6 +36,7 @@ fun ChatScreen(
     var loading by remember { mutableStateOf(false) }
     var streaming by remember { mutableStateOf(false) }
     var showConsent by remember { mutableStateOf(false) }
+    var pendingFirstMessage by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var chatUnavailable by remember { mutableStateOf(false) }
 
@@ -55,37 +56,8 @@ fun ChatScreen(
         }
     }
 
-    fun beginNewChat() {
-        error = null
-        showConsent = true
-    }
-
-    fun confirmProviderConsent() {
-        showConsent = false
-        loading = true
-        error = null
-        scope.launch {
-            try {
-                withContext(Dispatchers.IO) { api.recordProviderConsent(provider, accessToken) }
-                val created = withContext(Dispatchers.IO) {
-                    api.createConversation(provider, language, accessToken)
-                }
-                conversation = created
-                history = listOf(created) + history.filterNot { it.id == created.id }
-            } catch (failure: Exception) {
-                chatUnavailable = failure is ChatApiException && failure.code == "chat_disabled"
-                error = failure.message ?: "The chat could not be created."
-            } finally {
-                loading = false
-            }
-        }
-    }
-
-    fun sendMessage() {
-        val current = conversation ?: return
-        val message = draft.trim()
-        if (message.isEmpty() || streaming || loading) return
-        draft = ""
+    fun sendMessageTo(current: ChatConversation, message: String) {
+        if (message.isBlank() || streaming || loading) return
         val userMessage = ChatMessage("local-user-${System.nanoTime()}", "user", message, "completed")
         val assistantMessage = ChatMessage("local-assistant-${System.nanoTime()}", "assistant", "", "streaming")
         conversation = current.copy(messages = current.messages + userMessage + assistantMessage)
@@ -97,33 +69,71 @@ fun ChatScreen(
                     api.streamMessage(current.id, message, accessToken) { delta ->
                         scope.launch {
                             val active = conversation ?: return@launch
-                            val updated = active.messages.toMutableList()
-                            val last = updated.lastOrNull()
-                            if (last?.role == "assistant" && last.status == "streaming") {
-                                updated[updated.lastIndex] = last.copy(content = last.content + delta)
-                                conversation = active.copy(messages = updated)
+                            if (active.id == current.id) {
+                                val updated = active.messages.toMutableList()
+                                val index = updated.indexOfFirst { it.id == assistantMessage.id && it.status == "streaming" }
+                                if (index >= 0) {
+                                    val previous = updated[index]
+                                    updated[index] = previous.copy(content = previous.content + delta)
+                                    conversation = active.copy(messages = updated)
+                                }
                             }
                         }
                     }
                 }
-                conversation?.let { active ->
-                    val updated = active.messages.map {
-                        if (it.role == "assistant" && it.status == "streaming") it.copy(status = "completed") else it
-                    }
-                    conversation = active.copy(messages = updated)
+                conversation?.takeIf { it.id == current.id }?.let { active ->
+                    conversation = active.copy(messages = active.messages.map {
+                        if (it.id == assistantMessage.id && it.status == "streaming") it.copy(status = "completed") else it
+                    })
                 }
             } catch (failure: Exception) {
                 error = failure.message ?: "The AI response could not be completed."
-                conversation?.let { active ->
-                    val updated = active.messages.map {
-                        if (it.role == "assistant" && it.status == "streaming") it.copy(status = "failed") else it
-                    }
-                    conversation = active.copy(messages = updated)
+                conversation?.takeIf { it.id == current.id }?.let { active ->
+                    conversation = active.copy(messages = active.messages.map {
+                        if (it.id == assistantMessage.id && it.status == "streaming") it.copy(status = "failed") else it
+                    })
                 }
             } finally {
                 streaming = false
             }
         }
+    }
+
+    fun confirmProviderConsent() {
+        showConsent = false
+        loading = true
+        error = null
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) { api.recordProviderConsent(provider, accessToken) }
+                val created = withContext(Dispatchers.IO) { api.createConversation(provider, language, accessToken) }
+                conversation = created
+                history = listOf(created) + history.filterNot { it.id == created.id }
+                val firstMessage = pendingFirstMessage
+                pendingFirstMessage = null
+                if (!firstMessage.isNullOrBlank()) sendMessageTo(created, firstMessage)
+            } catch (failure: Exception) {
+                chatUnavailable = failure is ChatApiException && failure.code == "chat_disabled"
+                error = failure.message ?: "The chat could not be created."
+            } finally {
+                loading = false
+            }
+        }
+    }
+
+    fun sendMessage() {
+        val message = draft.trim()
+        if (message.isEmpty() || streaming || loading) return
+        val current = conversation
+        if (current == null) {
+            pendingFirstMessage = message
+            draft = ""
+            error = null
+            showConsent = true
+            return
+        }
+        draft = ""
+        sendMessageTo(current, message)
     }
 
     Column(
@@ -135,32 +145,25 @@ fun ChatScreen(
             Spacer(Modifier.weight(1f))
             Text("KAVORYN CHAT", color = ChatGold, fontWeight = FontWeight.Bold)
         }
-        Text("Your AI assistant", style = MaterialTheme.typography.headlineSmall, color = ChatInk, fontWeight = FontWeight.Bold)
+        Text("Kavoryn AI", style = MaterialTheme.typography.headlineSmall, color = ChatInk, fontWeight = FontWeight.Bold)
         if (conversation == null) {
-            Text("Choose an AI provider for a new conversation. Your choice is saved with that conversation.", color = Color(0xFF68758A))
-            Text("AI provider", fontWeight = FontWeight.SemiBold, color = ChatInk)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ChatProvider.entries.forEach { option ->
-                    FilterChip(
-                        selected = provider == option,
-                        onClick = { provider = option },
-                        label = { Text(option.label) },
-                        enabled = !loading
-                    )
-                }
+            Text("How can I help you today?", color = ChatInk, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Ask anything. Kavoryn is ready to help.", color = Color(0xFF68758A))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { if (it.codePointCount(0, it.length) <= 24_000) draft = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Message Kavoryn…") },
+                    enabled = !loading && !chatUnavailable,
+                    maxLines = 4
+                )
+                Button(
+                    onClick = ::sendMessage,
+                    enabled = draft.isNotBlank() && !loading && !chatUnavailable && apiBaseUrl.startsWith("https://") && accessToken.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = ChatGold, contentColor = ChatInk)
+                ) { Text("Send") }
             }
-            Text("Response language", fontWeight = FontWeight.SemiBold, color = ChatInk)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("en" to "English", "ha" to "Hausa", "ar" to "Arabic", "fr" to "French").forEach { (code, label) ->
-                    FilterChip(selected = language == code, onClick = { language = code }, label = { Text(label) })
-                }
-            }
-            Button(
-                onClick = ::beginNewChat,
-                enabled = !loading && !chatUnavailable && apiBaseUrl.startsWith("https://") && accessToken.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = ChatGold, contentColor = ChatInk),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (loading) "Please wait…" else "Start a new conversation") }
 
             if (chatUnavailable) {
                 Text("Chat is currently disabled by the server release flag. The app will not bypass this restriction.", color = Color(0xFF68758A), style = MaterialTheme.typography.bodySmall)
@@ -181,7 +184,7 @@ fun ChatScreen(
                         }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
                             Column(Modifier.fillMaxWidth().padding(14.dp)) {
                                 Text(item.title.ifBlank { "New conversation" }, color = ChatInk, fontWeight = FontWeight.SemiBold)
-                                Text("${item.provider.label} • ${item.language.uppercase()}", color = Color(0xFF68758A), style = MaterialTheme.typography.bodySmall)
+                                Text("Open conversation", color = Color(0xFF68758A), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -190,7 +193,7 @@ fun ChatScreen(
         } else {
             val active = conversation!!
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${active.provider.label} • ${active.language.uppercase()}", color = Color(0xFF68758A))
+                Text(active.title.ifBlank { "New conversation" }, color = Color(0xFF68758A))
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = { conversation = null; error = null }) { Text("Conversations") }
             }
@@ -234,7 +237,7 @@ fun ChatScreen(
             Text(error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
         Text(
-            "Your messages are sent only to the provider you select after you confirm its processing notice. Provider keys stay on the server.",
+            "Your message is processed by Kavoryn AI after you approve the processing notice. Provider credentials stay on the server.",
             color = Color(0xFF68758A),
             style = MaterialTheme.typography.labelSmall
         )
@@ -243,14 +246,14 @@ fun ChatScreen(
     if (showConsent) {
         AlertDialog(
             onDismissRequest = { showConsent = false },
-            title = { Text("Confirm AI provider") },
+            title = { Text("Before we start") },
             text = {
                 Text(
-                    "You selected ${provider.label}. Your chat messages will be sent to this provider to generate replies and stored in your private Kavoryn chat history. This is separate from document-processing consent. Do you want to continue?"
+                    "Your message will be sent to Kavoryn AI processing services to generate a reply and may be stored in your private chat history. This is separate from document-processing consent. Do you agree to continue?"
                 )
             },
             confirmButton = {
-                TextButton(onClick = ::confirmProviderConsent) { Text("I agree and continue") }
+                TextButton(onClick = ::confirmProviderConsent) { Text("Agree and send") }
             },
             dismissButton = {
                 TextButton(onClick = { showConsent = false }) { Text("Cancel") }
