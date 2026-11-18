@@ -197,7 +197,7 @@ class ChatApi(
         val messages = parseMessages(json.optJSONArray("messages") ?: JSONArray())
         return ChatConversation(
             id = json.getString("id"),
-            title = json.optString("title", "New conversation"),
+            title = json.optString("title").takeUnless { it.isBlank() || it.equals("null", ignoreCase = true) } ?: "New conversation",
             provider = provider,
             language = json.optString("language", "en"),
             messages = messages
