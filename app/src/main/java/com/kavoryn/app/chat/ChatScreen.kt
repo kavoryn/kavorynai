@@ -145,6 +145,8 @@ fun ChatScreen(
             } catch (failure: Exception) {
                 chatUnavailable = failure is ChatApiException && failure.code == "chat_disabled"
                 error = failure.message ?: "The chat could not be created."
+                pendingFirstMessage?.let { draft = it }
+                pendingFirstMessage = null
             } finally {
                 loading = false
             }
